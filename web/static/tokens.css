@@ -1,0 +1,117 @@
+/* Design tokens — encodes DESIGN_SYSTEM.md §2 (color), §4 (spacing/radius),
+   §6 (motion). Real, final values. Light is :root, dark is .dark. */
+
+/* §3 Self-hosted variable fonts. The full latin variable woff2 files are
+   committed under web/static/fonts (source: fontsource CDN, latin-wght-normal).
+   font-display: swap avoids invisible text during load. Subsetting to the used
+   weight ranges is deferred to M19. */
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/static/fonts/newsreader-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/static/fonts/inter-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/static/fonts/geist-mono-var.woff2") format("woff2");
+}
+
+:root {
+  /* §2 Color — Light */
+  --bg: #FBFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F4F1EA;
+  --text: #1A1A18;
+  --text-muted: #6B6760;
+  --text-subtle: #94908A;
+  --primary: #B23A2E;
+  --primary-hover: #992F25;
+  --primary-contrast: #FFFFFF;
+  --accent: #C2683C;
+  --border: #E6E1D7;
+  --border-strong: #D2CCBE;
+  --ring: #B23A2E;
+  --success: #2F7D5B;
+  --success-bg: #E7F1EA;
+  --warning: #A9701A;
+  --warning-bg: #F6EEDD;
+  --error: #B4271F;
+  --error-bg: #F7E7E5;
+
+  /* §4 Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  /* §4 Containers */
+  --container-prose: 720px;
+  --container-content: 1080px;
+  --container-wide: 1280px;
+
+  /* §4 Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* §6 Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}
+
+.dark {
+  /* §2 Color — Dark */
+  --bg: #0F0F10;
+  --surface: #17171A;
+  --surface-2: #202024;
+  --text: #F4F2EC;
+  --text-muted: #A7A29A;
+  --text-subtle: #6E6A63;
+  --primary: #E0795F;
+  --primary-hover: #EC8B72;
+  --primary-contrast: #1A1110;
+  --accent: #E0A06A;
+  --border: #2A2A2E;
+  --border-strong: #3A3A40;
+  --ring: #E0795F;
+  --success: #5FB98C;
+  --success-bg: #16271F;
+  --warning: #D6A24C;
+  --warning-bg: #2A2113;
+  --error: #E8675C;
+  --error-bg: #2A1513;
+}
+
+/* §6 Motion rule: reduced motion disables transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

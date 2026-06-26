@@ -1,2 +1,3 @@
-# GoPress
-Analog on Wordpress written in TypeScript Stack which is lighter, simpler, faster and more secure. 
+# CMStack-Go
+
+Analog of WordPress written in a Go stack — lighter, simpler, faster, and more secure. Server-rendered.

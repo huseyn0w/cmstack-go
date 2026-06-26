@@ -1,0 +1,18 @@
+# Claude Code personal permissions (do not commit)
+.claude/settings.local.json
+
+# Go build artifacts
+/cmstack-go
+*.exe
+*.test
+*.out
+coverage.out
+
+# Local env
+.env
+
+# Tailwind standalone binary (downloaded, not vendored)
+/bin/
+
+# Generated CSS
+/web/static/app.css

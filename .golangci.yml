@@ -1,0 +1,42 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - gocritic
+    - misspell
+    - bodyclose
+    - unconvert
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+  exclusions:
+    rules:
+      # Test files may use simpler patterns.
+      - path: _test\.go
+        linters:
+          - errcheck
+      # Generated sqlc code is exempt.
+      - path: internal/platform/db/sqlcgen/
+        linters:
+          - revive
+          - staticcheck
+          - gocritic
+          - unused
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/huseyn0w/cmstack-go
