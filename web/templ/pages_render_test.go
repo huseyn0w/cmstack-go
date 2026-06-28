@@ -38,6 +38,31 @@ func TestPageList_Empty(t *testing.T) {
 	mustContain(t, html, `data-testid="pages-empty"`, "No pages yet")
 }
 
+// TestPageList_BulkSelectionUI asserts the pages list has parity with the §5 bulk
+// selection UI (select-all, per-row checkbox, action bar, destructive modal).
+func TestPageList_BulkSelectionUI(t *testing.T) {
+	v := webtempl.PageListView{
+		Rows: []webtempl.PageRow{
+			{ID: "p1", Title: "About", Slug: "about", Status: webtempl.PostStatusPublished, Template: "default", Date: "Jan 1, 2026", EditURL: "/admin/pages/p1/edit"},
+		},
+		Tabs:      []webtempl.StatusTab{{Label: "All", Active: true, Href: "/admin/pages"}},
+		Pager:     webtempl.Pagination{Page: 1, PageSize: 20, Total: 1},
+		NewURL:    "/admin/pages/new",
+		BulkURL:   "/admin/pages/bulk",
+		CSRFToken: "tok",
+	}
+	html := renderStr(t, webtempl.PageList(v))
+	mustContain(
+		t, html,
+		`data-testid="bulk-select-all"`,
+		`data-testid="bulk-select-p1"`,
+		`data-testid="bulk-bar"`,
+		`data-testid="bulk-action-trash"`,
+		`data-testid="bulk-confirm-modal"`,
+		`action="/admin/pages/bulk"`,
+	)
+}
+
 func TestPageEditor_ParentPickerAndTemplateSelector(t *testing.T) {
 	v := webtempl.PageFormView{
 		IsNew:    true,

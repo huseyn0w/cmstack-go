@@ -26,6 +26,8 @@ type ServiceListView struct {
 	Tabs      []StatusTab
 	Pager     Pagination
 	NewURL    string
+	BulkURL   string
+	Summary   BulkSummary
 	CSRFToken string
 }
 
@@ -66,6 +68,8 @@ type ServiceTrashView struct {
 	Shell     AdminShell
 	Rows      []TrashRow
 	Pager     Pagination
+	BulkURL   string
+	Summary   BulkSummary
 	CSRFToken string
 }
 

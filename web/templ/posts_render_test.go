@@ -63,6 +63,55 @@ func TestPostList_EmptyState(t *testing.T) {
 	mustContain(t, html, `data-testid="posts-empty"`, "No posts yet")
 }
 
+// TestPostList_BulkSelectionUI asserts the §5 bulk-selection affordances render:
+// the leading select-all + per-row checkboxes, the action bar with an aria-live
+// count, a destructive confirm modal, and a clear-selection control.
+func TestPostList_BulkSelectionUI(t *testing.T) {
+	v := webtempl.PostListView{
+		Rows: []webtempl.PostRow{
+			{ID: "p1", Title: "First", Slug: "first", Status: webtempl.PostStatusPublished, Date: "Jan 1, 2026", EditURL: "/admin/posts/p1/edit"},
+		},
+		Tabs:      []webtempl.StatusTab{{Label: "All", Active: true}},
+		Pager:     webtempl.Pagination{Page: 1, PageSize: 20, Total: 1},
+		NewURL:    "/admin/posts/new",
+		BulkURL:   "/admin/posts/bulk",
+		CSRFToken: "tok",
+	}
+	html := renderStr(t, webtempl.PostList(v))
+	mustContain(
+		t, html,
+		`data-testid="bulk-select-all"`,
+		`data-testid="bulk-select-p1"`,
+		`data-testid="bulk-bar"`,
+		`data-testid="bulk-count"`,
+		`aria-live="polite"`,
+		`data-testid="bulk-action-trash"`,   // destructive
+		`data-testid="bulk-action-publish"`, // non-destructive
+		`data-testid="bulk-confirm-modal"`,  // §5 destructive confirm
+		`aria-modal="true"`,
+		`data-testid="bulk-clear"`,
+		`action="/admin/posts/bulk"`,
+	)
+}
+
+// TestPostList_BulkSummaryBanner asserts the post-redirect outcome is announced
+// via an aria-live status region.
+func TestPostList_BulkSummaryBanner(t *testing.T) {
+	v := webtempl.PostListView{
+		Tabs:    []webtempl.StatusTab{{Label: "All", Active: true}},
+		NewURL:  "/admin/posts/new",
+		Summary: webtempl.BulkSummary{Present: true, Action: "trash", Applied: 2, Skipped: 1},
+	}
+	html := renderStr(t, webtempl.PostList(v))
+	mustContain(
+		t, html,
+		`data-testid="bulk-summary"`,
+		`role="status"`,
+		"2 moved to trash",
+		"1 skipped (not permitted)",
+	)
+}
+
 func TestPostEditor_ToolbarA11y(t *testing.T) {
 	v := webtempl.PostFormView{
 		IsNew:       true,

@@ -16,3 +16,14 @@ func jsString(s string) string {
 	}
 	return string(b)
 }
+
+// jsStringArray returns ss as a safe JavaScript array literal of string literals
+// for embedding inside an Alpine x-data expression attribute. Each element is
+// JSON-encoded; templ additionally HTML-attribute-escapes the whole value.
+func jsStringArray(ss []string) string {
+	b, err := json.Marshal(ss)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}

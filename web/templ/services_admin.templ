@@ -28,38 +28,44 @@ templ ServiceList(v ServiceListView) {
 					>{ tab.Label }</a>
 				}
 			</div>
+			@bulkSummaryBanner(v.Summary)
 			if len(v.Rows) == 0 {
 				@servicesEmpty(v.NewURL)
 			} else {
-				<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
-					<div class="overflow-x-auto">
-						<table class="w-full text-left" data-testid="services-table">
-							<thead class="bg-surface-2">
-								<tr class="text-subtle">
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Price</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Updated</th>
-									<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								for _, row := range v.Rows {
-									<tr class="border-t border-border hover:bg-surface-2" data-testid={ "service-row-" + row.ID }>
-										<td class="px-4 py-3 text-small text-text">
-											<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
-											<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
-										</td>
-										<td class="px-4 py-3 text-small text-muted">{ row.Price }</td>
-										<td class="px-4 py-3">@statusBadge(row.Status, false)</td>
-										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
-										<td class="px-4 py-3 text-right">
-											@serviceRowActions(row, v.CSRFToken)
-										</td>
+				<div x-data={ bulkSelectData(serviceRowIDs(v.Rows)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, serviceBulkActions())
+					<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+						<div class="overflow-x-auto">
+							<table class="w-full text-left" data-testid="services-table">
+								<thead class="bg-surface-2">
+									<tr class="text-subtle">
+										@bulkSelectAll()
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Price</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Updated</th>
+										<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
 									</tr>
-								}
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr class="border-t border-border hover:bg-surface-2" data-testid={ "service-row-" + row.ID }>
+											@bulkRowCheckbox(row.ID)
+											<td class="px-4 py-3 text-small text-text">
+												<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
+												<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
+											</td>
+											<td class="px-4 py-3 text-small text-muted">{ row.Price }</td>
+											<td class="px-4 py-3">@statusBadge(row.Status, false)</td>
+											<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
+											<td class="px-4 py-3 text-right">
+												@serviceRowActions(row, v.CSRFToken)
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</div>
 				@pagination(v.Pager)

@@ -43,38 +43,44 @@ templ PostList(v PostListView) {
 					>{ tab.Label }</a>
 				}
 			</div>
+			@bulkSummaryBanner(v.Summary)
 			if len(v.Rows) == 0 {
 				@postsEmpty(v.NewURL)
 			} else {
-				<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
-					<div class="overflow-x-auto">
-						<table class="w-full text-left" data-testid="posts-table">
-							<thead class="bg-surface-2">
-								<tr class="text-subtle">
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Author</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
-									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Date</th>
-									<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								for _, row := range v.Rows {
-									<tr class="border-t border-border hover:bg-surface-2" data-testid={ "post-row-" + row.ID }>
-										<td class="px-4 py-3 text-small text-text">
-											<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
-											<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
-										</td>
-										<td class="px-4 py-3 text-small text-muted">{ row.AuthorName }</td>
-										<td class="px-4 py-3">@statusBadge(row.Status, row.Scheduled)</td>
-										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
-										<td class="px-4 py-3 text-right">
-											@rowActions(row, v.CSRFToken)
-										</td>
+				<div x-data={ bulkSelectData(postRowIDs(v.Rows)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, postBulkActions())
+					<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+						<div class="overflow-x-auto">
+							<table class="w-full text-left" data-testid="posts-table">
+								<thead class="bg-surface-2">
+									<tr class="text-subtle">
+										@bulkSelectAll()
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Author</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Date</th>
+										<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
 									</tr>
-								}
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr class="border-t border-border hover:bg-surface-2" data-testid={ "post-row-" + row.ID }>
+											@bulkRowCheckbox(row.ID)
+											<td class="px-4 py-3 text-small text-text">
+												<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
+												<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
+											</td>
+											<td class="px-4 py-3 text-small text-muted">{ row.AuthorName }</td>
+											<td class="px-4 py-3">@statusBadge(row.Status, row.Scheduled)</td>
+											<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
+											<td class="px-4 py-3 text-right">
+												@rowActions(row, v.CSRFToken)
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</div>
 				@pagination(v.Pager)

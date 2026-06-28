@@ -29,6 +29,42 @@ type stubPostAdmin struct {
 	getErr    error
 	createErr error
 	created   posts.Post
+
+	// bulkCalls records the verb each Bulk* method received, so a handler test can
+	// assert an allow-listed action reached the service (and that an unknown action
+	// did NOT — the handler rejects it before any service call).
+	bulkCalls *[]string
+}
+
+func (s stubPostAdmin) record(verb string) {
+	if s.bulkCalls != nil {
+		*s.bulkCalls = append(*s.bulkCalls, verb)
+	}
+}
+
+func (s stubPostAdmin) BulkTrash(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	s.record("trash")
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPostAdmin) BulkRestore(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	s.record("restore")
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPostAdmin) BulkPermanentDelete(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	s.record("delete")
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPostAdmin) BulkPublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	s.record("publish")
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPostAdmin) BulkUnpublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	s.record("unpublish")
+	return kernel.BulkResult{}, nil
 }
 
 func (s stubPostAdmin) AdminList(context.Context, posts.ListFilter) ([]posts.Post, int, error) {
@@ -172,6 +208,56 @@ func TestPostsAdmin_CreateValidationError(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, `data-testid="error-title"`) && !strings.Contains(body, "Title is required") {
 		t.Errorf("expected title field error in re-rendered editor:\n%s", body)
+	}
+}
+
+// TestPostsAdmin_BulkUnknownActionRejected asserts the bulk handler's allow-list
+// rejects an action that is not one of the five recognized verbs with 400,
+// BEFORE any service call (a tampered form must never reach the service).
+func TestPostsAdmin_BulkUnknownActionRejected(t *testing.T) {
+	calls := []string{}
+	svc := stubPostAdmin{bulkCalls: &calls}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{"action": {"nuke"}, "ids": {uuid.New().String()}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/posts/bulk", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(withUser(req.Context(), accounts.User{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+	h.Bulk(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown bulk action = %d, want 400", rec.Code)
+	}
+	if len(calls) != 0 {
+		t.Errorf("unknown action reached the service: %v", calls)
+	}
+}
+
+// TestPostsAdmin_BulkDispatchesAllowedAction asserts an allow-listed verb reaches
+// the matching service method and redirects back with a summary query.
+func TestPostsAdmin_BulkDispatchesAllowedAction(t *testing.T) {
+	calls := []string{}
+	svc := stubPostAdmin{bulkCalls: &calls}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{"action": {"trash"}, "ids": {uuid.New().String(), uuid.New().String()}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/posts/bulk", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(withUser(req.Context(), accounts.User{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+	h.Bulk(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("bulk trash = %d, want 303", rec.Code)
+	}
+	if len(calls) != 1 || calls[0] != "trash" {
+		t.Fatalf("service bulk calls = %v, want [trash]", calls)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/admin/posts?") || !strings.Contains(loc, "bulk=trash") {
+		t.Errorf("redirect = %q, want /admin/posts?...bulk=trash", loc)
 	}
 }
 

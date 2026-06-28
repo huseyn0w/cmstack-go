@@ -1,0 +1,157 @@
+package templ
+
+import "fmt"
+
+// BulkActionSpec is one button shown in the bulk-action bar. Destructive actions
+// (permanent delete; and trash, treated destructive) open the confirm Modal
+// before submitting (DESIGN_SYSTEM §5).
+type BulkActionSpec struct {
+	Action      string // matches the server allow-list verb
+	Label       string
+	Destructive bool
+	Consequence string // modal body text shown before a destructive submit
+}
+
+// bulkSummaryBanner renders the post-action outcome as an aria-live region so
+// the selection/result count is announced (DESIGN_SYSTEM §5).
+templ bulkSummaryBanner(s BulkSummary) {
+	if s.Present {
+		<div
+			role="status"
+			aria-live="polite"
+			data-testid="bulk-summary"
+			class="mt-4 rounded-md border border-border bg-surface-2 px-4 py-2.5 text-small text-text"
+		>{ s.Message() }</div>
+	}
+}
+
+// bulkSelectAll is the leading select-all checkbox placed in a table's thead.
+templ bulkSelectAll() {
+	<th class="w-10 px-4 py-3">
+		<input
+			type="checkbox"
+			data-testid="bulk-select-all"
+			aria-label="Select all rows"
+			@change="toggleAll($event.target.checked)"
+			:checked="allSelected"
+			class="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		/>
+	</th>
+}
+
+// bulkRowCheckbox is the leading per-row checkbox cell. id is the row's id.
+templ bulkRowCheckbox(id string) {
+	<td class="w-10 px-4 py-3">
+		<input
+			type="checkbox"
+			value={ id }
+			data-testid={ "bulk-select-" + id }
+			aria-label="Select row"
+			x-bind:checked={ "selected.includes('" + id + "')" }
+			x-on:change={ "toggle('" + id + "', $event.target.checked)" }
+			class="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		/>
+	</td>
+}
+
+// bulkActionBar is the selection toolbar shown when ≥1 row is selected. It
+// overlays the table header with the live selection count, the applicable
+// action buttons, and a clear-selection control. Submitting an action posts a
+// hidden form whose ids[] inputs are synced from the Alpine selection. Keyboard
+// accessible: every control is a real button/input.
+templ bulkActionBar(bulkURL, csrf string, actions []BulkActionSpec) {
+	<div
+		x-show="selected.length > 0"
+		x-cloak
+		data-testid="bulk-bar"
+		class="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-primary bg-surface px-4 py-3"
+	>
+		<span aria-live="polite" data-testid="bulk-count" class="text-small font-medium text-text">
+			<span x-text="selected.length"></span> selected
+		</span>
+		<div class="flex flex-wrap items-center gap-2">
+			for _, a := range actions {
+				if a.Destructive {
+					<button
+						type="button"
+						data-testid={ "bulk-action-" + a.Action }
+						@click={ "confirmAction = '" + a.Action + "'" }
+						class="inline-flex h-8 items-center rounded-md border border-error px-3 text-small font-medium text-error hover:bg-error-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>{ a.Label }</button>
+				} else {
+					<button
+						type="button"
+						data-testid={ "bulk-action-" + a.Action }
+						@click={ "submitBulk('" + a.Action + "')" }
+						class="inline-flex h-8 items-center rounded-md border border-border px-3 text-small font-medium text-text hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>{ a.Label }</button>
+				}
+			}
+		</div>
+		<button
+			type="button"
+			data-testid="bulk-clear"
+			@click="clear()"
+			class="ml-auto inline-flex h-8 items-center rounded-md px-3 text-small font-medium text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>Clear selection</button>
+	</div>
+	// Hidden form whose ids[] inputs mirror the Alpine selection; submitBulk()
+	// sets the action and submits it.
+	<form method="post" action={ templ.SafeURL(bulkURL) } x-ref="bulkForm" class="hidden" data-testid="bulk-form">
+		@csrfField(csrf)
+		<input type="hidden" name="action" x-ref="bulkActionInput"/>
+		<template x-for="id in selected" :key="id">
+			<input type="hidden" name="ids" :value="id"/>
+		</template>
+	</form>
+	// Confirm Modal for destructive bulk actions (DESIGN_SYSTEM §5): explicit
+	// consequence text, Esc/scrim close, focus on a real button.
+	<div
+		x-show="confirmAction !== null"
+		x-cloak
+		@keydown.escape.window="confirmAction = null"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="bulk-confirm-title"
+		data-testid="bulk-confirm-modal"
+	>
+		<div @click="confirmAction = null" class="absolute inset-0 bg-black/45" aria-hidden="true"></div>
+		<div class="relative w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg">
+			<h3 id="bulk-confirm-title" class="text-h4 text-text">Confirm bulk action</h3>
+			<p class="mt-2 text-small text-muted">
+				This affects <span x-text="selected.length"></span> selected item(s).
+				for _, a := range actions {
+					if a.Destructive {
+						<span x-show={ "confirmAction === '" + a.Action + "'" }>{ a.Consequence }</span>
+					}
+				}
+			</p>
+			<div class="mt-5 flex justify-end gap-3">
+				<button type="button" @click="confirmAction = null" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Cancel</button>
+				<button
+					type="button"
+					data-testid="bulk-confirm-submit"
+					@click="submitBulk(confirmAction)"
+					class="inline-flex h-9 items-center rounded-md bg-error px-4 text-small font-medium text-on-primary hover:opacity-90"
+				>Confirm</button>
+			</div>
+		</div>
+	</div>
+}
+
+// bulkSelectData is the Alpine component backing selection state. It is emitted
+// once per list as an x-data initializer string so the table, bar, and modal
+// share one reactive store. ids is unused server-side; selection is client-only.
+func bulkSelectData(rowIDs []string) string {
+	return fmt.Sprintf(`{
+		selected: [],
+		confirmAction: null,
+		get allSelected() { return this.rowIds.length > 0 && this.selected.length === this.rowIds.length; },
+		rowIds: %s,
+		toggle(id, on) { if (on) { if (!this.selected.includes(id)) this.selected.push(id); } else { this.selected = this.selected.filter(x => x !== id); } },
+		toggleAll(on) { this.selected = on ? [...this.rowIds] : []; },
+		clear() { this.selected = []; this.confirmAction = null; },
+		submitBulk(action) { this.$refs.bulkActionInput.value = action; this.$refs.bulkForm.submit(); }
+	}`, jsStringArray(rowIDs))
+}

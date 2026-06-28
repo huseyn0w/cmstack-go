@@ -61,6 +61,26 @@ func (s stubPageAdmin) RestoreRevision(context.Context, uuid.UUID, uuid.UUID, uu
 	return pages.Page{}, nil
 }
 
+func (s stubPageAdmin) BulkTrash(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPageAdmin) BulkRestore(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPageAdmin) BulkPermanentDelete(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPageAdmin) BulkPublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s stubPageAdmin) BulkUnpublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
 func buildPagesAdminEnv(t *testing.T, svc PageAdminService, authz PermissionChecker) (http.Handler, *scs.SessionManager, *AuthMiddleware, accounts.User) {
 	t.Helper()
 	user := accounts.User{ID: uuid.New(), Email: "ed@example.com", Name: "Ed", PasswordChangedAt: time.Now()}

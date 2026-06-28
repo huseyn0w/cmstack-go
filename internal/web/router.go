@@ -322,6 +322,14 @@ func mountPostsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 			dr.Post("/{id}/trash", h.Trash)
 			dr.Post("/trash/{id}/delete", h.PermanentDelete)
 		})
+
+		// Bulk list actions (M2c). The route gate is a coarse pre-filter
+		// (ActionUpdate); the per-id action permission AND per-post ownership are
+		// re-checked inside the service via the reused single-item op, so an
+		// Author's bulk only touches their own posts and an unauthorized id is
+		// skipped, not failed.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectPost)).
+			Post("/bulk", h.Bulk)
 	})
 }
 
@@ -358,6 +366,11 @@ func mountPagesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 			dr.Post("/{id}/trash", h.Trash)
 			dr.Post("/trash/{id}/delete", h.PermanentDelete)
 		})
+
+		// Bulk list actions (M2c). Coarse ActionUpdate gate; per-id action
+		// permission re-checked inside the service.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectPage)).
+			Post("/bulk", h.Bulk)
 	})
 }
 
@@ -393,6 +406,11 @@ func mountServicesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 			dr.Post("/{id}/trash", h.Trash)
 			dr.Post("/trash/{id}/delete", h.PermanentDelete)
 		})
+
+		// Bulk list actions (M2c). Coarse ActionUpdate gate; per-id action
+		// permission re-checked inside the service.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectService)).
+			Post("/bulk", h.Bulk)
 	})
 }
 

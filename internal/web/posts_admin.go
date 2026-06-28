@@ -32,6 +32,15 @@ type PostAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (posts.Post, error)
+
+	// Bulk list actions (M2c). Each reuses the matching single-item op per id, so
+	// per-post ownership/permission/events stay correct; the concrete *posts.Service
+	// satisfies these directly. The set also makes the service a bulkActor.
+	BulkTrash(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkRestore(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPermanentDelete(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkUnpublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
 }
 
 // AuthorNamer resolves an author's display name for the admin list (best effort).
@@ -76,9 +85,19 @@ func (h *PostAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 		Tabs:      h.statusTabs(statusParam),
 		Pager:     pager(page, adminPageSize, total, "/admin/posts", statusQuery(statusParam)),
 		NewURL:    "/admin/posts/new",
+		BulkURL:   "/admin/posts/bulk",
+		Summary:   bulkSummaryFromQuery(r),
 		CSRFToken: h.csrf(r),
 	}
 	h.render(w, r, webtempl.PostList(view))
+}
+
+// Bulk dispatches an allow-listed bulk action over the submitted post ids,
+// reusing the shared handleBulk driver. Per-post ownership is enforced inside
+// the service (an Author's bulk only touches their own posts); the route gate
+// already required the coarse grant.
+func (h *PostAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
+	handleBulk(w, r, h.svc, "/admin/posts")
 }
 
 // New renders the empty editor.

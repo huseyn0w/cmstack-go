@@ -32,6 +32,31 @@ func TestServiceList_TableAndEmpty(t *testing.T) {
 	mustContain(t, emptyHTML, `data-testid="services-empty"`, "No services yet")
 }
 
+// TestServiceList_BulkSelectionUI asserts the services list has parity with the
+// §5 bulk selection UI.
+func TestServiceList_BulkSelectionUI(t *testing.T) {
+	v := webtempl.ServiceListView{
+		Rows: []webtempl.ServiceRow{
+			{ID: "s1", Title: "SEO Audit", Slug: "seo-audit", Status: webtempl.PostStatusPublished, Price: "From $499", Date: "Jan 1, 2026", EditURL: "/admin/services/s1/edit"},
+		},
+		Tabs:      []webtempl.StatusTab{{Label: "All", Active: true, Href: "/admin/services"}},
+		Pager:     webtempl.Pagination{Page: 1, PageSize: 20, Total: 1},
+		NewURL:    "/admin/services/new",
+		BulkURL:   "/admin/services/bulk",
+		CSRFToken: "tok",
+	}
+	html := renderStr(t, webtempl.ServiceList(v))
+	mustContain(
+		t, html,
+		`data-testid="bulk-select-all"`,
+		`data-testid="bulk-select-s1"`,
+		`data-testid="bulk-bar"`,
+		`data-testid="bulk-action-trash"`,
+		`data-testid="bulk-confirm-modal"`,
+		`action="/admin/services/bulk"`,
+	)
+}
+
 func TestServiceEditor_RepeatableFAQSection(t *testing.T) {
 	v := webtempl.ServiceFormView{
 		IsNew:      true,

@@ -27,6 +27,14 @@ type ServiceAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (services.Service, error)
+
+	// Bulk list actions (M2c). The concrete *services.Manager satisfies these; the
+	// set also makes the manager a bulkActor.
+	BulkTrash(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkRestore(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPermanentDelete(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkUnpublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
 }
 
 // ServiceAdminHandler is the thin HTTP boundary for the admin services area.
@@ -65,9 +73,18 @@ func (h *ServiceAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 		Tabs:      h.statusTabs(statusParam),
 		Pager:     pager(page, adminPageSize, total, "/admin/services", statusQuery(statusParam)),
 		NewURL:    "/admin/services/new",
+		BulkURL:   "/admin/services/bulk",
+		Summary:   bulkSummaryFromQuery(r),
 		CSRFToken: h.csrf(r),
 	}
 	h.render(w, r, webtempl.ServiceList(view))
+}
+
+// Bulk dispatches an allow-listed bulk action over the submitted service ids via
+// the shared handleBulk driver. Services have no per-author ownership; the route
+// gate already required the coarse (action, service) grant.
+func (h *ServiceAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
+	handleBulk(w, r, h.svc, "/admin/services")
 }
 
 // New renders the empty editor.

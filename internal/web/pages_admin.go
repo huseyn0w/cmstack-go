@@ -28,6 +28,14 @@ type PageAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (pages.Page, error)
+
+	// Bulk list actions (M2c). The concrete *pages.Service satisfies these; the
+	// set also makes the service a bulkActor.
+	BulkTrash(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkRestore(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPermanentDelete(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkPublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+	BulkUnpublish(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
 }
 
 // PageAdminHandler is the thin HTTP boundary for the admin pages area.
@@ -66,9 +74,18 @@ func (h *PageAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 		Tabs:      h.statusTabs(statusParam),
 		Pager:     pager(page, adminPageSize, total, "/admin/pages", statusQuery(statusParam)),
 		NewURL:    "/admin/pages/new",
+		BulkURL:   "/admin/pages/bulk",
+		Summary:   bulkSummaryFromQuery(r),
 		CSRFToken: h.csrf(r),
 	}
 	h.render(w, r, webtempl.PageList(view))
+}
+
+// Bulk dispatches an allow-listed bulk action over the submitted page ids via
+// the shared handleBulk driver. Pages have no per-author ownership; the route
+// gate already required the coarse (action, page) grant.
+func (h *PageAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
+	handleBulk(w, r, h.svc, "/admin/pages")
 }
 
 // New renders the empty editor.

@@ -61,6 +61,8 @@ type PostListView struct {
 	Tabs      []StatusTab
 	Pager     Pagination
 	NewURL    string
+	BulkURL   string      // POST target for bulk actions
+	Summary   BulkSummary // post-redirect outcome banner (aria-live)
 	CSRFToken string
 }
 
@@ -119,6 +121,8 @@ type TrashView struct {
 	Shell     AdminShell
 	Rows      []TrashRow
 	Pager     Pagination
+	BulkURL   string      // POST target for bulk restore/permanent-delete
+	Summary   BulkSummary // post-redirect outcome banner (aria-live)
 	CSRFToken string
 }
 

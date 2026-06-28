@@ -67,6 +67,26 @@ func (s *stubServiceAdmin) RestoreRevision(context.Context, uuid.UUID, uuid.UUID
 	return services.Service{}, nil
 }
 
+func (s *stubServiceAdmin) BulkTrash(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s *stubServiceAdmin) BulkRestore(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s *stubServiceAdmin) BulkPermanentDelete(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s *stubServiceAdmin) BulkPublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
+func (s *stubServiceAdmin) BulkUnpublish(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
+	return kernel.BulkResult{}, nil
+}
+
 func buildServicesAdminEnv(t *testing.T, svc ServiceAdminService, authz PermissionChecker) (http.Handler, *scs.SessionManager, *AuthMiddleware, accounts.User) {
 	t.Helper()
 	user := accounts.User{ID: uuid.New(), Email: "ed@example.com", Name: "Ed", PasswordChangedAt: time.Now()}
