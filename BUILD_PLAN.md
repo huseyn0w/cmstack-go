@@ -83,7 +83,7 @@ cmstack-go/
 | Rich-text editor | Trix / TinyMCE / Tiptap | **Tiptap (JS island)** | Canonical = ts/Tiptap; embed as Alpine island, output sanitized server-side | Tiptap active |
 | Sessions + hashing | allauth / session / Auth.js+argon2 | **alexedwards/scs v2** (PG store) + **argon2id** (`x/crypto`) | OWASP server-side sessions; argon2id is canonical hash | scs v2.9, x/crypto current |
 | OAuth social | allauth / Socialite / Auth.js | **markbates/goth** | Drop-in Google+GitHub, wraps x/oauth2 | goth v1.82, active |
-| Authorization | Groups+perms / JSON caps / CASL | **Casbin v2** | Model-driven `(sub, obj, act)` = canonical CASL (action, subject) granularity | Apache, active, ~18k★ |
+| Authorization | Groups+perms / JSON caps / CASL | **Hand-rolled DB-backed (action, subject) RBAC** (Casbin rejected) | Exactly mirrors canonical ts CASL `(action, subject)`; flat roles → ~30 lines + DB `role_permissions` as single source of truth + in-proc cache; Casbin's policy-CSV/adapter machinery is overkill here | n/a (stdlib + cache) |
 | Jobs/queue/scheduler | cron cmd / sync queue / none | **riverqueue/river** (Postgres) | Transactional enqueue (in-tx, no dual-write) + periodic jobs (scheduled publishing) | v1 stable (Jun 2026) |
 | Validation | forms/serializers / FormRequest / Zod | **go-playground/validator v10** | Declarative struct-tag validation at DTO boundary | v10.30, active |
 | Domain events | signals / events+observers / hook bus | **Hand-rolled typed bus + transactional outbox** | ~50 lines idiomatic Go; sync in-tx + async via outbox→river | n/a |
@@ -120,7 +120,7 @@ Transactional outbox (atomic async event delivery, no dual-write) · Middleware 
 rate-limit, locale, tenancy-free) · Strategy/Adapter (Storage local↔S3, OAuth providers via goth) ·
 Factory (test fixtures/builders).
 
-**Rejected (noted to avoid overkill):** CQRS / event-sourcing (no need; outbox covers async) ·
+**Rejected (noted to avoid overkill):** Casbin (hand-rolled DB-backed (action,subject) RBAC is exactly CASL-equivalent for flat roles, avoids policy-CSV/adapter machinery, keeps `role_permissions` as the single source of truth) · CQRS / event-sourcing (no need; outbox covers async) ·
 Hexagonal ports-everywhere ceremony (repository interface is enough) · Generic "BaseRepository"
 inheritance (Go favors small focused interfaces) · DI container framework (explicit wiring is clearer) ·
 GraphQL/tRPC (REST is canon) · external search engine (PG FTS is canon).
