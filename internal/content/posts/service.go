@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
@@ -26,6 +27,14 @@ var (
 	ErrTitleRequired = errors.New("posts: title is required")
 	// ErrRevisionMismatch is returned when a revision does not belong to the post.
 	ErrRevisionMismatch = errors.New("posts: revision does not belong to this post")
+	// ErrSlugTaken is the friendly outcome when a concurrent create raced us to
+	// the same slug (a unique-violation the dedupe loop could not foresee). The
+	// handler surfaces it as a validation message rather than a 500.
+	ErrSlugTaken = errors.New("posts: slug is already taken")
+	// ErrNotLikeable is returned when a like is attempted on a post that is not
+	// in a likeable state (trashed or unpublished). Enforced in the service so the
+	// rule holds regardless of the calling handler.
+	ErrNotLikeable = errors.New("posts: post is not available for liking")
 )
 
 // Service holds ALL post logic. It accesses data only through the repositories,
@@ -119,7 +128,7 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, in CreateInput
 	data := CreatePostData{
 		Title:       title,
 		Slug:        slug,
-		Excerpt:     strings.TrimSpace(in.Excerpt),
+		Excerpt:     sanitizeExcerpt(in.Excerpt),
 		Body:        body,
 		Status:      status,
 		PublishedAt: publishedAt,
@@ -128,22 +137,39 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, in CreateInput
 		ReadingTime: kernel.ReadingTimeMinutes(body),
 	}
 
+	// A concurrent create of the same title can win the slug between our dedupe
+	// check and our INSERT, surfacing as a pg unique-violation (23505). Retry a
+	// bounded number of times, re-deriving a fresh unique slug each pass, so two
+	// simultaneous same-title creates both succeed (with distinct slugs) instead
+	// of one returning a 500. After the retry budget we map to a friendly
+	// ErrSlugTaken rather than leaking the raw constraint error.
 	var created Post
-	err = db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
-		p, err := s.repo.CreateTx(ctx, tx, data)
-		if err != nil {
-			return fmt.Errorf("create post: %w", err)
+	for attempt := 0; attempt < 5; attempt++ {
+		err = db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+			p, err := s.repo.CreateTx(ctx, tx, data)
+			if err != nil {
+				return fmt.Errorf("create post: %w", err)
+			}
+			created = p
+			if p.Published() {
+				return s.emitPublished(ctx, tx, p)
+			}
+			return nil
+		})
+		if err == nil {
+			return created, nil
 		}
-		created = p
-		if p.Published() {
-			return s.emitPublished(ctx, tx, p)
+		if !isSlugUniqueViolation(err) {
+			return Post{}, err
 		}
-		return nil
-	})
-	if err != nil {
-		return Post{}, err
+		// Re-derive a unique slug and retry.
+		newSlug, slugErr := s.uniqueSlug(ctx, desired, uuid.Nil)
+		if slugErr != nil {
+			return Post{}, slugErr
+		}
+		data.Slug = newSlug
 	}
-	return created, nil
+	return Post{}, ErrSlugTaken
 }
 
 // UpdateInput is the validated update request. Pointer fields are "set" when
@@ -180,7 +206,7 @@ func (s *Service) Update(ctx context.Context, actorID uuid.UUID, id uuid.UUID, i
 		next.Title = t
 	}
 	if in.Excerpt != nil {
-		next.Excerpt = strings.TrimSpace(*in.Excerpt)
+		next.Excerpt = sanitizeExcerpt(*in.Excerpt)
 	}
 	if in.Body != nil {
 		next.Body = kernel.SanitizeRichText(*in.Body)
@@ -396,10 +422,18 @@ func (s *Service) Unlike(ctx context.Context, postID, userID uuid.UUID) (Post, e
 }
 
 func (s *Service) toggleLike(ctx context.Context, postID, userID uuid.UUID, like bool) (Post, error) {
-	if _, err := s.repo.GetByID(ctx, postID); err != nil {
+	existing, err := s.repo.GetByID(ctx, postID)
+	if err != nil {
 		return Post{}, err
 	}
-	err := db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+	// Reject NEW likes on a post that is not publicly available (trashed or not
+	// published). This rule lives in the service so it holds for every caller, not
+	// just the public handler. An UNLIKE is always permitted so a user can retract
+	// a like even after the post leaves the published set.
+	if like && !existing.Published() {
+		return Post{}, ErrNotLikeable
+	}
+	err = db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		if like {
 			if _, err := s.repo.LikeTx(ctx, tx, postID, userID); err != nil {
 				return fmt.Errorf("like: %w", err)
@@ -604,4 +638,17 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// sanitizeExcerpt strips ALL markup from the excerpt (defense-in-depth): the
+// excerpt is rendered as text, so any tags are removed write-time on every save.
+func sanitizeExcerpt(s string) string {
+	return strings.TrimSpace(kernel.SanitizePlainText(s))
+}
+
+// isSlugUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505) — the race a concurrent same-slug create produces.
+func isSlugUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

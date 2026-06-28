@@ -1,0 +1,103 @@
+package templ
+
+import "strings"
+
+// PageEditor renders the admin page create/edit form: title, slug, rich-text
+// body, status, a PARENT PICKER (a tree-indented select that excludes the page
+// and its descendants to prevent cycles), and a TEMPLATE SELECTOR validated
+// server-side against the allow-list.
+templ PageEditor(v PageFormView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="page-editor" class="mx-auto max-w-3xl">
+			<nav aria-label="Breadcrumb" data-testid="page-editor-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href={ templ.SafeURL(v.BackURL) }>Pages</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">
+						if v.IsNew {
+							New page
+						} else {
+							Edit
+						}
+					</li>
+				</ol>
+			</nav>
+			<h2 class="mt-4 text-h3 text-text">
+				if v.IsNew {
+					New page
+				} else {
+					Edit page
+				}
+			</h2>
+			if v.Error != "" {
+				<div role="alert" data-testid="page-editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="page-form">
+				@csrfField(v.CSRFToken)
+				<div>
+					<label for="title" class="block text-small font-medium text-text">Title</label>
+					<input
+						id="title" name="title" type="text" value={ v.Title } required
+						data-testid="page-field-title"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					if msg, ok := v.FieldErrors["title"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="page-error-title">{ msg }</p>
+					}
+				</div>
+				<div>
+					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+					<input
+						id="slug" name="slug" type="text" value={ v.Slug }
+						data-testid="page-field-slug"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+				</div>
+				@richTextField(v.Body)
+				<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+					<div>
+						<label for="status" class="block text-small font-medium text-text">Status</label>
+						<select id="status" name="status" data-testid="page-field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+							<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
+							<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
+						</select>
+					</div>
+					<div>
+						<label for="parent_id" class="block text-small font-medium text-text">Parent</label>
+						<select id="parent_id" name="parent_id" data-testid="page-field-parent" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+							<option value="" selected?={ v.ParentID == "" }>— None (top level) —</option>
+							for _, p := range v.Parents {
+								<option value={ p.ID } selected?={ v.ParentID == p.ID }>{ parentLabel(p) }</option>
+							}
+						</select>
+					</div>
+					<div>
+						<label for="template" class="block text-small font-medium text-text">Template</label>
+						<select id="template" name="template" data-testid="page-field-template" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+							for _, t := range v.TemplateOpts {
+								<option value={ t.Value } selected?={ v.Template == t.Value }>{ t.Label }</option>
+							}
+						</select>
+					</div>
+				</div>
+				<div class="flex items-center gap-3 border-t border-border pt-5">
+					<button type="submit" name="action" value="save" data-testid="page-action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
+					<button type="submit" name="action" value="publish" data-testid="page-action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
+					if !v.IsNew && v.RevisionsURL != "" {
+						<a href={ templ.SafeURL(v.RevisionsURL) } data-testid="page-revisions-link" class="ml-auto text-small text-muted hover:text-text">Revision history</a>
+					}
+				</div>
+			</form>
+		</section>
+		<script src="/static/vendor/editor.js" defer></script>
+	}
+}
+
+// parentLabel prefixes a parent option with em-spaces by indent depth so the
+// select reads as a tree.
+func parentLabel(p PageParentOption) string {
+	if p.Indent <= 0 {
+		return p.Label
+	}
+	return strings.Repeat(" ", p.Indent) + p.Label
+}

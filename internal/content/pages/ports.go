@@ -1,0 +1,99 @@
+package pages
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+)
+
+// ErrNotFound is the sentinel the repository returns when a page is absent. The
+// service maps it to domain outcomes; handlers turn it into a 404.
+var ErrNotFound = errors.New("pages: not found")
+
+// ListFilter narrows an admin page listing. A nil status means "no constraint".
+type ListFilter struct {
+	Status *kernel.Status
+	Limit  int
+	Offset int
+}
+
+// CreatePageData is the fully-prepared row the repo inserts. The service has
+// already sanitized the body, computed reading time, deduped the slug, validated
+// the template, checked the parent, and resolved the publish timestamp.
+type CreatePageData struct {
+	Title       string
+	Slug        string
+	Body        string
+	Status      kernel.Status
+	PublishedAt *time.Time
+	ParentID    *uuid.UUID
+	Template    string
+	ReadingTime int
+}
+
+// UpdatePageData is the fully-prepared row the repo writes on update.
+type UpdatePageData struct {
+	Title       string
+	Slug        string
+	Body        string
+	Status      kernel.Status
+	PublishedAt *time.Time
+	ParentID    *uuid.UUID
+	Template    string
+	ReadingTime int
+}
+
+// Repository is the data-access contract for pages. It is the ONLY layer
+// permitted to touch sqlc/pgx for pages. Transactional writes accept a pgx.Tx so
+// the write and its in-tx side effects (revision snapshot, outbox enqueue) commit
+// atomically.
+type Repository interface {
+	CreateTx(ctx context.Context, tx pgx.Tx, in CreatePageData) (Page, error)
+	UpdateTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, in UpdatePageData) (Page, error)
+
+	GetByID(ctx context.Context, id uuid.UUID) (Page, error)
+	GetActiveByID(ctx context.Context, id uuid.UUID) (Page, error)
+	GetPublishedBySlug(ctx context.Context, slug string) (Page, error)
+
+	// SlugTaken reports whether slug belongs to a page OTHER than excludeID.
+	SlugTaken(ctx context.Context, slug string, excludeID uuid.UUID) (bool, error)
+
+	List(ctx context.Context, f ListFilter) ([]Page, error)
+	Count(ctx context.Context, f ListFilter) (int, error)
+	// ListAllActive returns every non-trashed page (for the hierarchy tree and
+	// the parent-picker options); the set is small relative to posts.
+	ListAllActive(ctx context.Context) ([]Page, error)
+	ListChildren(ctx context.Context, parentID uuid.UUID) ([]Page, error)
+	ListTrashed(ctx context.Context, limit, offset int) ([]Page, error)
+	CountTrashed(ctx context.Context) (int, error)
+	ListPublished(ctx context.Context, limit, offset int) ([]Page, error)
+	CountPublished(ctx context.Context) (int, error)
+
+	TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
+	RestoreTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
+	PermanentDeleteTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
+}
+
+// Authorizer answers (action, subject) permission questions for a user.
+type Authorizer interface {
+	Can(ctx context.Context, userID uuid.UUID, action, subject string) bool
+}
+
+// Publisher publishes a domain event inside a transaction. *events.Bus satisfies
+// it.
+type Publisher interface {
+	Publish(ctx context.Context, tx pgx.Tx, event events.Event) error
+}
+
+// Clock returns the current time; injected so publish timestamps are
+// deterministic in tests.
+type Clock func() time.Time
+
+// RevisionRepository is re-exported for the service's dependency list.
+type RevisionRepository = kernel.RevisionRepository

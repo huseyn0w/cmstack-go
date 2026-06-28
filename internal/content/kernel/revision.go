@@ -14,8 +14,10 @@ import (
 const (
 	// EntityTypePost is the revision entity_type for posts.
 	EntityTypePost = "post"
-	// EntityTypePage is reserved for the next milestone's pages.
+	// EntityTypePage is the revision entity_type for pages.
 	EntityTypePage = "page"
+	// EntityTypeService is the revision entity_type for services.
+	EntityTypeService = "service"
 )
 
 // Revision is one immutable snapshot of a content entity captured BEFORE an

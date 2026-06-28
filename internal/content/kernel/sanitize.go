@@ -63,3 +63,20 @@ func richTextPolicy() *bluemonday.Policy {
 func SanitizeRichText(html string) string {
 	return richTextPolicy().Sanitize(html)
 }
+
+// plainTextOnce builds the strip-everything policy once.
+var (
+	plainTextOnce sync.Once
+	plainTextPol  *bluemonday.Policy
+)
+
+// SanitizePlainText removes ALL markup, returning text-only content. It is used
+// for plain fields (e.g. a service summary) that are rendered as text — any tags
+// in the input are stripped defensively so a value rendered verbatim elsewhere
+// can never carry markup.
+func SanitizePlainText(s string) string {
+	plainTextOnce.Do(func() {
+		plainTextPol = bluemonday.StrictPolicy()
+	})
+	return plainTextPol.Sanitize(s)
+}

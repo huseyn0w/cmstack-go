@@ -13,56 +13,91 @@ import (
 type Querier interface {
 	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	CountPages(ctx context.Context, status *string) (int64, error)
+	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
 	CountPosts(ctx context.Context, arg CountPostsParams) (int64, error)
 	CountPostsBySlug(ctx context.Context, arg CountPostsBySlugParams) (int64, error)
+	CountPublishedPages(ctx context.Context) (int64, error)
 	CountPublishedPosts(ctx context.Context) (int64, error)
+	CountPublishedServices(ctx context.Context) (int64, error)
+	CountServices(ctx context.Context, status *string) (int64, error)
+	CountServicesBySlug(ctx context.Context, arg CountServicesBySlugParams) (int64, error)
+	CountTrashedPages(ctx context.Context) (int64, error)
 	CountTrashedPosts(ctx context.Context) (int64, error)
+	CountTrashedServices(ctx context.Context) (int64, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
+	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateRevision(ctx context.Context, arg CreateRevisionParams) (Revision, error)
+	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
+	CreateServiceFAQ(ctx context.Context, arg CreateServiceFAQParams) (ServiceFaq, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
+	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
+	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error)
+	GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
+	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
+	GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error)
 	GetPublishedPostBySlug(ctx context.Context, slug string) (Post, error)
+	GetPublishedServiceBySlug(ctx context.Context, slug string) (Service, error)
 	GetRevision(ctx context.Context, id pgtype.UUID) (Revision, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
+	GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username *string) (User, error)
 	GrantPermission(ctx context.Context, arg GrantPermissionParams) error
 	HasLiked(ctx context.Context, arg HasLikedParams) (bool, error)
 	LikePost(ctx context.Context, arg LikePostParams) (int64, error)
+	ListAllActivePages(ctx context.Context) ([]Page, error)
+	ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]Page, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
+	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
 	ListPermissionsForRole(ctx context.Context, roleID pgtype.UUID) ([]ListPermissionsForRoleRow, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
+	ListPublishedPages(ctx context.Context, arg ListPublishedPagesParams) ([]Page, error)
 	ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]Post, error)
 	ListPublishedPostsByAuthor(ctx context.Context, authorID pgtype.UUID) ([]Post, error)
+	ListPublishedServices(ctx context.Context, arg ListPublishedServicesParams) ([]Service, error)
 	ListRevisions(ctx context.Context, arg ListRevisionsParams) ([]Revision, error)
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	ListRoles(ctx context.Context) ([]Role, error)
+	ListServiceFAQs(ctx context.Context, serviceID pgtype.UUID) ([]ServiceFaq, error)
+	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
+	ListTrashedPages(ctx context.Context, arg ListTrashedPagesParams) ([]Page, error)
 	ListTrashedPosts(ctx context.Context, arg ListTrashedPostsParams) ([]Post, error)
+	ListTrashedServices(ctx context.Context, arg ListTrashedServicesParams) ([]Service, error)
 	MarkEmailVerified(ctx context.Context, id pgtype.UUID) error
 	MarkOutboxProcessed(ctx context.Context, id int64) error
+	PermanentDeletePage(ctx context.Context, id pgtype.UUID) error
 	PermanentDeletePost(ctx context.Context, id pgtype.UUID) error
+	PermanentDeleteService(ctx context.Context, id pgtype.UUID) error
 	RecordOutboxFailure(ctx context.Context, arg RecordOutboxFailureParams) error
+	RestorePage(ctx context.Context, id pgtype.UUID) error
 	RestorePost(ctx context.Context, id pgtype.UUID) error
+	RestoreService(ctx context.Context, id pgtype.UUID) error
 	SetPostLikeCount(ctx context.Context, postID pgtype.UUID) error
 	SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error)
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error
+	TrashPage(ctx context.Context, id pgtype.UUID) error
 	TrashPost(ctx context.Context, id pgtype.UUID) error
+	TrashService(ctx context.Context, id pgtype.UUID) error
 	UnlikePost(ctx context.Context, arg UnlikePostParams) (int64, error)
+	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
+	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
 	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)

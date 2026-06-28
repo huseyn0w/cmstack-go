@@ -1,0 +1,100 @@
+package templ
+
+import "fmt"
+
+// PublicServiceIndex renders the paginated published-services grid (cards §5) with
+// an empty state.
+templ PublicServiceIndex(v PublicServiceIndexView) {
+	@Base(LayoutData{Title: "Services · " + v.SiteName, Description: "Services offered by " + v.SiteName}) {
+		<header class="mb-8">
+			<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Services</p>
+			<h1 class="mt-2 text-h1 text-text">What we offer</h1>
+		</header>
+		if len(v.Cards) == 0 {
+			<div class="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="services-index-empty">
+				<h2 class="text-h4 text-text">No services yet</h2>
+				<p class="mt-1 text-small text-muted">Check back soon.</p>
+			</div>
+		} else {
+			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2" data-testid="services-grid">
+				for _, c := range v.Cards {
+					<a href={ templ.SafeURL(c.URL) } class="group rounded-lg border border-border bg-surface p-6 transition-colors hover:bg-surface-2" data-testid="service-card">
+						<h2 class="text-h4 text-text group-hover:underline">{ c.Title }</h2>
+						if c.Summary != "" {
+							<p class="mt-2 text-body text-muted">{ c.Summary }</p>
+						}
+						if c.Price != "" {
+							<p class="mt-4 font-mono text-caption text-subtle" data-testid="service-card-price">{ c.Price }</p>
+						}
+					</a>
+				}
+			</div>
+			@pagination(v.Pager)
+		}
+	}
+}
+
+// PublicServiceDetail renders a single published service: summary, prose body,
+// citable facts (price, area served), and the FAQ as an ACCESSIBLE accordion
+// (native <details>/<summary> — keyboard-operable, no JS required). Semantic
+// <article>; prose typography (§3).
+templ PublicServiceDetail(v PublicServiceView) {
+	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Summary}) {
+		<nav aria-label="Breadcrumb" data-testid="service-breadcrumb">
+			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>
+				<li aria-hidden="true">/</li>
+				<li><a class="hover:text-text" href="/services">Services</a></li>
+				<li aria-hidden="true">/</li>
+				<li aria-current="page" class="text-text">{ v.Title }</li>
+			</ol>
+		</nav>
+		<article class="mx-auto mt-8 max-w-prose" data-testid="service-article">
+			<header>
+				<h1 class="text-h1 text-text" data-testid="service-title">{ v.Title }</h1>
+				if v.Summary != "" {
+					<p class="mt-4 text-body text-muted" data-testid="service-summary">{ v.Summary }</p>
+				}
+			</header>
+			if v.Price != "" || v.AreaServed != "" {
+				<dl class="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2" data-testid="service-facts">
+					if v.Price != "" {
+						<div>
+							<dt class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Price</dt>
+							<dd class="mt-1 text-body text-text" data-testid="service-price">{ v.Price }</dd>
+						</div>
+					}
+					if v.AreaServed != "" {
+						<div>
+							<dt class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Area served</dt>
+							<dd class="mt-1 text-body text-text" data-testid="service-area">{ v.AreaServed }</dd>
+						</div>
+					}
+				</dl>
+			}
+			if v.BodyHTML != "" {
+				<div class="prose mt-8 max-w-none text-body text-text" data-testid="service-body">
+					@templ.Raw(v.BodyHTML)
+				</div>
+			}
+			if len(v.FAQs) > 0 {
+				<section class="mt-10 border-t border-border pt-8" data-testid="service-faq" aria-labelledby="faq-heading">
+					<h2 id="faq-heading" class="text-h3 text-text">Frequently asked questions</h2>
+					<div class="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+						for i, f := range v.FAQs {
+							<details class="group" data-testid={ fmt.Sprintf("faq-item-%d", i) }>
+								<summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-small font-medium text-text hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+									<span>{ f.Question }</span>
+									<span class="text-subtle transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+								</summary>
+								<div class="prose max-w-none px-4 pb-4 text-small text-muted">
+									@templ.Raw(f.AnswerHTML)
+								</div>
+							</details>
+						}
+					</div>
+				</section>
+			}
+		</article>
+	}
+}

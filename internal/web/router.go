@@ -61,6 +61,16 @@ type Deps struct {
 	PostPublicSvc PostPublicService
 	Authors       AuthorNamer
 	SiteName      string
+
+	// Pages (M2b). PageAdmin is the gated admin pages area; PagePublic renders a
+	// page at /p/{slug}. All optional.
+	PageAdminSvc  PageAdminService
+	PagePublicSvc PagePublicService
+
+	// Services (M2b). ServiceAdmin is the gated admin services area; ServicePublic
+	// is the public /services index + detail. All optional.
+	ServiceAdminSvc  ServiceAdminService
+	ServicePublicSvc ServicePublicService
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -143,6 +153,20 @@ func Router(d Deps) http.Handler {
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
 			}
+		}
+
+		// Public pages (no auth). A published page renders at /p/{slug}; the
+		// hierarchy drives the breadcrumb trail.
+		if d.PagePublicSvc != nil {
+			pp := NewPagePublicHandler(d.PagePublicSvc, d.SiteName, d.Config.BaseURL)
+			gr.Get("/p/{slug}", pp.Show)
+		}
+
+		// Public services (no auth): /services index + /services/{slug} detail.
+		if d.ServicePublicSvc != nil {
+			sp := NewServicePublicHandler(d.ServicePublicSvc, d.SiteName, d.Config.BaseURL)
+			gr.Get("/services", sp.Index)
+			gr.Get("/services/{slug}", sp.Show)
 		}
 
 		mountAuthRoutes(gr, d)
@@ -233,6 +257,8 @@ func mountAdmin(gr chi.Router, d Deps) {
 	gr.With(d.AuthMW.RequireAuth).Get("/admin", shell.dashboard)
 
 	mountPostsAdmin(gr, d, shell)
+	mountPagesAdmin(gr, d, shell)
+	mountServicesAdmin(gr, d, shell)
 	mountAccount(gr, d)
 }
 
@@ -293,6 +319,77 @@ func mountPostsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 
 		// Trash / permanent delete.
 		pr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectPost)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/trash", h.Trash)
+			dr.Post("/trash/{id}/delete", h.PermanentDelete)
+		})
+	})
+}
+
+// mountPagesAdmin wires the gated admin pages area. Pages have NO per-author
+// ownership in the canon: each route requires the matching (action, page) grant
+// and the service does no further owner narrowing.
+func mountPagesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.PageAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewPageAdminHandler(d.PageAdminSvc, shell, d.Authors, d.CSRFFunc)
+
+	gr.Route("/admin/pages", func(pr chi.Router) {
+		pr.Use(d.AuthMW.RequireAuth)
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectPage)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/trash", h.Trashed)
+			rr.Get("/new", h.New)
+			rr.Get("/{id}/edit", h.Edit)
+			rr.Get("/{id}/revisions", h.Revisions)
+		})
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectPage)).
+			Post("/", h.Create)
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectPage)).Group(func(ur chi.Router) {
+			ur.Post("/{id}", h.Update)
+			ur.Post("/{id}/revisions/{rev}/restore", h.RestoreRevision)
+			ur.Post("/trash/{id}/restore", h.RestoreTrashed)
+		})
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectPage)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/trash", h.Trash)
+			dr.Post("/trash/{id}/delete", h.PermanentDelete)
+		})
+	})
+}
+
+// mountServicesAdmin wires the gated admin services area. Services have NO
+// per-author ownership: each route requires the matching (action, service) grant.
+func mountServicesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.ServiceAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewServiceAdminHandler(d.ServiceAdminSvc, shell, d.Authors, d.CSRFFunc)
+
+	gr.Route("/admin/services", func(pr chi.Router) {
+		pr.Use(d.AuthMW.RequireAuth)
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectService)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/trash", h.Trashed)
+			rr.Get("/new", h.New)
+			rr.Get("/{id}/edit", h.Edit)
+			rr.Get("/{id}/revisions", h.Revisions)
+		})
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectService)).
+			Post("/", h.Create)
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectService)).Group(func(ur chi.Router) {
+			ur.Post("/{id}", h.Update)
+			ur.Post("/{id}/revisions/{rev}/restore", h.RestoreRevision)
+			ur.Post("/trash/{id}/restore", h.RestoreTrashed)
+		})
+
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectService)).Group(func(dr chi.Router) {
 			dr.Post("/{id}/trash", h.Trash)
 			dr.Post("/trash/{id}/delete", h.PermanentDelete)
 		})

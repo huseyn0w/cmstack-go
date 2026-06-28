@@ -1,0 +1,61 @@
+package templ
+
+// PublicPage renders a published page as a semantic <article> using the page's
+// selected TEMPLATE: the template name picks the wrapper width/layout (default =
+// prose max-width; full-width = edge-to-edge; landing = a wider centered column).
+// Breadcrumbs reflect the page's hierarchy (ancestors root-first). The body was
+// sanitized server-side and is rendered verbatim with prose typography (§3).
+templ PublicPage(v PublicPageView) {
+	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: pageDescription(v)}) {
+		<nav aria-label="Breadcrumb" data-testid="page-breadcrumb">
+			<ol class="flex flex-wrap items-center gap-2 font-mono text-caption text-muted">
+				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>
+				for _, b := range v.Breadcrumbs {
+					<li aria-hidden="true">/</li>
+					<li><a class="hover:text-text" href={ templ.SafeURL(b.URL) }>{ b.Title }</a></li>
+				}
+				<li aria-hidden="true">/</li>
+				<li aria-current="page" class="text-text">{ v.Title }</li>
+			</ol>
+		</nav>
+		<article data-testid="page-article" data-template={ v.Template } class={ pageArticleClass(v.Template) }>
+			<header>
+				<h1 class="text-h1 text-text" data-testid="page-title">{ v.Title }</h1>
+			</header>
+			<div class={ pageBodyClass(v.Template) } data-testid="page-body">
+				@templ.Raw(v.BodyHTML)
+			</div>
+		</article>
+	}
+}
+
+// pageArticleClass returns the article wrapper class for a template. default and
+// landing center a prose column (landing slightly wider); full-width drops the
+// max-width entirely.
+func pageArticleClass(template string) string {
+	switch template {
+	case "full-width":
+		return "mt-8 w-full"
+	case "landing":
+		return "mx-auto mt-8 max-w-3xl text-center"
+	default:
+		return "mx-auto mt-8 max-w-prose"
+	}
+}
+
+// pageBodyClass returns the body wrapper class for a template.
+func pageBodyClass(template string) string {
+	switch template {
+	case "full-width":
+		return "prose mt-8 max-w-none text-body text-text"
+	case "landing":
+		return "prose mt-8 mx-auto max-w-prose text-left text-body text-text"
+	default:
+		return "prose mt-8 max-w-none text-body text-text"
+	}
+}
+
+// pageDescription is the meta description seam for a page (M8 SEO will enrich it).
+func pageDescription(v PublicPageView) string {
+	return v.Title
+}

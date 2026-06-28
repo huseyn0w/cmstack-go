@@ -1,0 +1,117 @@
+package templ
+
+import "fmt"
+
+// PageList renders the admin pages table with the HIERARCHY shown as an indented
+// tree (DESIGN_SYSTEM §5 Sortable list/tree): each row's title is indented by its
+// depth so parent/child structure is visible at a glance. Status filter tabs,
+// row actions, pagination, and an empty state mirror the posts list.
+templ PageList(v PageListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="pages-list">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">Pages</h2>
+					<p class="mt-1 text-small text-muted">Standalone, hierarchical pages.</p>
+				</div>
+				<a href={ templ.SafeURL(v.NewURL) } data-testid="new-page" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New page</a>
+			</div>
+			<div role="tablist" aria-label="Filter pages by status" data-testid="page-status-tabs" class="mt-6 flex items-center gap-1 border-b border-border">
+				for _, tab := range v.Tabs {
+					<a
+						role="tab"
+						href={ templ.SafeURL(tab.Href) }
+						data-testid={ "page-tab-" + tab.Label }
+						if tab.Active {
+							aria-selected="true"
+							class="relative -mb-px border-b-2 border-primary px-3 py-2 text-small font-medium text-text"
+						} else {
+							aria-selected="false"
+							class="relative -mb-px border-b-2 border-transparent px-3 py-2 text-small font-medium text-muted hover:text-text"
+						}
+					>{ tab.Label }</a>
+				}
+			</div>
+			if len(v.Rows) == 0 {
+				@pagesEmpty(v.NewURL)
+			} else {
+				<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+					<div class="overflow-x-auto">
+						<table class="w-full text-left" data-testid="pages-table">
+							<thead class="bg-surface-2">
+								<tr class="text-subtle">
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Template</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Updated</th>
+									<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+								</tr>
+							</thead>
+							<tbody data-testid="pages-tree">
+								for _, row := range v.Rows {
+									<tr class="border-t border-border hover:bg-surface-2" data-testid={ "page-row-" + row.ID }>
+										<td class="px-4 py-3 text-small text-text">
+											<div style={ treeIndent(row.Depth) } class="flex items-center gap-2">
+												if row.Depth > 0 {
+													<span class="text-subtle" aria-hidden="true">└</span>
+												}
+												<span>
+													<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
+													<span class="block font-mono text-caption text-subtle">/{ row.Slug }</span>
+												</span>
+											</div>
+										</td>
+										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Template }</td>
+										<td class="px-4 py-3">@statusBadge(row.Status, false)</td>
+										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
+										<td class="px-4 py-3 text-right">
+											@pageRowActions(row, v.CSRFToken)
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+				@pagination(v.Pager)
+			}
+		</section>
+	}
+}
+
+// pageRowActions is the trailing-cell kebab Dropdown for a page row.
+templ pageRowActions(row PageRow, csrf string) {
+	<div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.stop="open = false">
+		<button
+			type="button"
+			@click="open = !open"
+			data-testid={ "page-row-menu-" + row.ID }
+			aria-haspopup="menu"
+			:aria-expanded="open.toString()"
+			aria-label="Row actions"
+			class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>@iconKebab()</button>
+		<div x-show="open" x-cloak x-transition role="menu" class="absolute right-0 z-20 mt-1 w-40 rounded-md border border-border bg-surface p-1.5 shadow-md">
+			<a href={ templ.SafeURL(row.EditURL) } role="menuitem" class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2">Edit</a>
+			<form method="post" action={ templ.SafeURL("/admin/pages/" + row.ID + "/trash") } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "page-trash-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2">Move to trash</button>
+			</form>
+		</div>
+	</div>
+}
+
+// pagesEmpty is the empty state.
+templ pagesEmpty(newURL string) {
+	<div class="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="pages-empty">
+		<span class="text-subtle">@iconDoc()</span>
+		<h3 class="mt-4 text-h4 text-text">No pages yet</h3>
+		<p class="mt-1 text-small text-muted">Create your first page to get started.</p>
+		<a href={ templ.SafeURL(newURL) } class="mt-5 inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90">New page</a>
+	</div>
+}
+
+// treeIndent returns the inline style that indents a tree row by its depth.
+func treeIndent(depth int) string {
+	return fmt.Sprintf("padding-left:%dpx", depth*20)
+}

@@ -15,7 +15,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/cmstack-go/internal/content/services"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
@@ -142,6 +144,17 @@ func run() error {
 	roleKeys := posts.NewRoleKeyResolver(userRepo, roleRepo)
 	postSvc := posts.NewService(pool, postRepo, revisionRepo, authz, roleKeys, bus, nil)
 
+	// Pages (M2b) wiring: repos over the shared querier + the page service. Pages
+	// have no per-author ownership, so the service needs no role resolver.
+	pageRepo := pages.NewRepoPG(queries)
+	pageRevisionRepo := pages.NewRevisionRepoPG(queries)
+	pageSvc := pages.NewService(pool, pageRepo, pageRevisionRepo, authz, bus, nil)
+
+	// Services (M2b) wiring: repos over the shared querier + the service Manager.
+	serviceRepo := services.NewRepoPG(queries)
+	serviceRevisionRepo := services.NewRevisionRepoPG(queries)
+	serviceMgr := services.NewManager(pool, serviceRepo, serviceRevisionRepo, authz, bus, nil)
+
 	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
 
 	handler := web.Router(web.Deps{
@@ -165,6 +178,12 @@ func run() error {
 		PostPublicSvc: postSvc,
 		Authors:       userRepo,
 		SiteName:      "CMStack",
+
+		PageAdminSvc:  pageSvc,
+		PagePublicSvc: pageSvc,
+
+		ServiceAdminSvc:  serviceMgr,
+		ServicePublicSvc: serviceMgr,
 	})
 
 	srv := &http.Server{
