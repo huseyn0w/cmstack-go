@@ -1,0 +1,214 @@
+package templ
+
+// AuthForm carries the state needed to render an auth page: the CSRF token,
+// previously submitted values (for redisplay), a top-level error summary, and
+// per-field errors. FieldErrors maps a field name to its message; the template
+// links the summary and inputs via aria-describedby / aria-invalid.
+type AuthForm struct {
+	CSRFToken   string
+	Values      map[string]string
+	FieldErrors map[string]string
+	Error       string // form-level error (e.g. invalid credentials)
+	Notice      string // form-level info/success banner (e.g. verification sent)
+}
+
+func (f AuthForm) val(name string) string {
+	if f.Values == nil {
+		return ""
+	}
+	return f.Values[name]
+}
+
+func (f AuthForm) fieldErr(name string) string {
+	if f.FieldErrors == nil {
+		return ""
+	}
+	return f.FieldErrors[name]
+}
+
+func (f AuthForm) hasFieldErrors() bool { return len(f.FieldErrors) > 0 }
+
+// authShell wraps an auth card in the base layout with a centered column.
+templ authShell(title string) {
+	@Base(LayoutData{Title: title + " · CMStack-Go", Description: title}) {
+		<section class="mx-auto w-full max-w-md">
+			<h1 class="text-h2 text-text">{ title }</h1>
+			{ children... }
+		</section>
+	}
+}
+
+// errorSummary renders a role=alert banner listing field errors, each linking
+// to the offending field (DESIGN_SYSTEM §5 Alert/banner + error-summary).
+templ errorSummary(f AuthForm) {
+	if f.Error != "" {
+		<div
+			role="alert"
+			data-testid="form-error"
+			class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error"
+		>
+			<p>{ f.Error }</p>
+		</div>
+	}
+	if f.hasFieldErrors() {
+		<div
+			role="alert"
+			id="error-summary"
+			data-testid="error-summary"
+			class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error"
+		>
+			<p class="font-medium">Please fix the following:</p>
+			<ul class="mt-2 list-disc pl-5">
+				for field, msg := range f.FieldErrors {
+					<li><a class="underline" href={ templ.SafeURL("#" + field) }>{ msg }</a></li>
+				}
+			</ul>
+		</div>
+	}
+}
+
+templ notice(f AuthForm) {
+	if f.Notice != "" {
+		<div
+			role="status"
+			data-testid="form-notice"
+			class="mt-4 rounded-md border border-success bg-success-bg p-4 text-success"
+		>
+			<p>{ f.Notice }</p>
+		</div>
+	}
+}
+
+// textField renders a labeled input with a11y error wiring.
+templ textField(f AuthForm, name, label, inputType, autocomplete string, required bool) {
+	<div class="mt-4">
+		<label for={ name } class="block text-small font-medium text-text">{ label }</label>
+		<input
+			id={ name }
+			name={ name }
+			type={ inputType }
+			value={ f.val(name) }
+			autocomplete={ autocomplete }
+			if required {
+				required
+			}
+			if f.fieldErr(name) != "" {
+				aria-invalid="true"
+				aria-describedby={ name + "-error" }
+			}
+			data-testid={ "input-" + name }
+			class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+		/>
+		if f.fieldErr(name) != "" {
+			<p id={ name + "-error" } class="mt-1 text-caption text-error">{ f.fieldErr(name) }</p>
+		}
+	</div>
+}
+
+templ submitButton(label string) {
+	<button
+		type="submit"
+		data-testid="submit"
+		class="mt-6 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 font-medium text-primary-contrast transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+	>
+		{ label }
+	</button>
+}
+
+templ csrfField(token string) {
+	<input type="hidden" name="csrf_token" value={ token }/>
+}
+
+// LoginPage renders the login form.
+templ LoginPage(f AuthForm) {
+	@authShell("Sign in") {
+		@notice(f)
+		@errorSummary(f)
+		<form method="post" action="/login" class="mt-2" data-testid="login-form">
+			@csrfField(f.CSRFToken)
+			@textField(f, "identifier", "Email or username", "text", "username", true)
+			@textField(f, "password", "Password", "password", "current-password", true)
+			@submitButton("Sign in")
+		</form>
+		<p class="mt-4 text-small text-muted">
+			<a class="underline" href="/forgot-password">Forgot your password?</a>
+		</p>
+		<p class="mt-2 text-small text-muted">
+			No account? <a class="underline" href="/signup">Create one</a>
+		</p>
+	}
+}
+
+// SignupPage renders the registration form.
+templ SignupPage(f AuthForm) {
+	@authShell("Create your account") {
+		@notice(f)
+		@errorSummary(f)
+		<form method="post" action="/signup" class="mt-2" data-testid="signup-form">
+			@csrfField(f.CSRFToken)
+			@textField(f, "name", "Name", "text", "name", true)
+			@textField(f, "email", "Email", "email", "email", true)
+			@textField(f, "password", "Password", "password", "new-password", true)
+			@submitButton("Create account")
+		</form>
+		<p class="mt-4 text-small text-muted">
+			Already have an account? <a class="underline" href="/login">Sign in</a>
+		</p>
+	}
+}
+
+// ForgotPasswordPage renders the password-reset request form.
+templ ForgotPasswordPage(f AuthForm) {
+	@authShell("Reset your password") {
+		@notice(f)
+		@errorSummary(f)
+		<form method="post" action="/forgot-password" class="mt-2" data-testid="forgot-form">
+			@csrfField(f.CSRFToken)
+			@textField(f, "email", "Email", "email", "email", true)
+			@submitButton("Send reset link")
+		</form>
+		<p class="mt-4 text-small text-muted">
+			<a class="underline" href="/login">Back to sign in</a>
+		</p>
+	}
+}
+
+// ResetPasswordPage renders the new-password form for a given token.
+templ ResetPasswordPage(f AuthForm, token string) {
+	@authShell("Choose a new password") {
+		@notice(f)
+		@errorSummary(f)
+		<form method="post" action="/reset-password" class="mt-2" data-testid="reset-form">
+			@csrfField(f.CSRFToken)
+			<input type="hidden" name="token" value={ token }/>
+			@textField(f, "password", "New password", "password", "new-password", true)
+			@submitButton("Update password")
+		</form>
+	}
+}
+
+// MessagePage renders a standalone outcome message (e.g. email verified).
+templ MessagePage(title, heading, body string) {
+	@authShell(title) {
+		<div role="status" class="mt-4 rounded-md border border-success bg-success-bg p-4 text-success" data-testid="message">
+			<p class="font-medium">{ heading }</p>
+			<p class="mt-1">{ body }</p>
+		</div>
+		<p class="mt-4 text-small text-muted"><a class="underline" href="/login">Continue to sign in</a></p>
+	}
+}
+
+// AdminStub is the authenticated landing page after login. The full admin shell
+// is M1-ext.
+templ AdminStub(name, csrfToken string) {
+	@Base(LayoutData{Title: "Admin · CMStack-Go", Description: "Admin"}) {
+		<section data-testid="admin-stub">
+			<h1 class="text-h1 text-text">Admin</h1>
+			<p class="mt-4 text-body text-muted">Signed in as { name }. The full admin shell arrives in M1-ext.</p>
+			<form method="post" action="/logout" class="mt-6">
+				@csrfField(csrfToken)
+				<button type="submit" data-testid="logout" class="rounded-md border border-border px-4 py-2 text-text hover:bg-surface-2">Sign out</button>
+			</form>
+		</section>
+	}
+}

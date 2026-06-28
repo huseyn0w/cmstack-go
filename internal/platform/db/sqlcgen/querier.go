@@ -6,12 +6,35 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) error
+	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) error
+	CountUsersByEmail(ctx context.Context, email string) (int64, error)
+	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
+	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
+	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
+	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
+	GetRoleByKey(ctx context.Context, key string) (Role, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	GetUserByUsername(ctx context.Context, username *string) (User, error)
+	GrantPermission(ctx context.Context, arg GrantPermissionParams) error
+	ListPermissionsForRole(ctx context.Context, roleID pgtype.UUID) ([]ListPermissionsForRoleRow, error)
+	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
+	ListRoles(ctx context.Context) ([]Role, error)
+	MarkEmailVerified(ctx context.Context, id pgtype.UUID) error
 	MarkOutboxProcessed(ctx context.Context, id int64) error
+	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error
+	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
+	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)
 }
 
 var _ Querier = (*Queries)(nil)

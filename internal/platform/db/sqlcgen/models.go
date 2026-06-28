@@ -8,6 +8,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type EmailVerificationToken struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	TokenHash  string             `json:"token_hash"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type OauthAccount struct {
+	ID             pgtype.UUID        `json:"id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Provider       string             `json:"provider"`
+	ProviderUserID string             `json:"provider_user_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Outbox struct {
 	ID          int64              `json:"id"`
 	EventName   string             `json:"event_name"`
@@ -16,8 +33,53 @@ type Outbox struct {
 	ProcessedAt pgtype.Timestamptz `json:"processed_at"`
 }
 
+type PasswordResetToken struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	TokenHash  string             `json:"token_hash"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Permission struct {
+	ID        pgtype.UUID        `json:"id"`
+	Action    string             `json:"action"`
+	Subject   string             `json:"subject"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Role struct {
+	ID        pgtype.UUID        `json:"id"`
+	Key       string             `json:"key"`
+	Label     string             `json:"label"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RolePermission struct {
+	RoleID       pgtype.UUID `json:"role_id"`
+	PermissionID pgtype.UUID `json:"permission_id"`
+}
+
 type SchemaMetum struct {
 	Key       string             `json:"key"`
 	Value     string             `json:"value"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type User struct {
+	ID              pgtype.UUID        `json:"id"`
+	Email           string             `json:"email"`
+	Username        *string            `json:"username"`
+	PasswordHash    string             `json:"password_hash"`
+	Name            string             `json:"name"`
+	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
+	RoleID          pgtype.UUID        `json:"role_id"`
+	Bio             *string            `json:"bio"`
+	AvatarPath      *string            `json:"avatar_path"`
+	Website         *string            `json:"website"`
+	SocialLinks     []byte             `json:"social_links"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }

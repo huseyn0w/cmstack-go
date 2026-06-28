@@ -11,53 +11,72 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
 )
 
-// Relay drains unprocessed rows from the outbox table after commit and would
-// dispatch them to async listeners. It is constructed honestly in cmd/worker:
-// it holds a real pool and querier and runs a real fetch transaction. Actual
-// dispatch to registered async listeners is deferred to a later milestone, so
-// Drain currently fetches a batch and logs it without marking rows processed.
-type Relay struct {
-	pool      db.Beginner
-	q         *sqlcgen.Queries
-	batchSize int32
-	log       *slog.Logger
+// Dispatcher invokes async handlers for a persisted event. *Bus satisfies it.
+type Dispatcher interface {
+	Dispatch(ctx context.Context, eventName string, payload []byte) error
 }
 
-// NewRelay constructs an outbox Relay over the given transaction-capable pool.
-func NewRelay(pool db.Beginner, batchSize int32, log *slog.Logger) *Relay {
+// Relay drains unprocessed rows from the outbox table after commit and
+// dispatches them to the registered async handlers, marking each row processed
+// on success. It is constructed honestly in cmd/worker with a real pool, the
+// querier, and the wired bus as the dispatcher.
+type Relay struct {
+	pool       db.Beginner
+	q          *sqlcgen.Queries
+	dispatcher Dispatcher
+	batchSize  int32
+	log        *slog.Logger
+}
+
+// NewRelay constructs an outbox Relay over the given transaction-capable pool
+// and dispatcher (the bus). A nil dispatcher disables dispatch (rows are
+// observed only); pass the bus for real delivery.
+func NewRelay(pool db.Beginner, dispatcher Dispatcher, batchSize int32, log *slog.Logger) *Relay {
 	if batchSize <= 0 {
 		batchSize = 100
 	}
 	return &Relay{
-		pool:      pool,
-		q:         sqlcgen.New(nil),
-		batchSize: batchSize,
-		log:       log,
+		pool:       pool,
+		q:          sqlcgen.New(nil),
+		dispatcher: dispatcher,
+		batchSize:  batchSize,
+		log:        log,
 	}
 }
 
 // Drain runs one relay pass inside a transaction: it claims a batch of
-// unprocessed outbox rows (FOR UPDATE SKIP LOCKED) and returns them. Dispatch to
-// async listeners is a TODO(M1); for now rows are observed but left unprocessed
-// so no events are silently lost before dispatch exists.
+// unprocessed outbox rows (FOR UPDATE SKIP LOCKED), dispatches each to its async
+// handlers, and marks delivered rows processed within the same transaction so
+// claim + dispatch + mark are atomic. The number of rows successfully processed
+// is returned.
 func (r *Relay) Drain(ctx context.Context) (int, error) {
-	var n int
+	var processed int
 	err := db.RunInTx(ctx, r.pool, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := r.q.WithTx(tx).FetchUnprocessedOutbox(ctx, r.batchSize)
+		q := r.q.WithTx(tx)
+		rows, err := q.FetchUnprocessedOutbox(ctx, r.batchSize)
 		if err != nil {
 			return fmt.Errorf("fetch unprocessed outbox: %w", err)
 		}
-		n = len(rows)
-		// TODO(M1): dispatch each row to its async listener(s) and call
-		// MarkOutboxProcessed on success. Until dispatch exists we intentionally
-		// do not mark rows processed.
-		if n > 0 {
-			r.log.Debug("outbox relay observed unprocessed rows", "count", n)
+		for _, row := range rows {
+			if r.dispatcher != nil {
+				if err := r.dispatcher.Dispatch(ctx, row.EventName, row.Payload); err != nil {
+					// Leave this row (and the rest of the batch) for the next pass;
+					// the row's lock releases on rollback so it is retried.
+					return fmt.Errorf("dispatch outbox row %d (%s): %w", row.ID, row.EventName, err)
+				}
+			}
+			if err := q.MarkOutboxProcessed(ctx, row.ID); err != nil {
+				return fmt.Errorf("mark outbox row %d processed: %w", row.ID, err)
+			}
+			processed++
+		}
+		if processed > 0 {
+			r.log.Debug("outbox relay processed rows", "count", processed)
 		}
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
-	return n, nil
+	return processed, nil
 }

@@ -1,8 +1,9 @@
-// Command worker is the async background process for CMStack-Go. In M0 it hosts
-// the outbox relay loop, honestly constructed over a real pgx pool and the sqlc
-// querier. Each tick claims unprocessed outbox rows (FOR UPDATE SKIP LOCKED)
-// inside a transaction; dispatch to async listeners is a documented TODO(M1),
-// so rows are observed but not yet marked processed.
+// Command worker is the async background process for CMStack-Go. It hosts the
+// outbox relay loop, honestly constructed over a real pgx pool, the sqlc
+// querier, and the wired event bus. Each tick claims unprocessed outbox rows
+// (FOR UPDATE SKIP LOCKED) inside a transaction, dispatches each to its
+// registered async handler (e.g. the email listener), and marks delivered rows
+// processed atomically.
 package main
 
 import (
@@ -13,10 +14,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
+	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
 )
 
 func main() {
@@ -43,10 +46,15 @@ func run() error {
 	}
 	defer pool.Close()
 
-	// Honest relay wiring: real pool + sqlc querier. Dispatch to async listeners
-	// is TODO(M1); until then Drain claims and observes rows without marking them
-	// processed, so no events are lost before dispatch exists.
-	relay := events.NewRelay(pool, 100, logger)
+	// Honest relay wiring: real pool + sqlc querier + the bus as dispatcher. The
+	// email listener is registered on the bus so the relay routes drained outbox
+	// rows to it after commit. The bus needs no outbox enqueuer here (the worker
+	// only dispatches; the server enqueues).
+	bus := events.NewBus(nil)
+	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
+	emailListener.Register(bus)
+
+	relay := events.NewRelay(pool, bus, 100, logger)
 
 	logger.Info("worker started", "env", cfg.AppEnv)
 

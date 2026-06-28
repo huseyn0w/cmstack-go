@@ -22,6 +22,12 @@ type Event interface {
 // the publish and signals the caller to roll the transaction back.
 type SyncHandler func(ctx context.Context, tx pgx.Tx, event Event) error
 
+// AsyncHandler runs AFTER commit, invoked by the relay draining the outbox. It
+// receives the JSON payload persisted at publish time and must be idempotent
+// (the relay may redeliver). Returning an error leaves the outbox row
+// unprocessed for retry.
+type AsyncHandler func(ctx context.Context, payload []byte) error
+
 // OutboxEnqueuer persists asynchronous events transactionally so a relay can
 // deliver them after commit. The concrete implementation lives alongside the
 // repository layer; the bus only depends on this narrow interface.
@@ -34,6 +40,7 @@ type OutboxEnqueuer interface {
 type Bus struct {
 	syncListeners  map[string][]SyncHandler
 	asyncListeners map[string]bool
+	asyncHandlers  map[string][]AsyncHandler
 	outbox         OutboxEnqueuer
 }
 
@@ -43,6 +50,7 @@ func NewBus(outbox OutboxEnqueuer) *Bus {
 	return &Bus{
 		syncListeners:  make(map[string][]SyncHandler),
 		asyncListeners: make(map[string]bool),
+		asyncHandlers:  make(map[string][]AsyncHandler),
 		outbox:         outbox,
 	}
 }
@@ -54,8 +62,31 @@ func (b *Bus) SubscribeSync(name string, h SyncHandler) {
 }
 
 // SubscribeAsync marks an event name for asynchronous delivery via the outbox.
+// Use SubscribeAsyncHandler to additionally register a post-commit handler the
+// relay invokes when draining the outbox.
 func (b *Bus) SubscribeAsync(name string) {
 	b.asyncListeners[name] = true
+}
+
+// SubscribeAsyncHandler marks an event for async delivery AND registers a
+// handler the relay invokes after commit with the persisted payload.
+func (b *Bus) SubscribeAsyncHandler(name string, h AsyncHandler) {
+	b.asyncListeners[name] = true
+	b.asyncHandlers[name] = append(b.asyncHandlers[name], h)
+}
+
+// Dispatch invokes every async handler registered for eventName with the
+// persisted payload. It is called by the outbox relay after commit. An error
+// from any handler is returned so the relay can leave the row for retry. When no
+// handler is registered the event is treated as delivered (returns nil) so the
+// relay can mark it processed rather than looping forever.
+func (b *Bus) Dispatch(ctx context.Context, eventName string, payload []byte) error {
+	for _, h := range b.asyncHandlers[eventName] {
+		if err := h(ctx, payload); err != nil {
+			return fmt.Errorf("async handler for %q: %w", eventName, err)
+		}
+	}
+	return nil
 }
 
 // ErrNoOutbox is returned when an event has an async listener but no outbox

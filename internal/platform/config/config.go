@@ -31,6 +31,17 @@ type Config struct {
 	// ReadTimeout / WriteTimeout bound HTTP request handling.
 	ReadTimeout  time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"15s"`
 	WriteTimeout time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`
+
+	// SignupEnabled toggles public registration. Read by the auth
+	// SettingsProvider; the admin-UI-backed source arrives in M15.
+	SignupEnabled bool `env:"SIGNUP_ENABLED" envDefault:"true"`
+	// EmailVerificationRequired enforces a verified email before login.
+	EmailVerificationRequired bool `env:"EMAIL_VERIFICATION_REQUIRED" envDefault:"false"`
+
+	// AdminEmail / AdminPassword seed the default administrator. The password
+	// default is for local development only and MUST be overridden in production.
+	AdminEmail    string `env:"ADMIN_EMAIL" envDefault:"admin@cmstack.local"`
+	AdminPassword string `env:"ADMIN_PASSWORD" envDefault:"changeme-admin-password"`
 }
 
 // IsProduction reports whether the app runs in production mode.

@@ -12,11 +12,15 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
+	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
+	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 )
@@ -51,11 +55,32 @@ func run() error {
 	healthHandler := health.NewHandler(healthSvc)
 	sess := session.NewManager(cfg.IsProduction())
 
-	// Event bus + outbox. Constructed eagerly even though no domain listeners
-	// exist in M0, so handlers added later publish through the same wired
-	// instance. The outbox enqueue path is the sqlc-backed repository.
+	// Event bus + outbox. The outbox enqueue path is the sqlc-backed repository.
+	// The async email listener is registered so account events are marked async
+	// (enqueued in-tx); the worker process drains and dispatches them.
 	outbox := events.NewOutboxRepository()
 	bus := events.NewBus(outbox)
+	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
+	emailListener.Register(bus)
+
+	// Accounts (auth) wiring.
+	queries := sqlcgen.New(pool)
+	hasher := security.NewPasswordHasher()
+	userRepo := accounts.NewUserRepoPG(queries)
+	roleRepo := accounts.NewRoleRepoPG(queries)
+	tokenRepo := accounts.NewTokenRepoPG(queries)
+	settings := accounts.NewStaticSettings(cfg.SignupEnabled, cfg.EmailVerificationRequired)
+	authz := accounts.NewAuthorizer(userRepo, roleRepo)
+	authSvc := accounts.NewAuthService(pool, userRepo, roleRepo, tokenRepo, hasher, bus, settings, nil)
+
+	// Idempotent seed: roles, permissions, mappings, default administrator.
+	seeder := accounts.NewSeeder(pool, queries, userRepo, roleRepo, hasher)
+	if err := seeder.Seed(ctx, accounts.AdminSeed{Email: cfg.AdminEmail, Password: cfg.AdminPassword}); err != nil {
+		return err
+	}
+
+	authMW := web.NewAuthMiddleware(sess, userRepo, authz)
+	authHandler := accounts.NewHandler(authSvc, authMW, security.Token, accounts.NewValidator())
 
 	handler := web.Router(web.Deps{
 		Config:        cfg,
@@ -64,6 +89,9 @@ func run() error {
 		Session:       sess,
 		StaticDir:     web.StaticDirDefault(),
 		LoggerHandler: logging.RequestLogger(logger),
+		Auth:          authHandler,
+		AuthMW:        authMW,
+		CSRFFunc:      security.Token,
 	})
 
 	srv := &http.Server{

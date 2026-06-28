@@ -4,7 +4,7 @@ export PATH := $(PATH):$(GOPATH_BIN)
 
 TAILWIND := ./bin/tailwindcss
 
-.PHONY: tools generate templ sqlc tailwind build run worker migrate-up migrate-down test cover lint vet fmt
+.PHONY: tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
 
 ## Install pinned dev tools into GOPATH/bin.
 tools:
@@ -35,6 +35,10 @@ run:
 
 worker:
 	go run ./cmd/worker
+
+## Idempotently seed roles/permissions/admin (also runs at server startup).
+seed:
+	go run ./cmd/seed
 
 migrate-up:
 	go run ./cmd/migrate up
