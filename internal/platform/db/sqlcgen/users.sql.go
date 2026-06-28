@@ -22,10 +22,21 @@ func (q *Queries) CountUsersByEmail(ctx context.Context, email string) (int64, e
 	return count, err
 }
 
+const countUsersByUsername = `-- name: CountUsersByUsername :one
+SELECT count(*) FROM users WHERE username = $1
+`
+
+func (q *Queries) CountUsersByUsername(ctx context.Context, username *string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByUsername, username)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, username, password_hash, name, role_id, email_verified_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at
+INSERT INTO users (email, username, password_hash, name, role_id, email_verified_at, avatar_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url
 `
 
 type CreateUserParams struct {
@@ -35,6 +46,7 @@ type CreateUserParams struct {
 	Name            string             `json:"name"`
 	RoleID          pgtype.UUID        `json:"role_id"`
 	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
+	AvatarUrl       *string            `json:"avatar_url"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -45,6 +57,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Name,
 		arg.RoleID,
 		arg.EmailVerifiedAt,
+		arg.AvatarUrl,
 	)
 	var i User
 	err := row.Scan(
@@ -62,12 +75,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordChangedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE email = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -88,12 +102,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordChangedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE id = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -114,12 +129,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordChangedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE username = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User, error) {
@@ -140,6 +156,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordChangedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -153,6 +170,41 @@ WHERE id = $1
 func (q *Queries) MarkEmailVerified(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markEmailVerified, id)
 	return err
+}
+
+const setUserAvatarPath = `-- name: SetUserAvatarPath :one
+UPDATE users
+SET avatar_path = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url
+`
+
+type SetUserAvatarPathParams struct {
+	ID         pgtype.UUID `json:"id"`
+	AvatarPath *string     `json:"avatar_path"`
+}
+
+func (q *Queries) SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserAvatarPath, arg.ID, arg.AvatarPath)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Name,
+		&i.EmailVerifiedAt,
+		&i.RoleID,
+		&i.Bio,
+		&i.AvatarPath,
+		&i.Website,
+		&i.SocialLinks,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordChangedAt,
+		&i.AvatarUrl,
+	)
+	return i, err
 }
 
 const setUserPassword = `-- name: SetUserPassword :exec
@@ -169,4 +221,52 @@ type SetUserPasswordParams struct {
 func (q *Queries) SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, setUserPassword, arg.ID, arg.PasswordHash)
 	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users
+SET name = $2,
+    bio = $3,
+    website = $4,
+    social_links = $5,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url
+`
+
+type UpdateUserProfileParams struct {
+	ID          pgtype.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Bio         *string     `json:"bio"`
+	Website     *string     `json:"website"`
+	SocialLinks []byte      `json:"social_links"`
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.ID,
+		arg.Name,
+		arg.Bio,
+		arg.Website,
+		arg.SocialLinks,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Name,
+		&i.EmailVerifiedAt,
+		&i.RoleID,
+		&i.Bio,
+		&i.AvatarPath,
+		&i.Website,
+		&i.SocialLinks,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordChangedAt,
+		&i.AvatarUrl,
+	)
+	return i, err
 }

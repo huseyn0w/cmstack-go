@@ -42,6 +42,21 @@ type Config struct {
 	// default is for local development only and MUST be overridden in production.
 	AdminEmail    string `env:"ADMIN_EMAIL" envDefault:"admin@cmstack.local"`
 	AdminPassword string `env:"ADMIN_PASSWORD" envDefault:"changeme-admin-password"`
+
+	// UploadDir is the filesystem root for user uploads (avatars now; richer media
+	// in M4). Served read-only at /uploads with a sniff-proof handler.
+	UploadDir string `env:"UPLOAD_DIR" envDefault:"./uploads"`
+
+	// OAuth (social login, M1-ext). A provider is offered ONLY when its client
+	// id+secret are both present; absent keys mean the provider is silently not
+	// offered (graceful no-op, like reCAPTCHA). OAuthCallbackBase is the external
+	// base used to build the provider callback URL; it defaults to BaseURL when
+	// empty (resolved in OAuthProviders()).
+	OAuthCallbackBase  string `env:"OAUTH_CALLBACK_BASE" envDefault:""`
+	GoogleClientID     string `env:"OAUTH_GOOGLE_CLIENT_ID" envDefault:""`
+	GoogleClientSecret string `env:"OAUTH_GOOGLE_CLIENT_SECRET" envDefault:""`
+	GitHubClientID     string `env:"OAUTH_GITHUB_CLIENT_ID" envDefault:""`
+	GitHubClientSecret string `env:"OAUTH_GITHUB_CLIENT_SECRET" envDefault:""`
 }
 
 // IsProduction reports whether the app runs in production mode.

@@ -86,4 +86,5 @@ type User struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	PasswordChangedAt pgtype.Timestamptz `json:"password_changed_at"`
+	AvatarUrl         *string            `json:"avatar_url"`
 }

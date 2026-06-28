@@ -1,0 +1,348 @@
+package templ
+
+// AdminBase is the root document for every /admin/* page. It mirrors Base but
+// adds the no-flash dark-mode bootstrap: a tiny inline script runs BEFORE paint,
+// reading the persisted theme (localStorage, then the `theme` cookie) and adding
+// `.dark` to <html> so there is no light->dark flash. The Alpine topbar toggle
+// writes both stores so the choice persists across requests and tabs.
+templ AdminBase(s AdminShell) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="description" content="CMStack admin"/>
+			<title>{ s.Title } · CMStack-Go</title>
+			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
+			<link rel="stylesheet" href="/static/app.css"/>
+			// No-flash theme bootstrap: must run before first paint, hence inline + no defer.
+			<script>
+				(function () {
+					try {
+						var t = localStorage.getItem('theme');
+						if (!t) {
+							var m = document.cookie.match(/(?:^|; )theme=([^;]+)/);
+							if (m) t = decodeURIComponent(m[1]);
+						}
+						if (t === 'dark') document.documentElement.classList.add('dark');
+					} catch (e) {}
+				})();
+			</script>
+			<script src="/static/vendor/htmx.min.js" defer></script>
+			<script src="/static/vendor/alpine.min.js" defer></script>
+		</head>
+		<body class="h-full bg-bg text-text antialiased">
+			<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-text">Skip to content</a>
+			<div
+				x-data="{ drawer: false, theme: (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
+					toggleTheme() {
+						this.theme = this.theme === 'dark' ? 'light' : 'dark';
+						document.documentElement.classList.toggle('dark', this.theme === 'dark');
+						try { localStorage.setItem('theme', this.theme); } catch (e) {}
+						document.cookie = 'theme=' + this.theme + '; path=/; max-age=31536000; samesite=lax';
+					} }"
+				@keydown.escape.window="drawer = false"
+				class="flex h-full"
+			>
+				@adminSidebar(s)
+				// Off-canvas scrim (mobile only) — click closes the drawer.
+				<div
+					x-show="drawer"
+					x-transition.opacity
+					@click="drawer = false"
+					class="fixed inset-0 z-30 bg-black/45 lg:hidden"
+					aria-hidden="true"
+				></div>
+				<div class="flex min-w-0 flex-1 flex-col">
+					@adminTopbar(s)
+					<main id="main" class="flex-1 overflow-y-auto px-4 py-6 lg:px-8" data-testid="admin-main">
+						{ children... }
+					</main>
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+// adminSidebar renders the fixed 260px sidebar (DESIGN_SYSTEM §5). On <lg it is
+// an off-canvas, focus-trapped drawer toggled by `drawer`. Permission gating
+// already happened upstream (s.Nav is pre-filtered): the template only renders.
+templ adminSidebar(s AdminShell) {
+	<aside
+		data-testid="admin-sidebar"
+		x-trap.noscroll="drawer"
+		:class="drawer ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+		class="fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-border bg-surface transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0"
+		aria-label="Admin"
+	>
+		<div class="flex h-14 shrink-0 items-center gap-2 border-b border-border px-5">
+			<span class="font-mono text-eyebrow uppercase tracking-widest text-text">CMStack</span>
+		</div>
+		<nav class="flex-1 overflow-y-auto px-3 py-4" aria-label="Sections">
+			// Dashboard home (read any) is always available to authed admins.
+			@navLink(NavItem{Label: "Dashboard", Href: "/admin", Icon: "dashboard"}, s.ActivePath)
+			for _, group := range s.Nav {
+				<div class="mt-6" data-testid={ "nav-group-" + group.Label }>
+					<p class="px-3 pb-2 font-mono text-eyebrow uppercase tracking-widest text-subtle">{ group.Label }</p>
+					<ul class="space-y-0.5">
+						for _, item := range group.Items {
+							<li>@navLink(item, s.ActivePath)</li>
+						}
+					</ul>
+				</div>
+			}
+		</nav>
+	</aside>
+}
+
+// navLink renders one sidebar entry. The active item gets a --surface-2 fill +
+// 2px --primary left bar + --text (DESIGN_SYSTEM §5).
+templ navLink(item NavItem, active string) {
+	<a
+		href={ templ.SafeURL(item.Href) }
+		data-testid={ "nav-item-" + item.Label }
+		if item.Href == active {
+			aria-current="page"
+			class="relative flex items-center gap-3 rounded-md border-l-2 border-primary bg-surface-2 px-3 py-2 text-small font-medium text-text"
+		} else {
+			class="relative flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-small font-medium text-muted transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		}
+	>
+		@navIcon(item.Icon)
+		<span>{ item.Label }</span>
+	</a>
+}
+
+// adminTopbar renders the sticky 56px topbar (DESIGN_SYSTEM §5): mobile menu
+// button + section title on the left; theme toggle, "View site", and the user
+// avatar dropdown on the right.
+templ adminTopbar(s AdminShell) {
+	<header
+		data-testid="admin-topbar"
+		class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 lg:px-8"
+	>
+		<div class="flex items-center gap-3">
+			<button
+				type="button"
+				@click="drawer = true"
+				data-testid="drawer-open"
+				class="-ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+				aria-label="Open navigation"
+				:aria-expanded="drawer.toString()"
+			>
+				@iconMenu()
+			</button>
+			<h1 class="text-h4 text-text">{ s.Title }</h1>
+		</div>
+		<div class="flex items-center gap-1 sm:gap-2">
+			<button
+				type="button"
+				@click="toggleTheme()"
+				data-testid="theme-toggle"
+				class="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				:aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+				:aria-pressed="(theme === 'dark').toString()"
+			>
+				<span x-show="theme !== 'dark'">@iconSun()</span>
+				<span x-show="theme === 'dark'" x-cloak>@iconMoon()</span>
+			</button>
+			<a
+				href={ templ.SafeURL(s.SiteURL) }
+				data-testid="view-site"
+				class="hidden items-center gap-1 rounded-md px-3 py-2 text-small font-medium text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"
+			>
+				View site <span aria-hidden="true">↗</span>
+			</a>
+			@userMenu(s)
+		</div>
+	</header>
+}
+
+// userMenu renders the avatar trigger + dropdown (DESIGN_SYSTEM §5 Dropdown):
+// aria-haspopup, aria-expanded, Esc closes, focus returns to the trigger. The
+// menu holds the role badge, a Profile link, and the sign-out form.
+templ userMenu(s AdminShell) {
+	<div
+		class="relative"
+		x-data="{ open: false }"
+		@keydown.escape.stop="open = false; $refs.trigger.focus()"
+		@click.outside="open = false"
+	>
+		<button
+			type="button"
+			x-ref="trigger"
+			@click="open = !open"
+			data-testid="user-menu-trigger"
+			class="inline-flex items-center gap-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			aria-haspopup="menu"
+			:aria-expanded="open.toString()"
+		>
+			@avatar(s)
+		</button>
+		<div
+			x-show="open"
+			x-cloak
+			x-transition
+			role="menu"
+			data-testid="user-menu"
+			aria-label="Account"
+			class="absolute right-0 z-30 mt-2 w-56 origin-top-right rounded-md border border-border bg-surface p-1.5 shadow-md"
+		>
+			<div class="px-2.5 py-2">
+				<p class="truncate text-small font-medium text-text">{ s.UserName }</p>
+				<p class="truncate text-caption text-muted">{ s.UserEmail }</p>
+				<span class="mt-1.5 inline-flex h-[22px] items-center rounded-full bg-surface-2 px-2.5 text-caption font-medium text-muted" data-testid="role-badge">{ s.RoleLabel }</span>
+			</div>
+			<div class="my-1 border-t border-border" role="separator"></div>
+			<a
+				href="/account"
+				role="menuitem"
+				data-testid="menu-profile"
+				class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+			>Profile</a>
+			<form method="post" action="/logout" role="none">
+				@csrfField(s.CSRFToken)
+				<button
+					type="submit"
+					role="menuitem"
+					data-testid="menu-logout"
+					class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+				>Sign out</button>
+			</form>
+		</div>
+	</div>
+}
+
+// avatar shows the provider image when present, falling back to initials on
+// --surface-2 (DESIGN_SYSTEM §5 Avatar).
+templ avatar(s AdminShell) {
+	if s.AvatarURL != "" {
+		<img
+			src={ s.AvatarURL }
+			alt={ s.UserName }
+			class="h-8 w-8 rounded-full object-cover"
+		/>
+	} else {
+		<span
+			class="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-caption font-medium text-muted"
+			aria-hidden="true"
+		>{ initials(s.UserName, s.UserEmail) }</span>
+	}
+}
+
+// AdminDashboard is the authed landing page (/admin). It uses the shell and
+// shows a welcome plus placeholder stat cards; real widgets arrive later.
+templ AdminDashboard(s AdminShell) {
+	@AdminBase(s) {
+		<section data-testid="admin-dashboard">
+			<h2 class="text-h3 text-text">Welcome back, { s.UserName }</h2>
+			<p class="mt-2 text-body text-muted">This is your CMStack admin dashboard. Widgets arrive in later milestones.</p>
+			<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				@statCard("Posts", "—", "Total published")
+				@statCard("Pages", "—", "Total published")
+				@statCard("Comments", "—", "Awaiting moderation")
+			</div>
+		</section>
+	}
+}
+
+templ statCard(label, value, hint string) {
+	<div class="rounded-lg border border-border bg-surface p-5" data-testid="stat-card">
+		<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">{ label }</p>
+		<p class="mt-2 text-h3 text-text">{ value }</p>
+		<p class="mt-1 text-caption text-muted">{ hint }</p>
+	</div>
+}
+
+// --- icons (inline SVG, currentColor, aria-hidden) ---------------------------
+
+templ navIcon(key string) {
+	switch key {
+		case "dashboard":
+			@iconGrid()
+		case "post":
+			@iconDoc()
+		case "page":
+			@iconFile()
+		case "service":
+			@iconBox()
+		case "tag":
+			@iconTag()
+		case "media":
+			@iconImage()
+		case "comment":
+			@iconChat()
+		case "theme":
+			@iconBrush()
+		case "menu":
+			@iconList()
+		case "plugin":
+			@iconPlug()
+		case "setting":
+			@iconGear()
+		case "seo":
+			@iconSearch()
+		case "user":
+			@iconUsers()
+		default:
+			@iconDot()
+	}
+}
+
+templ iconBase(path string) {
+	<svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		@templ.Raw(path)
+	</svg>
+}
+
+templ iconGrid() {
+	@iconBase(`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>`)
+}
+templ iconDoc() {
+	@iconBase(`<path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/><path d="M9 13h6M9 17h6"/>`)
+}
+templ iconFile() {
+	@iconBase(`<path d="M6 2h9l3 3v17H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>`)
+}
+templ iconBox() {
+	@iconBase(`<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>`)
+}
+templ iconTag() {
+	@iconBase(`<path d="M3 12l9-9 9 9-9 9-9-9z"/><circle cx="8.5" cy="8.5" r="1"/>`)
+}
+templ iconImage() {
+	@iconBase(`<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>`)
+}
+templ iconChat() {
+	@iconBase(`<path d="M21 12a8 8 0 0 1-11 7L3 21l2-7A8 8 0 1 1 21 12z"/>`)
+}
+templ iconBrush() {
+	@iconBase(`<path d="M4 20c2 0 3-1 3-3a2 2 0 1 0-3 3z"/><path d="M7 17l9-9 3 3-9 9"/>`)
+}
+templ iconList() {
+	@iconBase(`<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>`)
+}
+templ iconPlug() {
+	@iconBase(`<path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/>`)
+}
+templ iconGear() {
+	@iconBase(`<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.6a7 7 0 0 0 .1-1z"/>`)
+}
+templ iconSearch() {
+	@iconBase(`<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>`)
+}
+templ iconUsers() {
+	@iconBase(`<circle cx="9" cy="8" r="3"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 6a3 3 0 0 1 0 6M22 21a7 7 0 0 0-5-6.7"/>`)
+}
+templ iconDot() {
+	@iconBase(`<circle cx="12" cy="12" r="3"/>`)
+}
+templ iconMenu() {
+	@iconBase(`<path d="M3 6h18M3 12h18M3 18h18"/>`)
+}
+templ iconSun() {
+	@iconBase(`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>`)
+}
+templ iconMoon() {
+	@iconBase(`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`)
+}

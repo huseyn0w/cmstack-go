@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,9 +27,23 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetByEmail(ctx context.Context, email string) (User, error)
 	GetByUsername(ctx context.Context, username string) (User, error)
+	CountByUsername(ctx context.Context, username string) (int, error)
 	CreateTx(ctx context.Context, tx pgx.Tx, in CreateUserInput) (User, error)
 	SetPasswordTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, passwordHash string) error
 	MarkEmailVerifiedTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
+	// UpdateProfileTx persists the editable profile fields, returning the updated
+	// user. SetAvatarPathTx updates only avatar_path (empty clears it).
+	UpdateProfileTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, in ProfileFields) (User, error)
+	SetAvatarPathTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, path string) (User, error)
+}
+
+// ProfileFields are the editable profile attributes persisted by UpdateProfileTx.
+// They are already validated/normalized by the service before reaching the repo.
+type ProfileFields struct {
+	Name        string
+	Bio         string
+	Website     string
+	SocialLinks map[string]string
 }
 
 // CreateUserInput carries the fields needed to insert a user.
@@ -39,6 +54,20 @@ type CreateUserInput struct {
 	Name            string
 	RoleID          uuid.UUID
 	EmailVerifiedAt *time.Time
+	AvatarURL       string // empty -> NULL; set by social login
+}
+
+// OAuthRepository is the data-access contract for linked third-party identities
+// (oauth_accounts). It is the ONLY layer touching sqlc/pgx for that table.
+// The link write is transactional so creating a user and linking the identity
+// commit atomically.
+type OAuthRepository interface {
+	// GetByProvider resolves a linked identity by (provider, providerUserID),
+	// returning ErrNotFound when no link exists.
+	GetByProvider(ctx context.Context, provider, providerUserID string) (OAuthAccount, error)
+	// LinkTx inserts a new oauth_accounts row binding userID to a provider
+	// identity within tx.
+	LinkTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, provider, providerUserID string) error
 }
 
 // RoleRepository resolves roles and their permission sets.
@@ -94,3 +123,13 @@ type Mailer interface {
 
 // Clock returns the current time; injected so token expiry is testable.
 type Clock func() time.Time
+
+// AvatarStore is the narrow subset of platform/storage.Storage the profile
+// service needs: save an avatar blob, delete an old one, and resolve its public
+// URL. Declaring it here keeps accounts decoupled from the storage package and
+// trivially fakeable in tests.
+type AvatarStore interface {
+	Save(ctx context.Context, key string, r io.Reader, contentType string) (string, error)
+	Delete(ctx context.Context, key string) error
+	URL(key string) string
+}

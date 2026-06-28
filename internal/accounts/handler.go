@@ -40,19 +40,27 @@ type Validator func(v any) map[string]string
 // validates the DTO, calls the service, and renders/redirects. ZERO business
 // logic lives here.
 type Handler struct {
-	svc      Service
-	session  SessionLogin
-	csrf     CSRFTokenFunc
-	validate Validator
+	svc       Service
+	session   SessionLogin
+	csrf      CSRFTokenFunc
+	validate  Validator
+	providers []webtempl.OAuthProviderButton
 }
 
-// NewHandler constructs the auth Handler.
-func NewHandler(svc Service, session SessionLogin, csrf CSRFTokenFunc, validate Validator) *Handler {
-	return &Handler{svc: svc, session: session, csrf: csrf, validate: validate}
+// NewHandler constructs the auth Handler. providers are the enabled social-login
+// providers shown on the login/signup pages; pass nil/empty when none are
+// configured (the buttons then render as a no-op).
+func NewHandler(svc Service, session SessionLogin, csrf CSRFTokenFunc, validate Validator, providers ...webtempl.OAuthProviderButton) *Handler {
+	return &Handler{svc: svc, session: session, csrf: csrf, validate: validate, providers: providers}
 }
 
 func (h *Handler) form(r *http.Request) webtempl.AuthForm {
-	return webtempl.AuthForm{CSRFToken: h.csrf(r), Values: map[string]string{}, FieldErrors: map[string]string{}}
+	return webtempl.AuthForm{
+		CSRFToken:      h.csrf(r),
+		Values:         map[string]string{},
+		FieldErrors:    map[string]string{},
+		OAuthProviders: h.providers,
+	}
 }
 
 func (h *Handler) renderPage(w http.ResponseWriter, r *http.Request, status int, c templ.Component) {
@@ -106,10 +114,12 @@ func (h *Handler) SubmitSignup(w http.ResponseWriter, r *http.Request) {
 	f := h.form(r)
 	dto := registerDTO{
 		Name:     r.PostFormValue("name"),
+		Username: r.PostFormValue("username"),
 		Email:    r.PostFormValue("email"),
 		Password: r.PostFormValue("password"),
 	}
 	f.Values["name"] = dto.Name
+	f.Values["username"] = dto.Username
 	f.Values["email"] = dto.Email
 
 	if fieldErrs := h.validate(dto); len(fieldErrs) > 0 {
@@ -118,7 +128,7 @@ func (h *Handler) SubmitSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.svc.Register(r.Context(), RegisterInput{Name: dto.Name, Email: dto.Email, Password: dto.Password})
+	_, err := h.svc.Register(r.Context(), RegisterInput{Name: dto.Name, Username: dto.Username, Email: dto.Email, Password: dto.Password})
 	switch {
 	case errors.Is(err, ErrSignupDisabled):
 		f.Error = "Registration is currently disabled."
@@ -128,6 +138,14 @@ func (h *Handler) SubmitSignup(w http.ResponseWriter, r *http.Request) {
 		// Do not over-disclose; field-level hint is acceptable on signup.
 		f.FieldErrors["email"] = "An account with this email already exists."
 		h.renderPage(w, r, http.StatusConflict, webtempl.SignupPage(f))
+		return
+	case errors.Is(err, ErrUsernameTaken):
+		f.FieldErrors["username"] = "That username is already taken."
+		h.renderPage(w, r, http.StatusConflict, webtempl.SignupPage(f))
+		return
+	case errors.Is(err, ErrInvalidUsername):
+		f.FieldErrors["username"] = "Username must be 3–30 characters: letters, numbers, _ or -."
+		h.renderPage(w, r, http.StatusUnprocessableEntity, webtempl.SignupPage(f))
 		return
 	case err != nil:
 		f.Error = "Something went wrong. Please try again."

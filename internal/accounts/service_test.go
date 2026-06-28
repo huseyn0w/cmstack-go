@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +85,39 @@ func (r *fakeUserRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreateUserInput)
 	}
 	r.byEmail[in.Email] = u
 	r.byID[u.ID] = u
+	if in.Username != "" {
+		r.byUsername[in.Username] = u
+	}
+	return u, nil
+}
+
+func (r *fakeUserRepo) CountByUsername(_ context.Context, username string) (int, error) {
+	if _, ok := r.byUsername[strings.ToLower(username)]; ok {
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func (r *fakeUserRepo) UpdateProfileTx(_ context.Context, _ pgx.Tx, id uuid.UUID, in ProfileFields) (User, error) {
+	u, ok := r.byID[id]
+	if !ok {
+		return User{}, ErrNotFound
+	}
+	u.Name = in.Name
+	u.Bio = in.Bio
+	u.Website = in.Website
+	u.SocialLinks = in.SocialLinks
+	r.byID[id] = u
+	return u, nil
+}
+
+func (r *fakeUserRepo) SetAvatarPathTx(_ context.Context, _ pgx.Tx, id uuid.UUID, path string) (User, error) {
+	u, ok := r.byID[id]
+	if !ok {
+		return User{}, ErrNotFound
+	}
+	u.AvatarPath = path
+	r.byID[id] = u
 	return u, nil
 }
 
@@ -214,6 +248,32 @@ func (b *recordingBus) Publish(ctx context.Context, tx pgx.Tx, ev events.Event) 
 	return nil
 }
 
+// fakeOAuthRepo is an in-memory OAuthRepository. Links are keyed by
+// "provider|providerUserID".
+type fakeOAuthRepo struct {
+	links map[string]OAuthAccount
+}
+
+func newFakeOAuthRepo() *fakeOAuthRepo {
+	return &fakeOAuthRepo{links: map[string]OAuthAccount{}}
+}
+
+func oauthKey(provider, providerUserID string) string { return provider + "|" + providerUserID }
+
+func (r *fakeOAuthRepo) GetByProvider(_ context.Context, provider, providerUserID string) (OAuthAccount, error) {
+	if l, ok := r.links[oauthKey(provider, providerUserID)]; ok {
+		return l, nil
+	}
+	return OAuthAccount{}, ErrNotFound
+}
+
+func (r *fakeOAuthRepo) LinkTx(_ context.Context, _ pgx.Tx, userID uuid.UUID, provider, providerUserID string) error {
+	r.links[oauthKey(provider, providerUserID)] = OAuthAccount{
+		ID: uuid.New(), UserID: userID, Provider: provider, ProviderUserID: providerUserID,
+	}
+	return nil
+}
+
 type fakeSettings struct {
 	signup       bool
 	verifyNeeded bool
@@ -228,6 +288,7 @@ type harness struct {
 	svc      *AuthService
 	users    *fakeUserRepo
 	tokens   *fakeTokenRepo
+	oauth    *fakeOAuthRepo
 	bus      *recordingBus
 	settings *fakeSettings
 	hasher   *security.PasswordHasher
@@ -237,6 +298,7 @@ func newHarness(t *testing.T, settings fakeSettings) *harness {
 	t.Helper()
 	users := newFakeUserRepo()
 	tokens := newFakeTokenRepo()
+	oauth := newFakeOAuthRepo()
 	bus := newRecordingBus()
 	hasher := security.NewPasswordHasher()
 	s := &settings
@@ -245,12 +307,13 @@ func newHarness(t *testing.T, settings fakeSettings) *harness {
 		users,
 		fakeRoleRepo{member: Role{ID: uuid.New(), Key: RoleMember, Label: "Member"}},
 		tokens,
+		oauth,
 		hasher,
 		bus,
 		s,
 		time.Now,
 	)
-	return &harness{svc: svc, users: users, tokens: tokens, bus: bus, settings: s, hasher: hasher}
+	return &harness{svc: svc, users: users, tokens: tokens, oauth: oauth, bus: bus, settings: s, hasher: hasher}
 }
 
 // --- tests -------------------------------------------------------------------
@@ -309,6 +372,45 @@ func TestRegisterRejectsDuplicateEmail(t *testing.T) {
 	_, err := h.svc.Register(context.Background(), RegisterInput{Email: "Taken@example.com", Password: "x"})
 	if !errors.Is(err, ErrEmailTaken) {
 		t.Fatalf("expected ErrEmailTaken, got %v", err)
+	}
+}
+
+func TestRegisterOptionalUsernameEmptyStored(t *testing.T) {
+	h := newHarness(t, fakeSettings{signup: true})
+	u, err := h.svc.Register(context.Background(), RegisterInput{Email: "noun@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("Register without username: %v", err)
+	}
+	if u.Username != "" {
+		t.Errorf("username should be empty, got %q", u.Username)
+	}
+}
+
+func TestRegisterWithUsernameLowercasesAndStores(t *testing.T) {
+	h := newHarness(t, fakeSettings{signup: true})
+	u, err := h.svc.Register(context.Background(), RegisterInput{Email: "u@example.com", Username: "Grace_H", Password: "password123"})
+	if err != nil {
+		t.Fatalf("Register with username: %v", err)
+	}
+	if u.Username != "grace_h" {
+		t.Errorf("username should be lowercased, got %q", u.Username)
+	}
+}
+
+func TestRegisterRejectsDuplicateUsername(t *testing.T) {
+	h := newHarness(t, fakeSettings{signup: true})
+	h.users.byUsername["grace"] = User{ID: uuid.New(), Username: "grace"}
+	_, err := h.svc.Register(context.Background(), RegisterInput{Email: "new@example.com", Username: "Grace", Password: "password123"})
+	if !errors.Is(err, ErrUsernameTaken) {
+		t.Fatalf("expected ErrUsernameTaken, got %v", err)
+	}
+}
+
+func TestRegisterRejectsInvalidUsername(t *testing.T) {
+	h := newHarness(t, fakeSettings{signup: true})
+	_, err := h.svc.Register(context.Background(), RegisterInput{Email: "new@example.com", Username: "ab", Password: "password123"})
+	if !errors.Is(err, ErrInvalidUsername) {
+		t.Fatalf("expected ErrInvalidUsername for too-short handle, got %v", err)
 	}
 }
 

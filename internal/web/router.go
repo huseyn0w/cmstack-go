@@ -38,6 +38,25 @@ type Deps struct {
 	Auth     *accounts.Handler // thin auth HTTP boundary
 	AuthMW   *AuthMiddleware   // session/auth/permission middleware
 	CSRFFunc func(*http.Request) string
+
+	// Admin shell wiring (M1-ext). Authz filters the sidebar per user; Roles
+	// resolves the role-label badge. Both optional (admin falls back to a stub).
+	Authz PermissionChecker
+	Roles RoleResolver
+
+	// OAuth (social login, M1-ext). OAuth is the thin handler; it is mounted only
+	// when non-nil (providers configured).
+	OAuth *accounts.OAuthHandler
+
+	// Profiles (M1-ext). Account is the self-service /account editor (auth-gated);
+	// Author is the public /authors/{id} page; Uploads serves stored avatars.
+	// All optional so reduced-Deps tests keep working.
+	Account *AccountHandler
+	Author  *AuthorHandler
+	Uploads http.Handler // mounted at UploadsPrefix when non-nil
+	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
+	// "/uploads"); defaults to "/uploads".
+	UploadsPrefix string
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -67,6 +86,17 @@ func Router(d Deps) http.Handler {
 		r.Handle("/static/*", fs)
 	}
 
+	// User-uploaded files (avatars now). Served outside the CSRF/session group
+	// like static assets; the storage handler sets X-Content-Type-Options:
+	// nosniff and a locked-down CSP so a stored blob can never execute.
+	if d.Uploads != nil {
+		prefix := d.UploadsPrefix
+		if prefix == "" {
+			prefix = "/uploads"
+		}
+		r.Handle(prefix+"/*", d.Uploads)
+	}
+
 	// Health endpoints — no session/CSRF (probed by orchestrators).
 	if d.Health != nil {
 		d.Health.Routes(r)
@@ -91,6 +121,11 @@ func Router(d Deps) http.Handler {
 				http.Error(w, "render error", http.StatusInternalServerError)
 			}
 		})
+
+		// Public author profile page (no auth) — anyone may view it.
+		if d.Author != nil {
+			gr.Get("/authors/{id}", d.Author.Show)
+		}
 
 		mountAuthRoutes(gr, d)
 	})
@@ -136,20 +171,72 @@ func mountAuthRoutes(gr chi.Router, d Deps) {
 	// Logout requires an active session.
 	gr.With(d.AuthMW.RequireAuth).Post("/logout", d.Auth.SubmitLogout)
 
-	// Authenticated admin stub (full shell = M1-ext).
-	gr.With(d.AuthMW.RequireAuth).Get("/admin", func(w http.ResponseWriter, req *http.Request) {
-		u, _ := UserFromContext(req.Context())
-		name := u.Name
-		if name == "" {
-			name = u.Email
-		}
-		csrf := ""
-		if d.CSRFFunc != nil {
-			csrf = d.CSRFFunc(req)
-		}
-		if err := render.Component(req.Context(), w, http.StatusOK, webtempl.AdminStub(name, csrf)); err != nil {
-			http.Error(w, "render error", http.StatusInternalServerError)
-		}
+	// Social login (OAuth). Mounted only when providers are configured. State /
+	// CSRF is handled by goth; these routes carry the application session so the
+	// callback can establish login via the same path as password auth.
+	if d.OAuth != nil {
+		gr.Get("/auth/{provider}", d.OAuth.Begin)
+		gr.Get("/auth/{provider}/callback", d.OAuth.Callback)
+	}
+
+	mountAdmin(gr, d)
+}
+
+// mountAdmin mounts the authenticated admin area under RequireAuth. The shell
+// itself performs per-item permission gating (hidden, not disabled); resource
+// routes arrive in later milestones. When the shell deps are not wired it falls
+// back to the M1-core stub so reduced-Deps tests keep working.
+func mountAdmin(gr chi.Router, d Deps) {
+	if d.Authz == nil || d.Roles == nil {
+		// Fallback stub (used by reduced-Deps router tests).
+		gr.With(d.AuthMW.RequireAuth).Get("/admin", func(w http.ResponseWriter, req *http.Request) {
+			u, _ := UserFromContext(req.Context())
+			name := u.Name
+			if name == "" {
+				name = u.Email
+			}
+			csrf := ""
+			if d.CSRFFunc != nil {
+				csrf = d.CSRFFunc(req)
+			}
+			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.AdminStub(name, csrf)); err != nil {
+				http.Error(w, "render error", http.StatusInternalServerError)
+			}
+		})
+		return
+	}
+
+	shell := adminShellDeps{
+		authz:   d.Authz,
+		roles:   d.Roles,
+		csrf:    d.CSRFFunc,
+		siteURL: d.Config.BaseURL,
+	}
+	gr.With(d.AuthMW.RequireAuth).Get("/admin", shell.dashboard)
+
+	mountAccount(gr, d)
+}
+
+// mountAccount wires the self-service /account area behind RequireAuth. The
+// avatar upload and password change endpoints are additionally rate-limited
+// (they are expensive / security-sensitive) with a dedicated per-IP limiter.
+func mountAccount(gr chi.Router, d Deps) {
+	if d.Account == nil {
+		return
+	}
+	// 1 token/3s, burst 3 (~20/min) for the heavy/sensitive account POSTs.
+	limiter := ratelimit.New(1.0/3.0, 3)
+
+	gr.Group(func(g chi.Router) {
+		g.Use(d.AuthMW.RequireAuth)
+		g.Get("/account", d.Account.Show)
+		g.Post("/account", d.Account.SubmitProfile)
+
+		g.Group(func(rl chi.Router) {
+			rl.Use(limiter.Middleware)
+			rl.Post("/account/avatar", d.Account.SubmitAvatar)
+			rl.Post("/account/password", d.Account.SubmitPassword)
+		})
 	})
 }
 

@@ -27,7 +27,20 @@ type User struct {
 	PasswordHash    string
 	Name            string
 	EmailVerifiedAt *time.Time
-	RoleID          uuid.UUID
+	// AvatarURL is an absolute URL of a provider-supplied avatar (social login).
+	// Empty for password accounts and providers that expose no avatar.
+	AvatarURL string
+	// Bio is a short free-text description shown on the profile/author page.
+	Bio string
+	// AvatarPath is the storage key of a self-uploaded avatar (Storage.URL turns
+	// it into a public URL). Empty when the user has not uploaded one.
+	AvatarPath string
+	// Website is the user's personal/site URL (validated http(s) on save).
+	Website string
+	// SocialLinks maps a known network key (twitter/github/linkedin/mastodon) to a
+	// profile URL. Normalized and validated on save.
+	SocialLinks map[string]string
+	RoleID      uuid.UUID
 	// PasswordChangedAt is bumped on every password reset/change. Sessions store
 	// the value they were minted under; the middleware rejects sessions older
 	// than this, enforcing a global logout after a credential change.
@@ -50,6 +63,16 @@ type Role struct {
 type Permission struct {
 	Action  string
 	Subject string
+}
+
+// OAuthAccount is a linked third-party identity (social login). The unique
+// (Provider, ProviderUserID) pair maps a provider account to a local user.
+type OAuthAccount struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Provider       string
+	ProviderUserID string
+	CreatedAt      time.Time
 }
 
 // Token is the persisted, hashed form of an email-verification or

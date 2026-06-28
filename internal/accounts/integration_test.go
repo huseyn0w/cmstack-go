@@ -88,6 +88,7 @@ type wiring struct {
 	users   *accounts.UserRepoPG
 	roles   *accounts.RoleRepoPG
 	tokens  *accounts.TokenRepoPG
+	oauth   *accounts.OAuthRepoPG
 	authz   *accounts.Authorizer
 	bus     *events.Bus
 	svc     *accounts.AuthService
@@ -100,11 +101,12 @@ func newWiring(t *testing.T, settings accounts.SettingsProvider) *wiring {
 	users := accounts.NewUserRepoPG(q)
 	roles := accounts.NewRoleRepoPG(q)
 	tokens := accounts.NewTokenRepoPG(q)
+	oauth := accounts.NewOAuthRepoPG(q)
 	bus := events.NewBus(events.NewOutboxRepository())
 	bus.SubscribeAsync(accounts.EventAccountRegistered)
 	bus.SubscribeAsync(accounts.EventPasswordResetRequested)
 	authz := accounts.NewAuthorizer(users, roles)
-	svc := accounts.NewAuthService(pool, users, roles, tokens, hasher, bus, settings, nil)
+	svc := accounts.NewAuthService(pool, users, roles, tokens, oauth, hasher, bus, settings, nil)
 
 	// Seed so the Member role and admin exist.
 	seeder := accounts.NewSeeder(pool, q, users, roles, hasher)
@@ -112,7 +114,7 @@ func newWiring(t *testing.T, settings accounts.SettingsProvider) *wiring {
 		t.Fatalf("seed: %v", err)
 	}
 
-	return &wiring{pool: pool, queries: q, users: users, roles: roles, tokens: tokens, authz: authz, bus: bus, svc: svc}
+	return &wiring{pool: pool, queries: q, users: users, roles: roles, tokens: tokens, oauth: oauth, authz: authz, bus: bus, svc: svc}
 }
 
 func TestSeedIsIdempotentAndPopulatesAuthz(t *testing.T) {

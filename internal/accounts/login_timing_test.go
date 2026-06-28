@@ -56,6 +56,7 @@ func TestLoginUnknownUserStillVerifiesOnce(t *testing.T) {
 		users,
 		fakeRoleRepo{member: Role{ID: uuid.New(), Key: RoleMember, Label: "Member"}},
 		tokens,
+		newFakeOAuthRepo(),
 		spy,
 		bus,
 		settings,

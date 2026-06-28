@@ -12,6 +12,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
@@ -20,9 +22,12 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
+	"github.com/huseyn0w/cmstack-go/internal/platform/oauth"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
 	"github.com/huseyn0w/cmstack-go/internal/web"
+	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
 
 func main() {
@@ -69,9 +74,18 @@ func run() error {
 	userRepo := accounts.NewUserRepoPG(queries)
 	roleRepo := accounts.NewRoleRepoPG(queries)
 	tokenRepo := accounts.NewTokenRepoPG(queries)
+	oauthRepo := accounts.NewOAuthRepoPG(queries)
 	settings := accounts.NewStaticSettings(cfg.SignupEnabled, cfg.EmailVerificationRequired)
 	authz := accounts.NewAuthorizer(userRepo, roleRepo)
-	authSvc := accounts.NewAuthService(pool, userRepo, roleRepo, tokenRepo, hasher, bus, settings, nil)
+	authSvc := accounts.NewAuthService(pool, userRepo, roleRepo, tokenRepo, oauthRepo, hasher, bus, settings, nil)
+
+	// Avatar storage (local backend; S3 + thumbnails arrive in M4). The profile
+	// service stores avatars through it; the same instance serves /uploads.
+	avatarStore, err := storage.NewLocalStorage(cfg.UploadDir, "/uploads")
+	if err != nil {
+		return err
+	}
+	profileSvc := accounts.NewProfileService(pool, userRepo, roleRepo, avatarStore)
 
 	// Idempotent seed: roles, permissions, mappings, default administrator.
 	seeder := accounts.NewSeeder(pool, queries, userRepo, roleRepo, hasher)
@@ -80,7 +94,40 @@ func run() error {
 	}
 
 	authMW := web.NewAuthMiddleware(sess, userRepo, authz)
-	authHandler := accounts.NewHandler(authSvc, authMW, security.Token, accounts.NewValidator())
+
+	// Social login (OAuth). Providers are registered ONLY when their credentials
+	// are present; with none configured, enabled is empty and no buttons/routes
+	// are offered. The callback base defaults to BaseURL.
+	callbackBase := cfg.OAuthCallbackBase
+	if callbackBase == "" {
+		callbackBase = cfg.BaseURL
+	}
+	enabledProviders := oauth.Setup(oauth.Config{
+		CallbackBase:       callbackBase,
+		SessionKey:         cfg.SessionKey,
+		Production:         cfg.IsProduction(),
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
+		GitHubClientID:     cfg.GitHubClientID,
+		GitHubClientSecret: cfg.GitHubClientSecret,
+	})
+	providerButtons := make([]webtempl.OAuthProviderButton, 0, len(enabledProviders))
+	for _, p := range enabledProviders {
+		providerButtons = append(providerButtons, webtempl.OAuthProviderButton{Name: p.Name, Label: p.Label})
+	}
+
+	authHandler := accounts.NewHandler(authSvc, authMW, security.Token, accounts.NewValidator(), providerButtons...)
+
+	// The OAuth HTTP handler is wired only when at least one provider is enabled.
+	var oauthHandler *accounts.OAuthHandler
+	if len(enabledProviders) > 0 {
+		oauthHandler = accounts.NewOAuthHandler(authSvc, authMW, func(r *http.Request) string {
+			return chi.URLParam(r, "provider")
+		})
+	}
+
+	accountHandler := web.NewAccountHandler(profileSvc, authSvc, roleRepo, authz, security.Token, cfg.BaseURL)
+	authorHandler := web.NewAuthorHandler(profileSvc, "CMStack", cfg.BaseURL)
 
 	handler := web.Router(web.Deps{
 		Config:        cfg,
@@ -92,6 +139,13 @@ func run() error {
 		Auth:          authHandler,
 		AuthMW:        authMW,
 		CSRFFunc:      security.Token,
+		Authz:         authz,
+		Roles:         roleRepo,
+		OAuth:         oauthHandler,
+		Account:       accountHandler,
+		Author:        authorHandler,
+		Uploads:       avatarStore.Handler(),
+		UploadsPrefix: avatarStore.PublicPrefix(),
 	})
 
 	srv := &http.Server{

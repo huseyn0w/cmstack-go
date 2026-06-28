@@ -14,13 +14,16 @@ type Querier interface {
 	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
+	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
+	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
@@ -34,7 +37,9 @@ type Querier interface {
 	MarkEmailVerified(ctx context.Context, id pgtype.UUID) error
 	MarkOutboxProcessed(ctx context.Context, id int64) error
 	RecordOutboxFailure(ctx context.Context, arg RecordOutboxFailureParams) error
+	SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error)
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
 	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)
 }

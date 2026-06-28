@@ -104,6 +104,12 @@
   --error-bg: #2A1513;
 }
 
+/* Alpine: hide x-cloak elements until Alpine initializes (prevents a flash of
+   the open dropdown / dark-mode icon before hydration). */
+[x-cloak] {
+  display: none !important;
+}
+
 /* §6 Motion rule: reduced motion disables transitions/animations. */
 @media (prefers-reduced-motion: reduce) {
   *,
