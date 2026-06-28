@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -181,4 +182,42 @@ func (s *roleByIDStub) GetByID(_ context.Context, id uuid.UUID) (Role, error) {
 
 func (s *roleByIDStub) AllRolePermissions(context.Context) (map[string][]Permission, error) {
 	return s.perms, nil
+}
+
+// TestAuthorizerTTLReloadsAfterExpiry guards Fix 4: with a finite TTL the cached
+// role->permission map self-heals after expiry without an explicit Invalidate,
+// so stale grants from role_permission edits cannot persist process-wide.
+func TestAuthorizerTTLReloadsAfterExpiry(t *testing.T) {
+	roles := &stubRoleRepo{perms: seedPermissions()}
+	now := time.Unix(1000, 0)
+	clock := func() time.Time { return now }
+	a := NewAuthorizerWithTTL(stubUserRepo{}, roles, 60*time.Second, clock)
+
+	// First call loads; subsequent calls within the TTL are served from cache.
+	for i := 0; i < 3; i++ {
+		if _, err := a.CanRole(context.Background(), RoleMember, ActionRead, SubjectPost); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if roles.calls != 1 {
+		t.Fatalf("within TTL expected 1 load, got %d", roles.calls)
+	}
+
+	// Advance time just short of the TTL: still cached.
+	now = now.Add(59 * time.Second)
+	if _, err := a.CanRole(context.Background(), RoleMember, ActionRead, SubjectPost); err != nil {
+		t.Fatal(err)
+	}
+	if roles.calls != 1 {
+		t.Fatalf("just before TTL expiry expected still 1 load, got %d", roles.calls)
+	}
+
+	// Advance past the TTL: the next call reloads.
+	now = now.Add(2 * time.Second)
+	if _, err := a.CanRole(context.Background(), RoleMember, ActionRead, SubjectPost); err != nil {
+		t.Fatal(err)
+	}
+	if roles.calls != 2 {
+		t.Fatalf("after TTL expiry expected a reload (2 loads), got %d", roles.calls)
+	}
 }

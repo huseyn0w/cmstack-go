@@ -28,10 +28,10 @@ type querier interface {
 
 	CreateEmailVerificationToken(ctx context.Context, arg sqlcgen.CreateEmailVerificationTokenParams) (sqlcgen.EmailVerificationToken, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (sqlcgen.EmailVerificationToken, error)
-	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) error
+	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	CreatePasswordResetToken(ctx context.Context, arg sqlcgen.CreatePasswordResetTokenParams) (sqlcgen.PasswordResetToken, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (sqlcgen.PasswordResetToken, error)
-	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) error
+	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 }
 
 // compile-time assertions that wiring satisfies the domain interfaces.
@@ -156,9 +156,13 @@ func (r *TokenRepoPG) GetEmailVerification(ctx context.Context, hash string) (To
 	return tokenFromEmail(row), nil
 }
 
-// ConsumeEmailVerificationTx marks a verification token consumed within tx.
+// ConsumeEmailVerificationTx atomically marks a verification token consumed
+// within tx. The UPDATE matches only a still-unconsumed row, so a concurrent
+// double-use yields pgx.ErrNoRows -> ErrNotFound for the loser; this is the
+// single-use gate.
 func (r *TokenRepoPG) ConsumeEmailVerificationTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
-	return mapErr(r.q.WithTx(tx).ConsumeEmailVerificationToken(ctx, toPgUUID(id)))
+	_, err := r.q.WithTx(tx).ConsumeEmailVerificationToken(ctx, toPgUUID(id))
+	return mapErr(err)
 }
 
 // CreatePasswordResetTx persists a hashed reset token within tx.
@@ -180,9 +184,12 @@ func (r *TokenRepoPG) GetPasswordReset(ctx context.Context, hash string) (Token,
 	return tokenFromReset(row), nil
 }
 
-// ConsumePasswordResetTx marks a reset token consumed within tx.
+// ConsumePasswordResetTx atomically marks a reset token consumed within tx. The
+// UPDATE matches only a still-unconsumed row, so a concurrent double-use yields
+// pgx.ErrNoRows -> ErrNotFound for the loser; this is the single-use gate.
 func (r *TokenRepoPG) ConsumePasswordResetTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
-	return mapErr(r.q.WithTx(tx).ConsumePasswordResetToken(ctx, toPgUUID(id)))
+	_, err := r.q.WithTx(tx).ConsumePasswordResetToken(ctx, toPgUUID(id))
+	return mapErr(err)
 }
 
 // --- conversions -------------------------------------------------------------
@@ -236,15 +243,16 @@ func userFromRow(u sqlcgen.User) User {
 		username = *u.Username
 	}
 	return User{
-		ID:              fromPgUUID(u.ID),
-		Email:           u.Email,
-		Username:        username,
-		PasswordHash:    u.PasswordHash,
-		Name:            u.Name,
-		EmailVerifiedAt: fromTimestamptz(u.EmailVerifiedAt),
-		RoleID:          fromPgUUID(u.RoleID),
-		CreatedAt:       u.CreatedAt.Time,
-		UpdatedAt:       u.UpdatedAt.Time,
+		ID:                fromPgUUID(u.ID),
+		Email:             u.Email,
+		Username:          username,
+		PasswordHash:      u.PasswordHash,
+		Name:              u.Name,
+		EmailVerifiedAt:   fromTimestamptz(u.EmailVerifiedAt),
+		RoleID:            fromPgUUID(u.RoleID),
+		PasswordChangedAt: u.PasswordChangedAt.Time,
+		CreatedAt:         u.CreatedAt.Time,
+		UpdatedAt:         u.UpdatedAt.Time,
 	}
 }
 

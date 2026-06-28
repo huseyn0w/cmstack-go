@@ -52,6 +52,10 @@ type RoleRepository interface {
 
 // TokenRepository persists hashed verification/reset tokens transactionally and
 // resolves them by hash for consumption.
+// TokenRepository's Consume*Tx methods are the atomic single-use gate: the
+// UPDATE only matches a still-unconsumed row, so a concurrent double-use returns
+// ErrNotFound for the loser. Callers MUST treat ErrNotFound as "already
+// consumed" and abort without applying the side effect.
 type TokenRepository interface {
 	CreateEmailVerificationTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
 	GetEmailVerification(ctx context.Context, tokenHash string) (Token, error)

@@ -3,7 +3,9 @@ package web
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,6 +15,12 @@ import (
 
 // sessionUserKey is the scs session key holding the authenticated user's id.
 const sessionUserKey = "user_id"
+
+// sessionPwdEpochKey holds the user's password_changed_at (as Unix nanoseconds)
+// at the moment the session was minted. CurrentUser rejects any session whose
+// stored epoch is older than the user's current PasswordChangedAt, so a password
+// reset/change globally invalidates all previously issued sessions.
+const sessionPwdEpochKey = "pwd_epoch"
 
 // SessionManager is the subset of scs the auth middleware needs. The concrete
 // *scs.SessionManager satisfies it.
@@ -48,18 +56,22 @@ func NewAuthMiddleware(sessions SessionManager, users UserLoader, authz Permissi
 }
 
 // Login stores the user id in the session, rotating the token to prevent
-// session fixation. Call from the login handler after the service authenticates.
-func (m *AuthMiddleware) Login(ctx context.Context, userID uuid.UUID) error {
+// session fixation. It also records the user's password_changed_at epoch so the
+// session can be globally invalidated by a later credential change. Call from
+// the login handler after the service authenticates.
+func (m *AuthMiddleware) Login(ctx context.Context, userID uuid.UUID, passwordChangedAt time.Time) error {
 	if err := m.sessions.RenewToken(ctx); err != nil {
 		return err
 	}
 	m.sessions.Put(ctx, sessionUserKey, userID.String())
+	m.sessions.Put(ctx, sessionPwdEpochKey, strconv.FormatInt(passwordChangedAt.UnixNano(), 10))
 	return nil
 }
 
 // Logout clears the session user, rotating the token.
 func (m *AuthMiddleware) Logout(ctx context.Context) error {
 	m.sessions.Remove(ctx, sessionUserKey)
+	m.sessions.Remove(ctx, sessionPwdEpochKey)
 	return m.sessions.RenewToken(ctx)
 }
 
@@ -82,6 +94,17 @@ func (m *AuthMiddleware) CurrentUser(next http.Handler) http.Handler {
 		if err != nil {
 			// Stale session referencing a deleted user: drop it.
 			m.sessions.Remove(r.Context(), sessionUserKey)
+			m.sessions.Remove(r.Context(), sessionPwdEpochKey)
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Reject sessions minted before the user's last credential change: a
+		// password reset/change bumps PasswordChangedAt, globally logging out every
+		// previously issued session. Missing/unparseable epoch is treated as stale.
+		epoch, perr := strconv.ParseInt(m.sessions.GetString(r.Context(), sessionPwdEpochKey), 10, 64)
+		if perr != nil || epoch < u.PasswordChangedAt.UnixNano() {
+			m.sessions.Remove(r.Context(), sessionUserKey)
+			m.sessions.Remove(r.Context(), sessionPwdEpochKey)
 			next.ServeHTTP(w, r)
 			return
 		}

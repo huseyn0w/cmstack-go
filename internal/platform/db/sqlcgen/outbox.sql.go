@@ -9,6 +9,22 @@ import (
 	"context"
 )
 
+const deadLetterOutbox = `-- name: DeadLetterOutbox :exec
+UPDATE outbox
+SET attempts = attempts + 1, last_error = $2, failed_at = now()
+WHERE id = $1
+`
+
+type DeadLetterOutboxParams struct {
+	ID        int64   `json:"id"`
+	LastError *string `json:"last_error"`
+}
+
+func (q *Queries) DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error {
+	_, err := q.db.Exec(ctx, deadLetterOutbox, arg.ID, arg.LastError)
+	return err
+}
+
 const enqueueOutbox = `-- name: EnqueueOutbox :exec
 INSERT INTO outbox (event_name, payload)
 VALUES ($1, $2)
@@ -25,9 +41,9 @@ func (q *Queries) EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) er
 }
 
 const fetchUnprocessedOutbox = `-- name: FetchUnprocessedOutbox :many
-SELECT id, event_name, payload, created_at, processed_at
+SELECT id, event_name, payload, created_at, processed_at, attempts, last_error, failed_at
 FROM outbox
-WHERE processed_at IS NULL
+WHERE processed_at IS NULL AND failed_at IS NULL
 ORDER BY created_at
 LIMIT $1
 FOR UPDATE SKIP LOCKED
@@ -48,6 +64,9 @@ func (q *Queries) FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Ou
 			&i.Payload,
 			&i.CreatedAt,
 			&i.ProcessedAt,
+			&i.Attempts,
+			&i.LastError,
+			&i.FailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -67,5 +86,21 @@ WHERE id = $1
 
 func (q *Queries) MarkOutboxProcessed(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, markOutboxProcessed, id)
+	return err
+}
+
+const recordOutboxFailure = `-- name: RecordOutboxFailure :exec
+UPDATE outbox
+SET attempts = attempts + 1, last_error = $2
+WHERE id = $1
+`
+
+type RecordOutboxFailureParams struct {
+	ID        int64   `json:"id"`
+	LastError *string `json:"last_error"`
+}
+
+func (q *Queries) RecordOutboxFailure(ctx context.Context, arg RecordOutboxFailureParams) error {
+	_, err := q.db.Exec(ctx, recordOutboxFailure, arg.ID, arg.LastError)
 	return err
 }

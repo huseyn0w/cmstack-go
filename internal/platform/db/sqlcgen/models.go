@@ -31,6 +31,9 @@ type Outbox struct {
 	Payload     []byte             `json:"payload"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	ProcessedAt pgtype.Timestamptz `json:"processed_at"`
+	Attempts    int32              `json:"attempts"`
+	LastError   *string            `json:"last_error"`
+	FailedAt    pgtype.Timestamptz `json:"failed_at"`
 }
 
 type PasswordResetToken struct {
@@ -69,17 +72,18 @@ type SchemaMetum struct {
 }
 
 type User struct {
-	ID              pgtype.UUID        `json:"id"`
-	Email           string             `json:"email"`
-	Username        *string            `json:"username"`
-	PasswordHash    string             `json:"password_hash"`
-	Name            string             `json:"name"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	RoleID          pgtype.UUID        `json:"role_id"`
-	Bio             *string            `json:"bio"`
-	AvatarPath      *string            `json:"avatar_path"`
-	Website         *string            `json:"website"`
-	SocialLinks     []byte             `json:"social_links"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	Email             string             `json:"email"`
+	Username          *string            `json:"username"`
+	PasswordHash      string             `json:"password_hash"`
+	Name              string             `json:"name"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	RoleID            pgtype.UUID        `json:"role_id"`
+	Bio               *string            `json:"bio"`
+	AvatarPath        *string            `json:"avatar_path"`
+	Website           *string            `json:"website"`
+	SocialLinks       []byte             `json:"social_links"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	PasswordChangedAt pgtype.Timestamptz `json:"password_changed_at"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ type Service interface {
 // SessionLogin is the subset of the web auth middleware the handler needs to
 // start/stop a session. The web.AuthMiddleware satisfies it.
 type SessionLogin interface {
-	Login(ctx context.Context, userID uuid.UUID) error
+	Login(ctx context.Context, userID uuid.UUID, passwordChangedAt time.Time) error
 	Logout(ctx context.Context) error
 }
 
@@ -86,7 +87,7 @@ func (h *Handler) SubmitLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.session.Login(r.Context(), user.ID); err != nil {
+	if err := h.session.Login(r.Context(), user.ID, user.PasswordChangedAt); err != nil {
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}

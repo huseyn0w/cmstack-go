@@ -154,12 +154,18 @@ func (r *fakeTokenRepo) GetEmailVerification(_ context.Context, hash string) (To
 func (r *fakeTokenRepo) ConsumeEmailVerificationTx(_ context.Context, _ pgx.Tx, id uuid.UUID) error {
 	for _, st := range r.emailByHash {
 		if st.tok.ID == id {
+			// Atomic single-use gate: an already-consumed token does not match the
+			// "WHERE consumed_at IS NULL" UPDATE, so the loser sees ErrNotFound.
+			if st.consumed {
+				return ErrNotFound
+			}
 			now := time.Now()
 			st.tok.ConsumedAt = &now
 			st.consumed = true
+			return nil
 		}
 	}
-	return nil
+	return ErrNotFound
 }
 
 func (r *fakeTokenRepo) CreatePasswordResetTx(_ context.Context, _ pgx.Tx, userID uuid.UUID, hash string, exp time.Time) error {
@@ -178,12 +184,17 @@ func (r *fakeTokenRepo) GetPasswordReset(_ context.Context, hash string) (Token,
 func (r *fakeTokenRepo) ConsumePasswordResetTx(_ context.Context, _ pgx.Tx, id uuid.UUID) error {
 	for _, st := range r.resetByHash {
 		if st.tok.ID == id {
+			// Atomic single-use gate (see ConsumeEmailVerificationTx).
+			if st.consumed {
+				return ErrNotFound
+			}
 			now := time.Now()
 			st.tok.ConsumedAt = &now
 			st.consumed = true
+			return nil
 		}
 	}
-	return nil
+	return ErrNotFound
 }
 
 // recordingBus captures published events. It satisfies Publisher by wrapping a

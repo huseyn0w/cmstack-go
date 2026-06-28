@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 )
 
 // Token lifetimes.
@@ -19,12 +20,28 @@ const (
 	passwordResetTTL     = 1 * time.Hour
 )
 
-// dummyHash is a precomputed argon2id hash used to keep Login timing roughly
-// constant when the account does not exist, defeating user enumeration via
-// response-time analysis. Its plaintext is irrelevant; it only needs to be a
-// real argon2id hash so Verify does the same work as a real comparison.
-const dummyHash = "$argon2id$v=19$m=19456,t=2,p=1$YWJjZGVmZ2hpamtsbW5vcA$" +
-	"3hF2u0r2J0u7m1n6q5wXk9pZ2sT4vY6cB8dE0fG1hI"
+// dummyHasher derives the package-level dummyHash. It uses the same argon2id
+// parameters as the production PasswordHasher so the dummy Verify on the
+// unknown-user path performs identical work to a real comparison.
+var dummyHasher = security.NewPasswordHasher()
+
+// dummyHash is a REAL argon2id encoded hash computed once at process start. It
+// keeps Login timing constant when the account does not exist, defeating user
+// enumeration via response-time analysis. Computing it from the actual hasher
+// (rather than hardcoding a string) guarantees it is always a parseable hash so
+// Verify runs the full argon2 work and returns (false, nil) — never the fast
+// ErrInvalidHash path that would re-open the timing oracle.
+var dummyHash = mustHash(dummyHasher, "cmstack-dummy-password")
+
+// mustHash computes an argon2id hash at init time, panicking only if hashing
+// fails (which would indicate a broken crypto runtime, not a recoverable error).
+func mustHash(h *security.PasswordHasher, password string) string {
+	encoded, err := h.Hash(password)
+	if err != nil {
+		panic(fmt.Sprintf("accounts: cannot precompute dummy hash: %v", err))
+	}
+	return encoded
+}
 
 // Domain errors returned by the service. Handlers map these to user-facing
 // outcomes; the credential-related ones are intentionally generic.
@@ -267,10 +284,20 @@ func (s *AuthService) ResetPassword(ctx context.Context, plaintextToken, newPass
 	}
 
 	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		// Consume is the atomic single-use gate: it only matches a still-unconsumed
+		// row, so under concurrent double-use exactly one tx wins and the loser sees
+		// ErrNotFound. We MUST consume before changing the password so a losing
+		// request cannot apply its new password.
+		if err := s.tokens.ConsumePasswordResetTx(ctx, tx, tok.ID); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return ErrInvalidToken
+			}
+			return fmt.Errorf("consume reset token: %w", err)
+		}
 		if err := s.users.SetPasswordTx(ctx, tx, tok.UserID, hash); err != nil {
 			return fmt.Errorf("set password: %w", err)
 		}
-		return s.tokens.ConsumePasswordResetTx(ctx, tx, tok.ID)
+		return nil
 	})
 }
 
@@ -289,10 +316,18 @@ func (s *AuthService) VerifyEmail(ctx context.Context, plaintextToken string) er
 	}
 
 	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		// Consume is the atomic single-use gate (see ResetPassword): consume first
+		// so a concurrent double-use cannot verify the email twice.
+		if err := s.tokens.ConsumeEmailVerificationTx(ctx, tx, tok.ID); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return ErrInvalidToken
+			}
+			return fmt.Errorf("consume verification token: %w", err)
+		}
 		if err := s.users.MarkEmailVerifiedTx(ctx, tx, tok.UserID); err != nil {
 			return fmt.Errorf("mark verified: %w", err)
 		}
-		return s.tokens.ConsumeEmailVerificationTx(ctx, tx, tok.ID)
+		return nil
 	})
 }
 

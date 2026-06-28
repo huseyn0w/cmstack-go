@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -45,7 +46,7 @@ type fakeSessionLogin struct {
 	loggedOut bool
 }
 
-func (f *fakeSessionLogin) Login(_ context.Context, id uuid.UUID) error {
+func (f *fakeSessionLogin) Login(_ context.Context, id uuid.UUID, _ time.Time) error {
 	f.loggedIn = id
 	return nil
 }

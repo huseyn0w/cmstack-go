@@ -28,8 +28,12 @@ type User struct {
 	Name            string
 	EmailVerifiedAt *time.Time
 	RoleID          uuid.UUID
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// PasswordChangedAt is bumped on every password reset/change. Sessions store
+	// the value they were minted under; the middleware rejects sessions older
+	// than this, enforcing a global logout after a credential change.
+	PasswordChangedAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // EmailVerified reports whether the user's email has been confirmed.

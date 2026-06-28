@@ -17,7 +17,7 @@ SELECT count(*) FROM users WHERE email = $1;
 
 -- name: SetUserPassword :exec
 UPDATE users
-SET password_hash = $2, updated_at = now()
+SET password_hash = $2, password_changed_at = now(), updated_at = now()
 WHERE id = $1;
 
 -- name: MarkEmailVerified :exec

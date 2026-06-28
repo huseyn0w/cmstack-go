@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -57,7 +59,7 @@ func TestLoginStoresUserAndRenewsToken(t *testing.T) {
 	sess := newFakeSession()
 	m := NewAuthMiddleware(sess, fakeUsers{}, fakeAuthz{})
 	id := uuid.New()
-	if err := m.Login(context.Background(), id); err != nil {
+	if err := m.Login(context.Background(), id, time.Now()); err != nil {
 		t.Fatalf("Login: %v", err)
 	}
 	if sess.values[sessionUserKey] != id.String() {
@@ -68,11 +70,77 @@ func TestLoginStoresUserAndRenewsToken(t *testing.T) {
 	}
 }
 
+// TestCurrentUserRejectsSessionMintedBeforePasswordChange guards Fix 3: a
+// session minted under an older password_changed_at must be rejected (and
+// cleared) once the user's PasswordChangedAt advances, forcing a global logout
+// after a credential change.
+func TestCurrentUserRejectsSessionMintedBeforePasswordChange(t *testing.T) {
+	id := uuid.New()
+	changedAt := time.Now()
+
+	sess := newFakeSession()
+	m := NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{
+		id: {ID: id, Email: "x@y.com", PasswordChangedAt: changedAt},
+	}}, fakeAuthz{})
+
+	// Mint a session at the current epoch — it must be accepted.
+	if err := m.Login(context.Background(), id, changedAt); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if got := userPresence(t, m, sess); !got {
+		t.Fatal("freshly minted session should be accepted")
+	}
+
+	// The user changes their password: PasswordChangedAt advances.
+	m.users = fakeUsers{users: map[uuid.UUID]accounts.User{
+		id: {ID: id, Email: "x@y.com", PasswordChangedAt: changedAt.Add(time.Second)},
+	}}
+	if got := userPresence(t, m, sess); got {
+		t.Error("session minted before the password change must be rejected")
+	}
+	if sess.values[sessionUserKey] != "" {
+		t.Error("rejected stale session must be cleared")
+	}
+}
+
+// TestCurrentUserAcceptsSessionMintedAfterPasswordChange guards Fix 3: a fresh
+// login after a password change works.
+func TestCurrentUserAcceptsSessionMintedAfterPasswordChange(t *testing.T) {
+	id := uuid.New()
+	newEpoch := time.Now()
+
+	sess := newFakeSession()
+	m := NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{
+		id: {ID: id, Email: "x@y.com", PasswordChangedAt: newEpoch},
+	}}, fakeAuthz{})
+
+	if err := m.Login(context.Background(), id, newEpoch); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if got := userPresence(t, m, sess); !got {
+		t.Error("session minted at the current epoch must be accepted")
+	}
+}
+
+// userPresence runs CurrentUser against the session and reports whether a user
+// was loaded into the request context.
+func userPresence(t *testing.T, m *AuthMiddleware, _ *fakeSession) bool {
+	t.Helper()
+	var present bool
+	h := m.CurrentUser(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_, present = UserFromContext(r.Context())
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	return present
+}
+
 func TestCurrentUserLoadsIntoContext(t *testing.T) {
 	id := uuid.New()
+	changedAt := time.Now()
 	sess := newFakeSession()
 	sess.values[sessionUserKey] = id.String()
-	users := fakeUsers{users: map[uuid.UUID]accounts.User{id: {ID: id, Email: "x@y.com"}}}
+	sess.values[sessionPwdEpochKey] = strconv.FormatInt(changedAt.UnixNano(), 10)
+	users := fakeUsers{users: map[uuid.UUID]accounts.User{id: {ID: id, Email: "x@y.com", PasswordChangedAt: changedAt}}}
 	m := NewAuthMiddleware(sess, users, fakeAuthz{})
 
 	var gotUser accounts.User

@@ -25,7 +25,7 @@ func (q *Queries) CountUsersByEmail(ctx context.Context, email string) (int64, e
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, username, password_hash, name, role_id, email_verified_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at
+RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at
 `
 
 type CreateUserParams struct {
@@ -61,12 +61,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.SocialLinks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -86,12 +87,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.SocialLinks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -111,12 +113,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.SocialLinks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at FROM users WHERE username = $1
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User, error) {
@@ -136,6 +139,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User
 		&i.SocialLinks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
@@ -153,7 +157,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id pgtype.UUID) error {
 
 const setUserPassword = `-- name: SetUserPassword :exec
 UPDATE users
-SET password_hash = $2, updated_at = now()
+SET password_hash = $2, password_changed_at = now(), updated_at = now()
 WHERE id = $1
 `
 

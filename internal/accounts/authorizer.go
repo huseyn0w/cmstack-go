@@ -3,9 +3,17 @@ package accounts
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+// defaultPermissionCacheTTL bounds how long a cached role->permission map may be
+// served before it is reloaded. It is a safety net so role_permission edits
+// self-heal without a process restart even before the M15 admin UI wires
+// Invalidate(). 60s keeps stale grants short-lived while preserving the cache's
+// per-request benefit.
+const defaultPermissionCacheTTL = 60 * time.Second
 
 // Action constants. manage implies every other action on a subject.
 const (
@@ -49,16 +57,34 @@ type Authorizer struct {
 	users roleLoader
 	roles RoleRepository
 
-	mu     sync.RWMutex
-	byRole map[string][]Permission // role key -> permissions
-	loaded bool
+	ttl time.Duration
+	now func() time.Time
+
+	mu       sync.RWMutex
+	byRole   map[string][]Permission // role key -> permissions
+	loaded   bool
+	loadedAt time.Time
 }
 
-// NewAuthorizer constructs an Authorizer over the user and role repositories.
+// NewAuthorizer constructs an Authorizer over the user and role repositories
+// with the default safety TTL (defaultPermissionCacheTTL) and the wall clock.
 func NewAuthorizer(users roleLoader, roles RoleRepository) *Authorizer {
+	return NewAuthorizerWithTTL(users, roles, defaultPermissionCacheTTL, time.Now)
+}
+
+// NewAuthorizerWithTTL constructs an Authorizer with an explicit cache TTL and
+// clock. A non-positive ttl disables time-based expiry (cache only busts via
+// Invalidate); the clock is injectable for deterministic tests. A nil clock
+// defaults to time.Now.
+func NewAuthorizerWithTTL(users roleLoader, roles RoleRepository, ttl time.Duration, now func() time.Time) *Authorizer {
+	if now == nil {
+		now = time.Now
+	}
 	return &Authorizer{
 		users: users,
 		roles: roles,
+		ttl:   ttl,
+		now:   now,
 	}
 }
 
@@ -68,14 +94,15 @@ func (a *Authorizer) Invalidate() {
 	a.mu.Lock()
 	a.byRole = nil
 	a.loaded = false
+	a.loadedAt = time.Time{}
 	a.mu.Unlock()
 }
 
 func (a *Authorizer) ensureLoaded(ctx context.Context) error {
 	a.mu.RLock()
-	loaded := a.loaded
+	fresh := a.loaded && !a.expiredLocked()
 	a.mu.RUnlock()
-	if loaded {
+	if fresh {
 		return nil
 	}
 	m, err := a.roles.AllRolePermissions(ctx)
@@ -85,8 +112,18 @@ func (a *Authorizer) ensureLoaded(ctx context.Context) error {
 	a.mu.Lock()
 	a.byRole = m
 	a.loaded = true
+	a.loadedAt = a.now()
 	a.mu.Unlock()
 	return nil
+}
+
+// expiredLocked reports whether the cached map has outlived its TTL. Callers
+// must hold at least the read lock. A non-positive TTL never expires.
+func (a *Authorizer) expiredLocked() bool {
+	if a.ttl <= 0 {
+		return false
+	}
+	return a.now().Sub(a.loadedAt) >= a.ttl
 }
 
 // CanRole reports whether a role key grants (action, subject). This is the pure

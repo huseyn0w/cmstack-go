@@ -11,26 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const consumeEmailVerificationToken = `-- name: ConsumeEmailVerificationToken :exec
+const consumeEmailVerificationToken = `-- name: ConsumeEmailVerificationToken :one
 UPDATE email_verification_tokens
 SET consumed_at = now()
 WHERE id = $1 AND consumed_at IS NULL
+RETURNING id
 `
 
-func (q *Queries) ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, consumeEmailVerificationToken, id)
-	return err
+func (q *Queries) ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, consumeEmailVerificationToken, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
-const consumePasswordResetToken = `-- name: ConsumePasswordResetToken :exec
+const consumePasswordResetToken = `-- name: ConsumePasswordResetToken :one
 UPDATE password_reset_tokens
 SET consumed_at = now()
 WHERE id = $1 AND consumed_at IS NULL
+RETURNING id
 `
 
-func (q *Queries) ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, consumePasswordResetToken, id)
-	return err
+func (q *Queries) ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, consumePasswordResetToken, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const createEmailVerificationToken = `-- name: CreateEmailVerificationToken :one
