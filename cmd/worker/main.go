@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
@@ -53,14 +55,39 @@ func run() error {
 	bus := events.NewBus(nil)
 	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
 	emailListener.Register(bus)
+	// The content publish listener must also be registered on the WORKER bus so
+	// the relay can dispatch the async content.published events the server
+	// enqueued (cache invalidation + search reindex seams).
+	posts.NewPublishListener(logger, nil, nil).Register(bus)
 
 	relay := events.NewRelay(pool, bus, 100, logger)
+
+	// Scheduled-publishing scan: a periodic ticker calls PostService.PublishDue,
+	// flipping due DRAFT-with-scheduled_at posts to PUBLISHED. This is the simple
+	// reuse of the existing ticker pattern; river (durable jobs) is the documented
+	// upgrade path if scheduling needs at-least-once durability across crashes.
+	queries := sqlcgen.New(pool)
+	postRepo := posts.NewRepoPG(queries)
+	revisionRepo := posts.NewRevisionRepoPG(queries)
+	userRepo := accounts.NewUserRepoPG(queries)
+	roleRepo := accounts.NewRoleRepoPG(queries)
+	authz := accounts.NewAuthorizer(userRepo, roleRepo)
+	roleKeys := posts.NewRoleKeyResolver(userRepo, roleRepo)
+	// The publish bus needs an outbox enqueuer so PublishDue can emit the async
+	// content.published event inside its tx; reuse the sqlc-backed outbox repo.
+	publishBus := events.NewBus(events.NewOutboxRepository())
+	posts.NewPublishListener(logger, nil, nil).Register(publishBus)
+	postSvc := posts.NewService(pool, postRepo, revisionRepo, authz, roleKeys, publishBus, nil)
 
 	logger.Info("worker started", "env", cfg.AppEnv)
 
 	const interval = 5 * time.Second
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+
+	const scheduleInterval = 30 * time.Second
+	scheduleTicker := time.NewTicker(scheduleInterval)
+	defer scheduleTicker.Stop()
 
 	for {
 		select {
@@ -74,6 +101,15 @@ func run() error {
 				continue
 			}
 			logger.Debug("outbox relay tick", "observed", n)
+		case <-scheduleTicker.C:
+			n, err := postSvc.PublishDue(ctx)
+			if err != nil {
+				logger.Error("scheduled publish scan failed", "err", err)
+				continue
+			}
+			if n > 0 {
+				logger.Info("scheduled posts published", "count", n)
+			}
 		}
 	}
 }

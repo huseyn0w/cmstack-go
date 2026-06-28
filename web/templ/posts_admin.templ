@@ -1,0 +1,139 @@
+package templ
+
+import "fmt"
+
+// statusBadge renders a content-status pill (DESIGN_SYSTEM §5 Badges).
+templ statusBadge(s PostStatus, scheduled bool) {
+	switch {
+		case scheduled:
+			<span data-testid="status-badge" class="inline-flex h-[22px] items-center rounded-full bg-warning-bg px-2.5 text-caption font-medium text-warning">Scheduled</span>
+		case s == PostStatusPublished:
+			<span data-testid="status-badge" class="inline-flex h-[22px] items-center rounded-full bg-success-bg px-2.5 text-caption font-medium text-success">Published</span>
+		default:
+			<span data-testid="status-badge" class="inline-flex h-[22px] items-center rounded-full bg-surface-2 px-2.5 text-caption font-medium text-muted">Draft</span>
+	}
+}
+
+// PostList renders the admin posts table (DESIGN_SYSTEM §5): status filter tabs,
+// table with status badges, row actions, pagination, and an empty state.
+templ PostList(v PostListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="posts-list">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">Posts</h2>
+					<p class="mt-1 text-small text-muted">Manage your blog posts.</p>
+				</div>
+				<a href={ templ.SafeURL(v.NewURL) } data-testid="new-post" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New post</a>
+			</div>
+			// Status filter tabs.
+			<div role="tablist" aria-label="Filter posts by status" data-testid="status-tabs" class="mt-6 flex items-center gap-1 border-b border-border">
+				for _, tab := range v.Tabs {
+					<a
+						role="tab"
+						href={ templ.SafeURL(tab.Href) }
+						data-testid={ "tab-" + tab.Label }
+						if tab.Active {
+							aria-selected="true"
+							class="relative -mb-px border-b-2 border-primary px-3 py-2 text-small font-medium text-text"
+						} else {
+							aria-selected="false"
+							class="relative -mb-px border-b-2 border-transparent px-3 py-2 text-small font-medium text-muted hover:text-text"
+						}
+					>{ tab.Label }</a>
+				}
+			</div>
+			if len(v.Rows) == 0 {
+				@postsEmpty(v.NewURL)
+			} else {
+				<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+					<div class="overflow-x-auto">
+						<table class="w-full text-left" data-testid="posts-table">
+							<thead class="bg-surface-2">
+								<tr class="text-subtle">
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Title</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Author</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Date</th>
+									<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, row := range v.Rows {
+									<tr class="border-t border-border hover:bg-surface-2" data-testid={ "post-row-" + row.ID }>
+										<td class="px-4 py-3 text-small text-text">
+											<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
+											<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
+										</td>
+										<td class="px-4 py-3 text-small text-muted">{ row.AuthorName }</td>
+										<td class="px-4 py-3">@statusBadge(row.Status, row.Scheduled)</td>
+										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
+										<td class="px-4 py-3 text-right">
+											@rowActions(row, v.CSRFToken)
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+				@pagination(v.Pager)
+			}
+		</section>
+	}
+}
+
+// rowActions is the trailing-cell kebab Dropdown for a post row (edit / trash).
+templ rowActions(row PostRow, csrf string) {
+	<div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.stop="open = false">
+		<button
+			type="button"
+			@click="open = !open"
+			data-testid={ "row-menu-" + row.ID }
+			aria-haspopup="menu"
+			:aria-expanded="open.toString()"
+			aria-label="Row actions"
+			class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>@iconKebab()</button>
+		<div x-show="open" x-cloak x-transition role="menu" class="absolute right-0 z-20 mt-1 w-40 rounded-md border border-border bg-surface p-1.5 shadow-md">
+			<a href={ templ.SafeURL(row.EditURL) } role="menuitem" class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2">Edit</a>
+			<form method="post" action={ templ.SafeURL("/admin/posts/" + row.ID + "/trash") } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "trash-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2">Move to trash</button>
+			</form>
+		</div>
+	</div>
+}
+
+// postsEmpty is the empty state (DESIGN_SYSTEM §5).
+templ postsEmpty(newURL string) {
+	<div class="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="posts-empty">
+		<span class="text-subtle">@iconDoc()</span>
+		<h3 class="mt-4 text-h4 text-text">No posts yet</h3>
+		<p class="mt-1 text-small text-muted">Create your first post to get started.</p>
+		<a href={ templ.SafeURL(newURL) } class="mt-5 inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90">New post</a>
+	</div>
+}
+
+// pagination renders the shared pager (DESIGN_SYSTEM §5).
+templ pagination(p Pagination) {
+	if p.Total > p.PageSize {
+		<nav aria-label="Pagination" data-testid="pagination" class="mt-4 flex items-center justify-between font-mono text-caption text-muted">
+			if p.PrevURL != "" {
+				<a href={ templ.SafeURL(p.PrevURL) } class="hover:text-text" data-testid="page-prev">← Previous</a>
+			} else {
+				<span class="text-subtle" aria-disabled="true">← Previous</span>
+			}
+			<span>Page { fmt.Sprint(p.Page) } of { fmt.Sprint(p.TotalPages()) }</span>
+			if p.NextURL != "" {
+				<a href={ templ.SafeURL(p.NextURL) } class="hover:text-text" data-testid="page-next">Next →</a>
+			} else {
+				<span class="text-subtle" aria-disabled="true">Next →</span>
+			}
+		</nav>
+	}
+}
+
+templ iconKebab() {
+	@iconBase(`<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>`)
+}

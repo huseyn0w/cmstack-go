@@ -29,7 +29,7 @@ func buildAuthorEnv(t *testing.T, svc PublicAuthorService) http.Handler {
 	return Router(Deps{
 		Config: config.Config{AppEnv: "test", BaseURL: "https://site.test"},
 		Health: health.NewHandler(health.NewService(nil)),
-		Author: NewAuthorHandler(svc, "CMStack", "https://site.test"),
+		Author: NewAuthorHandler(svc, nil, "CMStack", "https://site.test"),
 	})
 }
 

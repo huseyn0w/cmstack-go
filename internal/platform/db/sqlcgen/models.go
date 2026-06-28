@@ -52,6 +52,38 @@ type Permission struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Post struct {
+	ID          pgtype.UUID        `json:"id"`
+	Title       string             `json:"title"`
+	Slug        string             `json:"slug"`
+	Excerpt     string             `json:"excerpt"`
+	Body        string             `json:"body"`
+	Status      string             `json:"status"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID    pgtype.UUID        `json:"author_id"`
+	ReadingTime int32              `json:"reading_time"`
+	LikeCount   int32              `json:"like_count"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PostLike struct {
+	PostID    pgtype.UUID        `json:"post_id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Revision struct {
+	ID         pgtype.UUID        `json:"id"`
+	EntityType string             `json:"entity_type"`
+	EntityID   pgtype.UUID        `json:"entity_id"`
+	Snapshot   []byte             `json:"snapshot"`
+	AuthorID   pgtype.UUID        `json:"author_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Role struct {
 	ID        pgtype.UUID        `json:"id"`
 	Key       string             `json:"key"`

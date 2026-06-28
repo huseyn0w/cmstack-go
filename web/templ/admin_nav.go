@@ -47,7 +47,7 @@ func navBlueprint() []NavGroup {
 		{
 			Label: "Content",
 			Items: []NavItem{
-				{Label: "Posts", Href: "#", Icon: "post", Action: "read", Subject: "post"},
+				{Label: "Posts", Href: "/admin/posts", Icon: "post", Action: "read", Subject: "post"},
 				{Label: "Pages", Href: "#", Icon: "page", Action: "read", Subject: "page"},
 				{Label: "Services", Href: "#", Icon: "service", Action: "read", Subject: "service"},
 				{Label: "Categories & Tags", Href: "#", Icon: "tag", Action: "read", Subject: "post"},

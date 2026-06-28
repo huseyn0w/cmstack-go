@@ -24,8 +24,12 @@
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
   --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
   --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-on-primary: var(--primary-contrast);
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

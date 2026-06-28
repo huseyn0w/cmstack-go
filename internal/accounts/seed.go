@@ -43,12 +43,16 @@ func canonicalRoles() []roleSeed {
 		{ActionRead, SubjectUser},
 	}
 	author := []Permission{
-		// create + update + read own post + media, read others, create comment.
-		// Ownership scoping is enforced at the service layer; the coarse grants
-		// here are create/update/read post + media and create comment.
+		// create + update + publish + delete OWN post + media, read others, create
+		// comment. Ownership scoping is enforced at the SERVICE layer (the gate):
+		// these coarse grants let an Author act on posts, and the post service
+		// additionally restricts publish/update/delete to the author's OWN posts
+		// (Editor/Administrator are unrestricted). See posts.Service ownership gate.
 		{ActionCreate, SubjectPost},
 		{ActionUpdate, SubjectPost},
 		{ActionRead, SubjectPost},
+		{ActionPublish, SubjectPost},
+		{ActionDelete, SubjectPost},
 		{ActionCreate, SubjectMedia},
 		{ActionUpdate, SubjectMedia},
 		{ActionRead, SubjectMedia},

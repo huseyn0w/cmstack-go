@@ -1,0 +1,208 @@
+package templ
+
+// PostEditor renders the admin post create/edit form with the self-hosted
+// rich-text editor island (DESIGN_SYSTEM §5 Inputs + Rich-text editor). The
+// editor mirrors its HTML into a hidden textarea named "body" so a plain POST
+// carries it; the server bluemonday-sanitizes on save.
+templ PostEditor(v PostFormView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="post-editor" class="mx-auto max-w-3xl">
+			<nav aria-label="Breadcrumb" data-testid="editor-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href={ templ.SafeURL(v.BackURL) }>Posts</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">
+						if v.IsNew {
+							New post
+						} else {
+							Edit
+						}
+					</li>
+				</ol>
+			</nav>
+			<h2 class="mt-4 text-h3 text-text">
+				if v.IsNew {
+					New post
+				} else {
+					Edit post
+				}
+			</h2>
+			if v.Error != "" {
+				<div role="alert" data-testid="editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="post-form">
+				@csrfField(v.CSRFToken)
+				<div>
+					<label for="title" class="block text-small font-medium text-text">Title</label>
+					<input
+						id="title" name="title" type="text" value={ v.Title } required
+						data-testid="field-title"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					if msg, ok := v.FieldErrors["title"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="error-title">{ msg }</p>
+					}
+				</div>
+				<div>
+					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+					<input
+						id="slug" name="slug" type="text" value={ v.Slug }
+						data-testid="field-slug"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+				</div>
+				<div>
+					<label for="excerpt" class="block text-small font-medium text-text">Excerpt</label>
+					<textarea
+						id="excerpt" name="excerpt" rows="2"
+						data-testid="field-excerpt"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>{ v.Excerpt }</textarea>
+				</div>
+				@richTextField(v.Body)
+				<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+					<div>
+						<label for="status" class="block text-small font-medium text-text">Status</label>
+						<select id="status" name="status" data-testid="field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+							<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
+							<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
+						</select>
+					</div>
+					<div>
+						<label for="scheduled_at" class="block text-small font-medium text-text">Schedule at <span class="text-subtle">(optional)</span></label>
+						<input
+							id="scheduled_at" name="scheduled_at" type="datetime-local" value={ v.ScheduledAt }
+							data-testid="field-schedule"
+							class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</div>
+				</div>
+				<div class="flex items-center gap-3 border-t border-border pt-5">
+					<button type="submit" name="action" value="save" data-testid="action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
+					<button type="submit" name="action" value="publish" data-testid="action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
+					<button type="submit" name="action" value="schedule" data-testid="action-schedule" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Schedule</button>
+					if !v.IsNew && v.RevisionsURL != "" {
+						<a href={ templ.SafeURL(v.RevisionsURL) } data-testid="revisions-link" class="ml-auto text-small text-muted hover:text-text">Revision history</a>
+					}
+				</div>
+			</form>
+		</section>
+		<script src="/static/vendor/editor.js" defer></script>
+	}
+}
+
+// richTextField renders the contenteditable editor + sticky toolbar of ghost
+// toggle buttons (aria-pressed/aria-label) and a hidden "body" textarea.
+templ richTextField(body string) {
+	<div data-testid="rich-text-editor" x-data={ "richTextEditor(" + jsString(body) + ")" }>
+		<span class="block text-small font-medium text-text">Body</span>
+		<div class="mt-1.5 overflow-hidden rounded-md border border-border bg-surface">
+			<div role="toolbar" aria-label="Formatting" data-testid="editor-toolbar" class="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-surface-2 px-2 py-1.5">
+				@toolbarBtn("bold", "Bold", "active.bold", "exec('bold')") {
+					@iconBold()
+				}
+				@toolbarBtn("italic", "Italic", "active.italic", "exec('italic')") {
+					@iconItalic()
+				}
+				<span class="mx-1 h-5 w-px bg-border" aria-hidden="true"></span>
+				@toolbarBtn("h2", "Heading 2", "active.h2", "format('h2')") {
+					<span class="text-small font-semibold">H2</span>
+				}
+				@toolbarBtn("h3", "Heading 3", "active.h3", "format('h3')") {
+					<span class="text-small font-semibold">H3</span>
+				}
+				<span class="mx-1 h-5 w-px bg-border" aria-hidden="true"></span>
+				@toolbarBtn("ul", "Bullet list", "active.ul", "exec('insertUnorderedList')") {
+					@iconListUl()
+				}
+				@toolbarBtn("ol", "Ordered list", "active.ol", "exec('insertOrderedList')") {
+					@iconListOl()
+				}
+				@toolbarBtn("blockquote", "Blockquote", "active.blockquote", "format('blockquote')") {
+					@iconQuote()
+				}
+				<span class="mx-1 h-5 w-px bg-border" aria-hidden="true"></span>
+				@toolbarBtnPlain("link", "Insert link", "link()") {
+					@iconLink()
+				}
+				@toolbarBtnPlain("media", "Insert media", "media()") {
+					@iconImage()
+				}
+				<span class="mx-1 h-5 w-px bg-border" aria-hidden="true"></span>
+				@toolbarBtnPlain("undo", "Undo", "exec('undo')") {
+					@iconUndo()
+				}
+				@toolbarBtnPlain("redo", "Redo", "exec('redo')") {
+					@iconRedo()
+				}
+			</div>
+			<div
+				x-ref="surface"
+				contenteditable="true"
+				role="textbox"
+				aria-multiline="true"
+				aria-label="Post body"
+				data-testid="editor-surface"
+				@input="syncFromSurface()"
+				class="prose min-h-[18rem] max-w-none px-4 py-3 text-body text-text focus:outline-none"
+			></div>
+		</div>
+		<textarea x-ref="hidden" name="body" class="hidden" aria-hidden="true"></textarea>
+	</div>
+}
+
+// toolbarBtn is a ghost toggle button with aria-pressed bound to an Alpine
+// expression and a click action.
+templ toolbarBtn(key, label, pressedExpr, action string) {
+	<button
+		type="button"
+		data-testid={ "tb-" + key }
+		@click={ action }
+		:aria-pressed={ pressedExpr + ".toString()" }
+		aria-label={ label }
+		:class={ pressedExpr + " ? 'bg-surface text-text' : 'text-muted'" }
+		class="inline-flex h-8 min-w-8 items-center justify-center rounded px-1.5 hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+	>
+		{ children... }
+	</button>
+}
+
+// toolbarBtnPlain is a non-toggle ghost action button (link/media/undo/redo).
+templ toolbarBtnPlain(key, label, action string) {
+	<button
+		type="button"
+		data-testid={ "tb-" + key }
+		@click={ action }
+		aria-label={ label }
+		class="inline-flex h-8 min-w-8 items-center justify-center rounded px-1.5 text-muted hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+	>
+		{ children... }
+	</button>
+}
+
+// --- editor toolbar icons ----------------------------------------------------
+
+templ iconBold() {
+	@iconBase(`<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>`)
+}
+templ iconItalic() {
+	@iconBase(`<path d="M10 5h6M8 19h6M14 5l-4 14"/>`)
+}
+templ iconListUl() {
+	@iconBase(`<path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/>`)
+}
+templ iconListOl() {
+	@iconBase(`<path d="M10 6h11M10 12h11M10 18h11M4 4v4M3 8h2M3 18h2l-2 2h2"/>`)
+}
+templ iconQuote() {
+	@iconBase(`<path d="M7 7H4v6h3l-2 4M17 7h-3v6h3l-2 4"/>`)
+}
+templ iconLink() {
+	@iconBase(`<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>`)
+}
+templ iconUndo() {
+	@iconBase(`<path d="M9 7L4 12l5 5M4 12h11a5 5 0 0 1 0 10h-1"/>`)
+}
+templ iconRedo() {
+	@iconBase(`<path d="M15 7l5 5-5 5M20 12H9a5 5 0 0 0 0 10h1"/>`)
+}

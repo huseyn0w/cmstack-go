@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
@@ -67,6 +68,12 @@ func run() error {
 	bus := events.NewBus(outbox)
 	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
 	emailListener.Register(bus)
+
+	// Content publish listener (async content.published -> cache invalidation +
+	// search reindex seams). Registered on the server bus so the event is marked
+	// async and enqueued in-tx; the worker drains and dispatches it.
+	postPublishListener := posts.NewPublishListener(logger, nil, nil)
+	postPublishListener.Register(bus)
 
 	// Accounts (auth) wiring.
 	queries := sqlcgen.New(pool)
@@ -127,7 +134,15 @@ func run() error {
 	}
 
 	accountHandler := web.NewAccountHandler(profileSvc, authSvc, roleRepo, authz, security.Token, cfg.BaseURL)
-	authorHandler := web.NewAuthorHandler(profileSvc, "CMStack", cfg.BaseURL)
+
+	// Posts (M2a) wiring: repos over the shared querier, the role-key adapter for
+	// the ownership gate, and the post service.
+	postRepo := posts.NewRepoPG(queries)
+	revisionRepo := posts.NewRevisionRepoPG(queries)
+	roleKeys := posts.NewRoleKeyResolver(userRepo, roleRepo)
+	postSvc := posts.NewService(pool, postRepo, revisionRepo, authz, roleKeys, bus, nil)
+
+	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
 
 	handler := web.Router(web.Deps{
 		Config:        cfg,
@@ -146,6 +161,10 @@ func run() error {
 		Author:        authorHandler,
 		Uploads:       avatarStore.Handler(),
 		UploadsPrefix: avatarStore.PublicPrefix(),
+		PostAdminSvc:  postSvc,
+		PostPublicSvc: postSvc,
+		Authors:       userRepo,
+		SiteName:      "CMStack",
 	})
 
 	srv := &http.Server{

@@ -54,6 +54,13 @@ type Deps struct {
 	Account *AccountHandler
 	Author  *AuthorHandler
 	Uploads http.Handler // mounted at UploadsPrefix when non-nil
+
+	// Posts (M2a). PostAdmin is the gated admin posts area; PostPublic is the
+	// public /blog. Authors resolves author display names for both. All optional.
+	PostAdminSvc  PostAdminService
+	PostPublicSvc PostPublicService
+	Authors       AuthorNamer
+	SiteName      string
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -125,6 +132,17 @@ func Router(d Deps) http.Handler {
 		// Public author profile page (no auth) — anyone may view it.
 		if d.Author != nil {
 			gr.Get("/authors/{id}", d.Author.Show)
+		}
+
+		// Public blog (no auth for read). Liking requires an authenticated user.
+		if d.PostPublicSvc != nil {
+			pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
+			gr.Get("/blog", pub.Index)
+			gr.Get("/blog/{slug}", pub.Show)
+			if d.AuthMW != nil {
+				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
+				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
+			}
 		}
 
 		mountAuthRoutes(gr, d)
@@ -214,6 +232,7 @@ func mountAdmin(gr chi.Router, d Deps) {
 	}
 	gr.With(d.AuthMW.RequireAuth).Get("/admin", shell.dashboard)
 
+	mountPostsAdmin(gr, d, shell)
 	mountAccount(gr, d)
 }
 
@@ -236,6 +255,46 @@ func mountAccount(gr chi.Router, d Deps) {
 			rl.Use(limiter.Middleware)
 			rl.Post("/account/avatar", d.Account.SubmitAvatar)
 			rl.Post("/account/password", d.Account.SubmitPassword)
+		})
+	})
+}
+
+// mountPostsAdmin wires the gated admin posts area. Read routes require
+// read:post; mutating routes require the matching action; per-post OWNERSHIP is
+// enforced inside the service (an Author may only act on their own posts).
+func mountPostsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.PostAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewPostAdminHandler(d.PostAdminSvc, shell, d.Authors, d.CSRFFunc)
+
+	gr.Route("/admin/posts", func(pr chi.Router) {
+		pr.Use(d.AuthMW.RequireAuth)
+
+		// Read.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectPost)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/trash", h.Trashed)
+			rr.Get("/new", h.New)
+			rr.Get("/{id}/edit", h.Edit)
+			rr.Get("/{id}/revisions", h.Revisions)
+		})
+
+		// Create.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectPost)).
+			Post("/", h.Create)
+
+		// Update / publish / restore-revision (service narrows to ownership).
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectPost)).Group(func(ur chi.Router) {
+			ur.Post("/{id}", h.Update)
+			ur.Post("/{id}/revisions/{rev}/restore", h.RestoreRevision)
+			ur.Post("/trash/{id}/restore", h.RestoreTrashed)
+		})
+
+		// Trash / permanent delete.
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectPost)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/trash", h.Trash)
+			dr.Post("/trash/{id}/delete", h.PermanentDelete)
 		})
 	})
 }
