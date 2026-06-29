@@ -35,6 +35,14 @@ func (s stubPostPublic) PublicList(context.Context, int, int) ([]posts.Post, int
 	return s.list, s.total, nil
 }
 
+func (s stubPostPublic) PublicListFiltered(context.Context, string, string, int, int) ([]posts.Post, int, error) {
+	return s.list, s.total, nil
+}
+
+func (s stubPostPublic) Related(context.Context, uuid.UUID, int) ([]posts.Post, error) {
+	return nil, nil
+}
+
 func (s stubPostPublic) Like(context.Context, uuid.UUID, uuid.UUID) (posts.Post, error) {
 	return s.bySlug, nil
 }

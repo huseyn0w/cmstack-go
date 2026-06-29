@@ -1,0 +1,89 @@
+package templ
+
+import "fmt"
+
+// TaxonomyArchive renders a public category/tag archive: breadcrumbs, an
+// eyebrow + title (+ description for categories), the published-post card grid
+// (§5), pagination, and an empty state.
+templ TaxonomyArchive(v TaxonomyArchiveView) {
+	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: v.Description}) {
+		<nav aria-label="Breadcrumb" data-testid="archive-breadcrumb">
+			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>
+				<li aria-hidden="true">/</li>
+				<li><a class="hover:text-text" href="/blog">Blog</a></li>
+				<li aria-hidden="true">/</li>
+				<li aria-current="page" class="text-text">{ v.Name }</li>
+			</ol>
+		</nav>
+		<header class="mb-8 mt-6">
+			<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle" data-testid="archive-eyebrow">{ v.Kind }</p>
+			<h1 class="mt-2 text-h1 text-text" data-testid="archive-title">{ v.Name }</h1>
+			if v.Description != "" {
+				<div class="prose mt-3 max-w-none text-body text-muted" data-testid="archive-description">
+					@templ.Raw(v.Description)
+				</div>
+			}
+		</header>
+		if len(v.Cards) == 0 {
+			<div class="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="archive-empty">
+				<h2 class="text-h4 text-text">No posts yet</h2>
+				<p class="mt-1 text-small text-muted">Nothing has been published here yet. Check back soon.</p>
+			</div>
+		} else {
+			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2" data-testid="archive-grid">
+				for _, c := range v.Cards {
+					@publicPostCard(c)
+				}
+			</div>
+			@pagination(v.Pager)
+		}
+	}
+}
+
+// publicPostCard is the shared card used by the blog index and the archives.
+templ publicPostCard(c PublicPostCard) {
+	<a href={ templ.SafeURL(c.URL) } class="group rounded-lg border border-border bg-surface p-6 transition-colors hover:bg-surface-2" data-testid="archive-card">
+		<p class="font-mono text-caption text-subtle">
+			{ c.Date }
+			if c.ReadingTime > 0 {
+				<span aria-hidden="true"> · </span>{ fmt.Sprint(c.ReadingTime) } min
+			}
+		</p>
+		<h2 class="mt-2 text-h4 text-text group-hover:underline">{ c.Title }</h2>
+		if c.Excerpt != "" {
+			<p class="mt-2 text-body text-muted">{ c.Excerpt }</p>
+		}
+		<p class="mt-4 text-small text-subtle">{ c.AuthorName }</p>
+	</a>
+}
+
+// taxonomyPills renders a labelled row of category/tag pills linking to archives
+// (§5 Badges). label is "Categories" or "Tags".
+templ taxonomyPills(label string, pills []TaxonomyPill, testid string) {
+	if len(pills) > 0 {
+		<div class="mt-4 flex flex-wrap items-center gap-2" data-testid={ testid }>
+			<span class="font-mono text-caption uppercase tracking-widest text-subtle">{ label }</span>
+			for _, p := range pills {
+				<a
+					href={ templ.SafeURL(p.URL) }
+					class="inline-flex h-[24px] items-center rounded-full bg-surface-2 px-3 text-caption font-medium text-text hover:bg-primary hover:text-on-primary"
+				>{ p.Label }</a>
+			}
+		</div>
+	}
+}
+
+// relatedPosts renders the "Related posts" block on the post detail (§5 cards).
+templ relatedPosts(cards []PublicPostCard) {
+	if len(cards) > 0 {
+		<section class="mt-12 border-t border-border pt-8" data-testid="related-posts">
+			<h2 class="text-h4 text-text">Related posts</h2>
+			<div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
+				for _, c := range cards {
+					@publicPostCard(c)
+				}
+			</div>
+		</section>
+	}
+}

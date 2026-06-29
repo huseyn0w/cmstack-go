@@ -1,0 +1,318 @@
+package templ
+
+import "fmt"
+
+// categoryRowIDs extracts the row ids for the bulk-selection Alpine store.
+func categoryRowIDs(rows []CategoryRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.ID)
+	}
+	return out
+}
+
+// tagRowIDs extracts the row ids for the bulk-selection Alpine store.
+func tagRowIDs(rows []TagRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.ID)
+	}
+	return out
+}
+
+// categoryBulkActions is the bulk bar for the categories list — delete only
+// (categories have no trash/publish lifecycle), treated destructive.
+func categoryBulkActions() []BulkActionSpec {
+	return []BulkActionSpec{
+		{Action: "delete", Label: "Delete", Destructive: true, Consequence: "The selected categories will be permanently deleted and detached from every post. This cannot be undone."},
+	}
+}
+
+// tagBulkActions is the bulk bar for the tags list — delete only.
+func tagBulkActions() []BulkActionSpec {
+	return []BulkActionSpec{
+		{Action: "delete", Label: "Delete", Destructive: true, Consequence: "The selected tags will be permanently deleted and detached from every post. This cannot be undone."},
+	}
+}
+
+// depthPad renders a left indent for a tree row/option proportional to depth.
+func depthPad(depth int) string {
+	// 1.25rem per level keeps children visibly nested without overflowing.
+	return fmt.Sprintf("padding-left:%.2frem", 0.75+float64(depth)*1.25)
+}
+
+// CategoryList renders the admin categories indented tree (DESIGN_SYSTEM §5):
+// hierarchy via indentation, row actions, bulk delete, and an empty state.
+templ CategoryList(v CategoryListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="categories-list">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">Categories</h2>
+					<p class="mt-1 text-small text-muted">Organize posts into a hierarchy.</p>
+				</div>
+				<a href={ templ.SafeURL(v.NewURL) } data-testid="new-category" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New category</a>
+			</div>
+			@bulkSummaryBanner(v.Summary)
+			if len(v.Rows) == 0 {
+				@taxonomyEmpty("No categories yet", "Create your first category to group posts.", v.NewURL, "New category", "categories-empty")
+			} else {
+				<div x-data={ bulkSelectData(categoryRowIDs(v.Rows)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, categoryBulkActions())
+					<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+						<div class="overflow-x-auto">
+							<table class="w-full text-left" data-testid="categories-table">
+								<thead class="bg-surface-2">
+									<tr class="text-subtle">
+										@bulkSelectAll()
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Name</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Slug</th>
+										<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr class="border-t border-border hover:bg-surface-2" data-testid={ "category-row-" + row.ID }>
+											@bulkRowCheckbox(row.ID)
+											<td class="px-4 py-3 text-small text-text">
+												<span style={ depthPad(row.Depth) } class="inline-flex items-center">
+													if row.Depth > 0 {
+														<span class="mr-2 text-subtle" aria-hidden="true">&#8627;</span>
+													}
+													<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Name }</a>
+												</span>
+											</td>
+											<td class="px-4 py-3 font-mono text-caption text-muted">/{ row.Slug }</td>
+											<td class="px-4 py-3 text-right">
+												@taxonomyRowActions(row.ID, row.EditURL, row.PostsURL, "/admin/categories/", v.CSRFToken)
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			}
+		</section>
+	}
+}
+
+// CategoryEditor renders the admin category create/edit form with a parent
+// picker (DESIGN_SYSTEM §5).
+templ CategoryEditor(v CategoryFormView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="category-editor" class="mx-auto max-w-2xl">
+			<nav aria-label="Breadcrumb" data-testid="editor-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href={ templ.SafeURL(v.BackURL) }>Categories</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">
+						if v.IsNew {
+							New category
+						} else {
+							Edit
+						}
+					</li>
+				</ol>
+			</nav>
+			<h2 class="mt-4 text-h3 text-text">
+				if v.IsNew {
+					New category
+				} else {
+					Edit category
+				}
+			</h2>
+			if v.Error != "" {
+				<div role="alert" data-testid="editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="category-form">
+				@csrfField(v.CSRFToken)
+				<div>
+					<label for="name" class="block text-small font-medium text-text">Name</label>
+					<input
+						id="name" name="name" type="text" value={ v.Name } required
+						data-testid="field-name"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					if msg, ok := v.FieldErrors["name"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="error-name">{ msg }</p>
+					}
+				</div>
+				<div>
+					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+					<input
+						id="slug" name="slug" type="text" value={ v.Slug }
+						data-testid="field-slug"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+				</div>
+				<div>
+					<label for="parent_id" class="block text-small font-medium text-text">Parent <span class="text-subtle">(optional)</span></label>
+					<select id="parent_id" name="parent_id" data-testid="field-parent" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+						<option value="" selected?={ v.ParentID == "" }>— None (top level) —</option>
+						for _, opt := range v.ParentChoices {
+							<option value={ opt.ID } selected?={ opt.Selected } disabled?={ opt.Disabled }>{ opt.Label }</option>
+						}
+					</select>
+				</div>
+				<div>
+					<label for="description" class="block text-small font-medium text-text">Description</label>
+					<textarea
+						id="description" name="description" rows="3"
+						data-testid="field-description"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>{ v.Description }</textarea>
+				</div>
+				<div class="flex items-center gap-3 border-t border-border pt-5">
+					<button type="submit" data-testid="action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
+					<a href={ templ.SafeURL(v.BackURL) } class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Cancel</a>
+				</div>
+			</form>
+		</section>
+	}
+}
+
+// TagList renders the admin tags table (flat) with bulk delete + empty state.
+templ TagList(v TagListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="tags-list">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">Tags</h2>
+					<p class="mt-1 text-small text-muted">Label posts with free-form tags.</p>
+				</div>
+				<a href={ templ.SafeURL(v.NewURL) } data-testid="new-tag" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">New tag</a>
+			</div>
+			@bulkSummaryBanner(v.Summary)
+			if len(v.Rows) == 0 {
+				@taxonomyEmpty("No tags yet", "Create your first tag to label posts.", v.NewURL, "New tag", "tags-empty")
+			} else {
+				<div x-data={ bulkSelectData(tagRowIDs(v.Rows)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, tagBulkActions())
+					<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+						<div class="overflow-x-auto">
+							<table class="w-full text-left" data-testid="tags-table">
+								<thead class="bg-surface-2">
+									<tr class="text-subtle">
+										@bulkSelectAll()
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Name</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Slug</th>
+										<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr class="border-t border-border hover:bg-surface-2" data-testid={ "tag-row-" + row.ID }>
+											@bulkRowCheckbox(row.ID)
+											<td class="px-4 py-3 text-small text-text">
+												<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Name }</a>
+											</td>
+											<td class="px-4 py-3 font-mono text-caption text-muted">/{ row.Slug }</td>
+											<td class="px-4 py-3 text-right">
+												@taxonomyRowActions(row.ID, row.EditURL, row.PostsURL, "/admin/tags/", v.CSRFToken)
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				@pagination(v.Pager)
+			}
+		</section>
+	}
+}
+
+// TagEditor renders the admin tag create/edit form.
+templ TagEditor(v TagFormView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="tag-editor" class="mx-auto max-w-2xl">
+			<nav aria-label="Breadcrumb" data-testid="editor-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href={ templ.SafeURL(v.BackURL) }>Tags</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">
+						if v.IsNew {
+							New tag
+						} else {
+							Edit
+						}
+					</li>
+				</ol>
+			</nav>
+			<h2 class="mt-4 text-h3 text-text">
+				if v.IsNew {
+					New tag
+				} else {
+					Edit tag
+				}
+			</h2>
+			if v.Error != "" {
+				<div role="alert" data-testid="editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="tag-form">
+				@csrfField(v.CSRFToken)
+				<div>
+					<label for="name" class="block text-small font-medium text-text">Name</label>
+					<input
+						id="name" name="name" type="text" value={ v.Name } required
+						data-testid="field-name"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					if msg, ok := v.FieldErrors["name"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="error-name">{ msg }</p>
+					}
+				</div>
+				<div>
+					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+					<input
+						id="slug" name="slug" type="text" value={ v.Slug }
+						data-testid="field-slug"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+				</div>
+				<div class="flex items-center gap-3 border-t border-border pt-5">
+					<button type="submit" data-testid="action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
+					<a href={ templ.SafeURL(v.BackURL) } class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Cancel</a>
+				</div>
+			</form>
+		</section>
+	}
+}
+
+// taxonomyRowActions is the trailing-cell kebab menu for a category/tag row
+// (edit / view archive / delete). deletePrefix is "/admin/categories/" or
+// "/admin/tags/".
+templ taxonomyRowActions(id, editURL, postsURL, deletePrefix, csrf string) {
+	<div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.stop="open = false">
+		<button
+			type="button"
+			@click="open = !open"
+			data-testid={ "row-menu-" + id }
+			aria-haspopup="menu"
+			:aria-expanded="open.toString()"
+			aria-label="Row actions"
+			class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>@iconKebab()</button>
+		<div x-show="open" x-cloak x-transition role="menu" class="absolute right-0 z-20 mt-1 w-40 rounded-md border border-border bg-surface p-1.5 shadow-md">
+			<a href={ templ.SafeURL(editURL) } role="menuitem" class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2">Edit</a>
+			<a href={ templ.SafeURL(postsURL) } role="menuitem" class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2">View posts</a>
+			<form method="post" action={ templ.SafeURL(deletePrefix + id + "/delete") } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "delete-" + id } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2">Delete</button>
+			</form>
+		</div>
+	</div>
+}
+
+// taxonomyEmpty is the shared empty state for the category/tag lists.
+templ taxonomyEmpty(title, body, newURL, newLabel, testid string) {
+	<div class="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid={ testid }>
+		<span class="text-subtle">@iconTag()</span>
+		<h3 class="mt-4 text-h4 text-text">{ title }</h3>
+		<p class="mt-1 text-small text-muted">{ body }</p>
+		<a href={ templ.SafeURL(newURL) } class="mt-5 inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90">{ newLabel }</a>
+	</div>
+}

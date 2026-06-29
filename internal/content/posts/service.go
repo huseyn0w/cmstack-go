@@ -48,6 +48,19 @@ type Service struct {
 	users     UserRoleResolver
 	bus       Publisher
 	now       Clock
+	// taxonomy persists post<->category/tag M2M inside the post write tx. It is
+	// optional (nil = taxonomy not wired) and set via WithTaxonomy so existing
+	// constructor call sites are unchanged (M3 seam).
+	taxonomy TaxonomyAssigner
+}
+
+// WithTaxonomy attaches the taxonomy assigner that persists a post's
+// category/tag associations in the same transaction as the post write and
+// powers the related-posts query. It returns the receiver for chaining at wire
+// time. Passing nil is a no-op (leaves taxonomy unwired).
+func (s *Service) WithTaxonomy(t TaxonomyAssigner) *Service {
+	s.taxonomy = t
+	return s
 }
 
 // UserRoleResolver resolves a user's role key so the service can apply the
@@ -90,6 +103,12 @@ type CreateInput struct {
 	Body        string
 	Status      kernel.Status
 	ScheduledAt *time.Time
+	// Taxonomy (M3): the full category/tag sets to associate with the new post,
+	// persisted in the SAME transaction as the post insert. nil = none. A nil
+	// SetTaxonomy on update vs. an empty slice both clear; on create an empty
+	// slice simply attaches nothing.
+	CategoryIDs []uuid.UUID
+	TagIDs      []uuid.UUID
 }
 
 // Create makes a new post owned by authorID. Body is sanitized, reading time is
@@ -151,6 +170,9 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, in CreateInput
 				return fmt.Errorf("create post: %w", err)
 			}
 			created = p
+			if err := s.assignTaxonomy(ctx, tx, p.ID, in.CategoryIDs, in.TagIDs); err != nil {
+				return err
+			}
 			if p.Published() {
 				return s.emitPublished(ctx, tx, p)
 			}
@@ -181,6 +203,14 @@ type UpdateInput struct {
 	Body        *string
 	Status      *kernel.Status
 	ScheduledAt *time.Time // nil = unchanged
+	// Taxonomy (M3): when SetTaxonomy is true the post's category/tag sets are
+	// REPLACED with CategoryIDs/TagIDs (an empty/nil slice clears that axis),
+	// persisted in the SAME transaction as the post update. When false the
+	// associations are left untouched (e.g. a revision restore, which does not
+	// carry taxonomy).
+	SetTaxonomy bool
+	CategoryIDs []uuid.UUID
+	TagIDs      []uuid.UUID
 }
 
 // Update mutates an existing post. It first snapshots the prior state into a
@@ -239,13 +269,15 @@ func (s *Service) Update(ctx context.Context, actorID uuid.UUID, id uuid.UUID, i
 		next.ScheduledAt = in.ScheduledAt
 	}
 
-	return s.persistUpdate(ctx, actorID, existing, next, becamePublished)
+	return s.persistUpdate(ctx, actorID, existing, next, becamePublished, in)
 }
 
 // persistUpdate snapshots the prior state and writes the next state in one
 // transaction, emitting the sync revision event and (when newly published) the
-// async publish event.
-func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, next Post, becamePublished bool) (Post, error) {
+// async publish event. When in.SetTaxonomy is set, the category/tag M2M is
+// REPLACED inside the SAME tx so the post row and its associations commit
+// atomically (M3 seam).
+func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, next Post, becamePublished bool, in UpdateInput) (Post, error) {
 	snap, err := kernel.MarshalSnapshot(snapshot{
 		Title:   prior.Title,
 		Slug:    prior.Slug,
@@ -295,6 +327,12 @@ func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, n
 		}
 		updated = p
 
+		if in.SetTaxonomy {
+			if err := s.assignTaxonomy(ctx, tx, p.ID, in.CategoryIDs, in.TagIDs); err != nil {
+				return err
+			}
+		}
+
 		if becamePublished && p.Published() {
 			return s.emitPublished(ctx, tx, p)
 		}
@@ -304,6 +342,49 @@ func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, n
 		return Post{}, err
 	}
 	return updated, nil
+}
+
+// assignTaxonomy replaces the post's category + tag associations inside tx via
+// the wired TaxonomyAssigner. It is a no-op when taxonomy is not wired (nil
+// assigner), so reduced-deps callers and tests are unaffected.
+func (s *Service) assignTaxonomy(ctx context.Context, tx pgx.Tx, postID uuid.UUID, categoryIDs, tagIDs []uuid.UUID) error {
+	if s.taxonomy == nil {
+		return nil
+	}
+	if err := s.taxonomy.AssignCategoriesTx(ctx, tx, postID, categoryIDs); err != nil {
+		return fmt.Errorf("assign categories: %w", err)
+	}
+	if err := s.taxonomy.AssignTagsTx(ctx, tx, postID, tagIDs); err != nil {
+		return fmt.Errorf("assign tags: %w", err)
+	}
+	return nil
+}
+
+// Related returns up to limit published posts sharing >=1 category or tag with
+// the given post (excluding self), most-related first (laravel parity).
+func (s *Service) Related(ctx context.Context, postID uuid.UUID, limit int) ([]Post, error) {
+	return s.repo.ListRelatedPublished(ctx, postID, limit)
+}
+
+// PublicListFiltered returns a page of published posts narrowed by optional,
+// combinable category/tag slug filters, plus the total (M3). Drafts/trashed are
+// always excluded.
+func (s *Service) PublicListFiltered(ctx context.Context, categorySlug, tagSlug string, limit, offset int) ([]Post, int, error) {
+	items, err := s.repo.ListPublishedFiltered(ctx, categorySlug, tagSlug, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.repo.CountPublishedFiltered(ctx, categorySlug, tagSlug)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// PublishedByIDs hydrates an ordered set of post ids to their published rows —
+// the data behind the category/tag archives, which first resolve ranked ids.
+func (s *Service) PublishedByIDs(ctx context.Context, ids []uuid.UUID) ([]Post, error) {
+	return s.repo.GetPublishedByIDs(ctx, ids)
 }
 
 // Publish transitions a post to PUBLISHED, stamping publishedAt once and

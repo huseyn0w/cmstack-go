@@ -33,9 +33,12 @@ templ PublicPostDetail(v PublicPostView) {
 			<div class="prose mt-8 max-w-none text-body text-text" data-testid="post-body">
 				@templ.Raw(v.BodyHTML)
 			</div>
+			@taxonomyPills("Categories", v.Categories, "post-categories")
+			@taxonomyPills("Tags", v.Tags, "post-tags")
 			<footer class="mt-10 border-t border-border pt-6">
 				@LikeIsland(v)
 			</footer>
+			@relatedPosts(v.Related)
 		</article>
 	}
 }

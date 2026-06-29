@@ -77,6 +77,21 @@ type Repository interface {
 	CountPublished(ctx context.Context) (int, error)
 	ListPublishedByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error)
 
+	// ListPublishedFiltered returns published posts narrowed by optional,
+	// combinable category/tag slug filters (M3). An empty slug means "no
+	// constraint on that axis"; both set is an intersection. Drafts/trashed are
+	// always excluded.
+	ListPublishedFiltered(ctx context.Context, categorySlug, tagSlug string, limit, offset int) ([]Post, error)
+	CountPublishedFiltered(ctx context.Context, categorySlug, tagSlug string) (int, error)
+
+	// ListRelatedPublished returns up to limit published posts sharing >=1
+	// category or tag with postID (excluding self), most-related first (M3).
+	ListRelatedPublished(ctx context.Context, postID uuid.UUID, limit int) ([]Post, error)
+
+	// GetPublishedByIDs loads the published, non-trashed posts among ids,
+	// preserving the given id order (the order the taxonomy archive computed).
+	GetPublishedByIDs(ctx context.Context, ids []uuid.UUID) ([]Post, error)
+
 	TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	RestoreTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	PermanentDeleteTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
@@ -97,6 +112,19 @@ type Repository interface {
 // service (the grants are coarse; the service is the gate).
 type Authorizer interface {
 	Can(ctx context.Context, userID uuid.UUID, action, subject string) bool
+}
+
+// TaxonomyAssigner replaces a post's full set of category/tag associations
+// within an EXISTING transaction (the post write tx). *categories.Service and
+// *tags.Service satisfy the two single-axis methods via the adapter in the web
+// wiring; the post service drives both inside one tx so the post row and its
+// taxonomy commit atomically (M3 seam). A nil assigner means "taxonomy is not
+// wired" (e.g. reduced-deps tests) and post writes proceed without it.
+type TaxonomyAssigner interface {
+	// AssignCategoriesTx replaces the post's categories with categoryIDs.
+	AssignCategoriesTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, categoryIDs []uuid.UUID) error
+	// AssignTagsTx replaces the post's tags with tagIDs.
+	AssignTagsTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, tagIDs []uuid.UUID) error
 }
 
 // Publisher publishes a domain event inside a transaction. *events.Bus

@@ -108,3 +108,82 @@ UPDATE posts SET like_count = (
     SELECT count(*) FROM post_likes WHERE post_id = $1
 )
 WHERE id = $1;
+
+-- name: GetPublishedPostsByIDs :many
+-- Hydrate a set of post ids to their published, non-trashed rows. Used by the
+-- taxonomy archives, which first resolve ordered ids then load the rows. Order
+-- is re-applied in Go to preserve the archive's ranking.
+SELECT * FROM posts
+WHERE id = ANY(@ids::uuid[])
+  AND status = 'PUBLISHED'
+  AND deleted_at IS NULL;
+
+-- name: ListRelatedPublishedPosts :many
+-- Posts sharing >=1 category OR tag with the given post (laravel parity).
+-- Self is excluded; only published, non-trashed posts are considered. Results
+-- are ranked by the number of shared taxonomy terms (most-related first), then
+-- recency, and limited.
+SELECT p.*, count(*) AS shared_count
+FROM posts p
+JOIN (
+    SELECT pc.post_id AS related_post_id
+    FROM post_categories pc
+    WHERE pc.category_id IN (
+        SELECT pcs.category_id FROM post_categories pcs WHERE pcs.post_id = $1
+    )
+    UNION ALL
+    SELECT pt.post_id AS related_post_id
+    FROM post_tags pt
+    WHERE pt.tag_id IN (
+        SELECT pts.tag_id FROM post_tags pts WHERE pts.post_id = $1
+    )
+) rel ON rel.related_post_id = p.id
+WHERE p.id <> $1
+  AND p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+GROUP BY p.id
+ORDER BY shared_count DESC, p.published_at DESC NULLS LAST, p.created_at DESC
+LIMIT $2;
+
+-- name: ListPublishedPostsFiltered :many
+-- Public blog listing with optional, combinable category + tag slug filters. A
+-- NULL slug param means "no constraint on that axis"; both set means the post
+-- must match BOTH (intersection). Drafts/trashed are always excluded.
+SELECT p.* FROM posts p
+WHERE p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+  AND (
+    sqlc.narg('category_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = sqlc.narg('category_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('tag_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = sqlc.narg('tag_slug')::text
+    )
+  )
+ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountPublishedPostsFiltered :one
+SELECT count(*) FROM posts p
+WHERE p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+  AND (
+    sqlc.narg('category_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = sqlc.narg('category_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('tag_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = sqlc.narg('tag_slug')::text
+    )
+  );

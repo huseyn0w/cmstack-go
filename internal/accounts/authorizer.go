@@ -32,6 +32,14 @@ const (
 	SubjectPost    = "post"
 	SubjectPage    = "page"
 	SubjectService = "service"
+	// SubjectCategory gates the taxonomy category admin (M3). Categories are a
+	// site-wide tree (no per-author ownership), so the coarse grant alone gates
+	// every action.
+	SubjectCategory = "category"
+	// SubjectTag gates the taxonomy tag admin (M3). Tags are flat and site-wide;
+	// like categories they are treated as a distinct subject so an Editor can be
+	// granted taxonomy management independently of posts.
+	SubjectTag     = "tag"
 	SubjectMedia   = "media"
 	SubjectComment = "comment"
 	SubjectUser    = "user"

@@ -12,8 +12,9 @@ import (
 
 // AllSubjects is the canonical set of authorization subjects.
 var AllSubjects = []string{
-	SubjectPost, SubjectPage, SubjectService, SubjectMedia, SubjectComment,
-	SubjectUser, SubjectSetting, SubjectSEO, SubjectMenu, SubjectTheme, SubjectPlugin,
+	SubjectPost, SubjectPage, SubjectService, SubjectCategory, SubjectTag,
+	SubjectMedia, SubjectComment, SubjectUser, SubjectSetting, SubjectSEO,
+	SubjectMenu, SubjectTheme, SubjectPlugin,
 }
 
 // AllActions is the canonical set of authorization actions.
@@ -36,6 +37,9 @@ func canonicalRoles() []roleSeed {
 		{ActionManage, SubjectPost},
 		{ActionManage, SubjectPage},
 		{ActionManage, SubjectService},
+		// Taxonomy (M3): an Editor curates categories + tags site-wide.
+		{ActionManage, SubjectCategory},
+		{ActionManage, SubjectTag},
 		{ActionManage, SubjectMedia},
 		{ActionManage, SubjectComment},
 		{ActionManage, SubjectSEO},
@@ -57,6 +61,11 @@ func canonicalRoles() []roleSeed {
 		{ActionUpdate, SubjectMedia},
 		{ActionRead, SubjectMedia},
 		{ActionCreate, SubjectComment},
+		// Taxonomy (M3): an Author may READ categories + tags so the post editor
+		// can offer them as assignment options, but may NOT manage the taxonomy
+		// itself (that is an Editor/Administrator responsibility).
+		{ActionRead, SubjectCategory},
+		{ActionRead, SubjectTag},
 	}
 	member := []Permission{
 		{ActionRead, SubjectPost},

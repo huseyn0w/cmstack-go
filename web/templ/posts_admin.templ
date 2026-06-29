@@ -69,6 +69,13 @@ templ PostList(v PostListView) {
 											<td class="px-4 py-3 text-small text-text">
 												<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Title }</a>
 												<p class="font-mono text-caption text-subtle">/{ row.Slug }</p>
+												if len(row.Taxonomy) > 0 {
+													<div class="mt-1 flex flex-wrap gap-1" data-testid={ "post-taxonomy-" + row.ID }>
+														for _, t := range row.Taxonomy {
+															<span class="inline-flex h-[20px] items-center rounded-full bg-surface-2 px-2 text-caption text-muted">{ t }</span>
+														}
+													</div>
+												}
 											</td>
 											<td class="px-4 py-3 text-small text-muted">{ row.AuthorName }</td>
 											<td class="px-4 py-3">@statusBadge(row.Status, row.Scheduled)</td>

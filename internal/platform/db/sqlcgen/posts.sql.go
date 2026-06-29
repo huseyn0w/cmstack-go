@@ -58,6 +58,38 @@ func (q *Queries) CountPublishedPosts(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countPublishedPostsFiltered = `-- name: CountPublishedPostsFiltered :one
+SELECT count(*) FROM posts p
+WHERE p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+  AND (
+    $1::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = $1::text
+    )
+  )
+  AND (
+    $2::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = $2::text
+    )
+  )
+`
+
+type CountPublishedPostsFilteredParams struct {
+	CategorySlug *string `json:"category_slug"`
+	TagSlug      *string `json:"tag_slug"`
+}
+
+func (q *Queries) CountPublishedPostsFiltered(ctx context.Context, arg CountPublishedPostsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPublishedPostsFiltered, arg.CategorySlug, arg.TagSlug)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTrashedPosts = `-- name: CountTrashedPosts :one
 SELECT count(*) FROM posts WHERE deleted_at IS NOT NULL
 `
@@ -199,6 +231,51 @@ func (q *Queries) GetPublishedPostBySlug(ctx context.Context, slug string) (Post
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getPublishedPostsByIDs = `-- name: GetPublishedPostsByIDs :many
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at FROM posts
+WHERE id = ANY($1::uuid[])
+  AND status = 'PUBLISHED'
+  AND deleted_at IS NULL
+`
+
+// Hydrate a set of post ids to their published, non-trashed rows. Used by the
+// taxonomy archives, which first resolve ordered ids then load the rows. Order
+// is re-applied in Go to preserve the archive's ranking.
+func (q *Queries) GetPublishedPostsByIDs(ctx context.Context, ids []pgtype.UUID) ([]Post, error) {
+	rows, err := q.db.Query(ctx, getPublishedPostsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Post{}
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Slug,
+			&i.Excerpt,
+			&i.Body,
+			&i.Status,
+			&i.PublishedAt,
+			&i.ScheduledAt,
+			&i.AuthorID,
+			&i.ReadingTime,
+			&i.LikeCount,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasLiked = `-- name: HasLiked :one
@@ -400,6 +477,165 @@ func (q *Queries) ListPublishedPostsByAuthor(ctx context.Context, authorID pgtyp
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublishedPostsFiltered = `-- name: ListPublishedPostsFiltered :many
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at FROM posts p
+WHERE p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+  AND (
+    $3::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = $3::text
+    )
+  )
+  AND (
+    $4::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = $4::text
+    )
+  )
+ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListPublishedPostsFilteredParams struct {
+	Limit        int32   `json:"limit"`
+	Offset       int32   `json:"offset"`
+	CategorySlug *string `json:"category_slug"`
+	TagSlug      *string `json:"tag_slug"`
+}
+
+// Public blog listing with optional, combinable category + tag slug filters. A
+// NULL slug param means "no constraint on that axis"; both set means the post
+// must match BOTH (intersection). Drafts/trashed are always excluded.
+func (q *Queries) ListPublishedPostsFiltered(ctx context.Context, arg ListPublishedPostsFilteredParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPublishedPostsFiltered,
+		arg.Limit,
+		arg.Offset,
+		arg.CategorySlug,
+		arg.TagSlug,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Post{}
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Slug,
+			&i.Excerpt,
+			&i.Body,
+			&i.Status,
+			&i.PublishedAt,
+			&i.ScheduledAt,
+			&i.AuthorID,
+			&i.ReadingTime,
+			&i.LikeCount,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRelatedPublishedPosts = `-- name: ListRelatedPublishedPosts :many
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, count(*) AS shared_count
+FROM posts p
+JOIN (
+    SELECT pc.post_id AS related_post_id
+    FROM post_categories pc
+    WHERE pc.category_id IN (
+        SELECT pcs.category_id FROM post_categories pcs WHERE pcs.post_id = $1
+    )
+    UNION ALL
+    SELECT pt.post_id AS related_post_id
+    FROM post_tags pt
+    WHERE pt.tag_id IN (
+        SELECT pts.tag_id FROM post_tags pts WHERE pts.post_id = $1
+    )
+) rel ON rel.related_post_id = p.id
+WHERE p.id <> $1
+  AND p.status = 'PUBLISHED'
+  AND p.deleted_at IS NULL
+GROUP BY p.id
+ORDER BY shared_count DESC, p.published_at DESC NULLS LAST, p.created_at DESC
+LIMIT $2
+`
+
+type ListRelatedPublishedPostsParams struct {
+	PostID pgtype.UUID `json:"post_id"`
+	Limit  int32       `json:"limit"`
+}
+
+type ListRelatedPublishedPostsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Title       string             `json:"title"`
+	Slug        string             `json:"slug"`
+	Excerpt     string             `json:"excerpt"`
+	Body        string             `json:"body"`
+	Status      string             `json:"status"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID    pgtype.UUID        `json:"author_id"`
+	ReadingTime int32              `json:"reading_time"`
+	LikeCount   int32              `json:"like_count"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	SharedCount int64              `json:"shared_count"`
+}
+
+// Posts sharing >=1 category OR tag with the given post (laravel parity).
+// Self is excluded; only published, non-trashed posts are considered. Results
+// are ranked by the number of shared taxonomy terms (most-related first), then
+// recency, and limited.
+func (q *Queries) ListRelatedPublishedPosts(ctx context.Context, arg ListRelatedPublishedPostsParams) ([]ListRelatedPublishedPostsRow, error) {
+	rows, err := q.db.Query(ctx, listRelatedPublishedPosts, arg.PostID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRelatedPublishedPostsRow{}
+	for rows.Next() {
+		var i ListRelatedPublishedPostsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Slug,
+			&i.Excerpt,
+			&i.Body,
+			&i.Status,
+			&i.PublishedAt,
+			&i.ScheduledAt,
+			&i.AuthorID,
+			&i.ReadingTime,
+			&i.LikeCount,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SharedCount,
 		); err != nil {
 			return nil, err
 		}

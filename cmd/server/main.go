@@ -15,9 +15,12 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
+	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/content/taxonomy"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
@@ -144,6 +147,16 @@ func run() error {
 	roleKeys := posts.NewRoleKeyResolver(userRepo, roleRepo)
 	postSvc := posts.NewService(pool, postRepo, revisionRepo, authz, roleKeys, bus, nil)
 
+	// Taxonomies (M3): category + tag repos/services, and the combined assigner
+	// that persists a post's category/tag M2M inside the post write tx. The post
+	// service is given the assigner so Create/Update commit the post and its
+	// associations atomically.
+	categoryRepo := categories.NewRepoPG(queries)
+	categorySvc := categories.NewService(pool, categoryRepo, authz)
+	tagRepo := tags.NewRepoPG(queries)
+	tagSvc := tags.NewService(pool, tagRepo, authz)
+	postSvc.WithTaxonomy(taxonomy.NewAssigner(categorySvc, tagSvc))
+
 	// Pages (M2b) wiring: repos over the shared querier + the page service. Pages
 	// have no per-author ownership, so the service needs no role resolver.
 	pageRepo := pages.NewRepoPG(queries)
@@ -184,6 +197,17 @@ func run() error {
 
 		ServiceAdminSvc:  serviceMgr,
 		ServicePublicSvc: serviceMgr,
+
+		// Taxonomies (M3).
+		CategoryAdminSvc:  categorySvc,
+		CategoryReadSvc:   categorySvc,
+		CategoryPublicSvc: categorySvc,
+		CategoryPostSvc:   categorySvc,
+		TagAdminSvc:       tagSvc,
+		TagReadSvc:        tagSvc,
+		TagPublicSvc:      tagSvc,
+		TagPostSvc:        tagSvc,
+		PostHydrateSvc:    postSvc,
 	})
 
 	srv := &http.Server{

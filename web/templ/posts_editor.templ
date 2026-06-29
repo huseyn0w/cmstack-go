@@ -60,6 +60,7 @@ templ PostEditor(v PostFormView) {
 					>{ v.Excerpt }</textarea>
 				</div>
 				@richTextField(v.Body)
+				@taxonomySelectors(v.CategoryChoices, v.TagChoices)
 				<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
 					<div>
 						<label for="status" class="block text-small font-medium text-text">Status</label>
@@ -178,6 +179,54 @@ templ toolbarBtnPlain(key, label, action string) {
 	>
 		{ children... }
 	</button>
+}
+
+// taxonomySelectors renders the post editor's category (tree-aware) + tag
+// multi-selects (M3). Categories submit as repeated category_ids; tags as
+// tag_ids. Both render as accessible checkbox lists so a plain POST carries the
+// full selection without JS. The blocks are omitted when no terms exist yet
+// (the taxonomy admin is where terms are created).
+templ taxonomySelectors(categories, tags []TaxonomyChoice) {
+	if len(categories) > 0 || len(tags) > 0 {
+		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2" data-testid="post-taxonomy">
+			if len(categories) > 0 {
+				<fieldset data-testid="category-select">
+					<legend class="text-small font-medium text-text">Categories</legend>
+					<div class="mt-1.5 max-h-48 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-3">
+						for _, c := range categories {
+							<label style={ depthPad(c.Depth) } class="flex items-center gap-2 py-0.5 text-small text-text">
+								<input
+									type="checkbox" name="category_ids" value={ c.ID }
+									checked?={ c.Selected }
+									data-testid={ "category-option-" + c.ID }
+									class="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								/>
+								<span>{ c.Label }</span>
+							</label>
+						}
+					</div>
+				</fieldset>
+			}
+			if len(tags) > 0 {
+				<fieldset data-testid="tag-select">
+					<legend class="text-small font-medium text-text">Tags</legend>
+					<div class="mt-1.5 max-h-48 space-y-1 overflow-y-auto rounded-md border border-border bg-surface p-3">
+						for _, t := range tags {
+							<label class="flex items-center gap-2 py-0.5 text-small text-text">
+								<input
+									type="checkbox" name="tag_ids" value={ t.ID }
+									checked?={ t.Selected }
+									data-testid={ "tag-option-" + t.ID }
+									class="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								/>
+								<span>{ t.Label }</span>
+							</label>
+						}
+					</div>
+				</fieldset>
+			}
+		</div>
+	}
 }
 
 // --- editor toolbar icons ----------------------------------------------------

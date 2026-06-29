@@ -71,6 +71,19 @@ type Deps struct {
 	// is the public /services index + detail. All optional.
 	ServiceAdminSvc  ServiceAdminService
 	ServicePublicSvc ServicePublicService
+
+	// Taxonomies (M3). Category/Tag admin areas (gated by the `category`/`tag`
+	// subjects) and the public archives. The post handlers gain taxonomy
+	// selectors/pills when the read services below are wired. All optional.
+	CategoryAdminSvc  CategoryAdminService
+	CategoryReadSvc   CategoryReader        // post editor tree + per-post reads
+	CategoryPublicSvc CategoryPublicService // public archive
+	CategoryPostSvc   PostTaxonomyReader    // public detail pills
+	TagAdminSvc       TagAdminService
+	TagReadSvc        TagReader // post editor flat list + per-post reads
+	TagPublicSvc      TagPublicService
+	TagPostSvc        PostTagReader // public detail pills
+	PostHydrateSvc    PostHydrator  // archive id->post hydration
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -147,11 +160,25 @@ func Router(d Deps) http.Handler {
 		// Public blog (no auth for read). Liking requires an authenticated user.
 		if d.PostPublicSvc != nil {
 			pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
+			if d.CategoryPostSvc != nil || d.TagPostSvc != nil {
+				pub.WithTaxonomy(d.CategoryPostSvc, d.TagPostSvc)
+			}
 			gr.Get("/blog", pub.Index)
 			gr.Get("/blog/{slug}", pub.Show)
 			if d.AuthMW != nil {
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
+			}
+		}
+
+		// Public taxonomy archives (no auth): /categories/{slug} + /tags/{slug}.
+		if d.PostHydrateSvc != nil && (d.CategoryPublicSvc != nil || d.TagPublicSvc != nil) {
+			tax := NewTaxonomyPublicHandler(d.CategoryPublicSvc, d.TagPublicSvc, d.PostHydrateSvc, d.Authors, d.SiteName)
+			if d.CategoryPublicSvc != nil {
+				gr.Get("/categories/{slug}", tax.ShowCategory)
+			}
+			if d.TagPublicSvc != nil {
+				gr.Get("/tags/{slug}", tax.ShowTag)
 			}
 		}
 
@@ -259,7 +286,69 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountPostsAdmin(gr, d, shell)
 	mountPagesAdmin(gr, d, shell)
 	mountServicesAdmin(gr, d, shell)
+	mountCategoriesAdmin(gr, d, shell)
+	mountTagsAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountCategoriesAdmin wires the gated admin categories area. Categories have NO
+// per-author ownership: each route requires the matching (action, category)
+// grant; the bulk delete uses a coarse delete gate with a per-id re-check.
+func mountCategoriesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.CategoryAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewCategoryAdminHandler(d.CategoryAdminSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/categories", func(cr chi.Router) {
+		cr.Use(d.AuthMW.RequireAuth)
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectCategory)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/new", h.New)
+			rr.Get("/{id}/edit", h.Edit)
+		})
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectCategory)).
+			Post("/", h.Create)
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectCategory)).
+			Post("/{id}", h.Update)
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectCategory)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/delete", h.Delete)
+			dr.Post("/bulk", h.Bulk)
+		})
+	})
+}
+
+// mountTagsAdmin wires the gated admin tags area (flat; delete-only bulk).
+func mountTagsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.TagAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewTagAdminHandler(d.TagAdminSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/tags", func(tr chi.Router) {
+		tr.Use(d.AuthMW.RequireAuth)
+
+		tr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectTag)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/new", h.New)
+			rr.Get("/{id}/edit", h.Edit)
+		})
+
+		tr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectTag)).
+			Post("/", h.Create)
+
+		tr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectTag)).
+			Post("/{id}", h.Update)
+
+		tr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectTag)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/delete", h.Delete)
+			dr.Post("/bulk", h.Bulk)
+		})
+	})
 }
 
 // mountAccount wires the self-service /account area behind RequireAuth. The
@@ -293,6 +382,9 @@ func mountPostsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 		return
 	}
 	h := NewPostAdminHandler(d.PostAdminSvc, shell, d.Authors, d.CSRFFunc)
+	if d.CategoryReadSvc != nil || d.TagReadSvc != nil {
+		h.WithTaxonomy(d.CategoryReadSvc, d.TagReadSvc)
+	}
 
 	gr.Route("/admin/posts", func(pr chi.Router) {
 		pr.Use(d.AuthMW.RequireAuth)

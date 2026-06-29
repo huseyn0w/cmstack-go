@@ -22,6 +22,8 @@ type PostRow struct {
 	Scheduled  bool
 	Date       string // formatted display date (published/updated)
 	EditURL    string
+	// Taxonomy (M3): category + tag labels shown as small pills in the admin row.
+	Taxonomy []string
 }
 
 // StatusTab is one status filter tab on the admin list.
@@ -83,6 +85,22 @@ type PostFormView struct {
 	Error        string
 	RevisionsURL string
 	BackURL      string
+
+	// Taxonomy (M3): the category tree (indented options, pre-selected) and the
+	// flat tag set, plus the comma list the tag input mirrors back. Empty when
+	// taxonomy is not wired.
+	CategoryChoices []TaxonomyChoice
+	TagChoices      []TaxonomyChoice
+}
+
+// TaxonomyChoice is one selectable category/tag in the post editor. Depth
+// indents categories in the tree-aware multi-select; Selected pre-checks the
+// post's current associations.
+type TaxonomyChoice struct {
+	ID       string
+	Label    string
+	Depth    int
+	Selected bool
 }
 
 // RevisionRow is one entry in the revision history list.
@@ -165,4 +183,10 @@ type PublicPostView struct {
 	LikeURL      string
 	CSRFToken    string
 	CanonicalURL string
+
+	// Taxonomy (M3): the post's categories + tags as archive-linking pills, and
+	// the related-posts block (posts sharing >=1 category/tag).
+	Categories []TaxonomyPill
+	Tags       []TaxonomyPill
+	Related    []PublicPostCard
 }

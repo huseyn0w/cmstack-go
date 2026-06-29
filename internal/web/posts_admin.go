@@ -11,11 +11,30 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
+
+// CategoryReader supplies the post editor's category tree + a post's current
+// category associations (M3). *categories.Service satisfies it. Optional: when
+// nil the editor shows no category selector and the list no category pills.
+type CategoryReader interface {
+	Tree(ctx context.Context) ([]categories.TreeNode, error)
+	IDsForPost(ctx context.Context, postID uuid.UUID) ([]uuid.UUID, error)
+	CategoriesForPost(ctx context.Context, postID uuid.UUID) ([]categories.Category, error)
+}
+
+// TagReader supplies the post editor's tag set + a post's current tag
+// associations (M3). *tags.Service satisfies it. Optional like CategoryReader.
+type TagReader interface {
+	AllFlat(ctx context.Context) ([]tags.Tag, error)
+	IDsForPost(ctx context.Context, postID uuid.UUID) ([]uuid.UUID, error)
+	TagsForPost(ctx context.Context, postID uuid.UUID) ([]tags.Tag, error)
+}
 
 // adminPageSize is the admin list page size.
 const adminPageSize = 20
@@ -51,15 +70,26 @@ type AuthorNamer interface {
 // PostAdminHandler is the thin HTTP boundary for the admin posts area. It
 // decodes, validates, calls the service, and renders/redirects — ZERO logic.
 type PostAdminHandler struct {
-	svc     PostAdminService
-	shell   adminShellDeps
-	authors AuthorNamer
-	csrf    func(*http.Request) string
+	svc        PostAdminService
+	shell      adminShellDeps
+	authors    AuthorNamer
+	categories CategoryReader // optional (M3 taxonomy)
+	tags       TagReader      // optional (M3 taxonomy)
+	csrf       func(*http.Request) string
 }
 
 // NewPostAdminHandler constructs the admin posts handler.
 func NewPostAdminHandler(svc PostAdminService, shell adminShellDeps, authors AuthorNamer, csrf func(*http.Request) string) *PostAdminHandler {
 	return &PostAdminHandler{svc: svc, shell: shell, authors: authors, csrf: csrf}
+}
+
+// WithTaxonomy attaches the optional category + tag readers so the editor offers
+// taxonomy selectors and the list shows term pills (M3). Returns the receiver
+// for chaining at wire time.
+func (h *PostAdminHandler) WithTaxonomy(cats CategoryReader, tagSvc TagReader) *PostAdminHandler {
+	h.categories = cats
+	h.tags = tagSvc
+	return h
 }
 
 // List renders the admin posts table with status-filter tabs and pagination.
@@ -102,14 +132,17 @@ func (h *PostAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 
 // New renders the empty editor.
 func (h *PostAdminHandler) New(w http.ResponseWriter, r *http.Request) {
+	cats, tagChoices := h.taxonomyChoices(r.Context(), uuid.Nil)
 	view := webtempl.PostFormView{
-		Shell:       h.shell.buildShell(r, "New post"),
-		IsNew:       true,
-		Status:      webtempl.PostStatusDraft,
-		ActionURL:   "/admin/posts",
-		CSRFToken:   h.csrf(r),
-		FieldErrors: map[string]string{},
-		BackURL:     "/admin/posts",
+		Shell:           h.shell.buildShell(r, "New post"),
+		IsNew:           true,
+		Status:          webtempl.PostStatusDraft,
+		ActionURL:       "/admin/posts",
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		BackURL:         "/admin/posts",
+		CategoryChoices: cats,
+		TagChoices:      tagChoices,
 	}
 	h.render(w, r, webtempl.PostEditor(view))
 }
@@ -126,6 +159,8 @@ func (h *PostAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Body:        in.body,
 		Status:      status,
 		ScheduledAt: in.scheduledAt,
+		CategoryIDs: in.categoryIDs,
+		TagIDs:      in.tagIDs,
 	})
 	if err != nil {
 		h.renderCreateError(w, r, in, status, err)
@@ -169,11 +204,14 @@ func (h *PostAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	in, status := h.decodeForm(r)
 
 	upd := posts.UpdateInput{
-		Title:   &in.title,
-		Slug:    &in.slug,
-		Excerpt: &in.excerpt,
-		Body:    &in.body,
-		Status:  &status,
+		Title:       &in.title,
+		Slug:        &in.slug,
+		Excerpt:     &in.excerpt,
+		Body:        &in.body,
+		Status:      &status,
+		SetTaxonomy: true,
+		CategoryIDs: in.categoryIDs,
+		TagIDs:      in.tagIDs,
 	}
 	// The clicked action button refines intent.
 	switch r.PostFormValue("action") {
@@ -323,14 +361,19 @@ type postForm struct {
 	excerpt     string
 	body        string
 	scheduledAt *time.Time
+	categoryIDs []uuid.UUID
+	tagIDs      []uuid.UUID
 }
 
 func (h *PostAdminHandler) decodeForm(r *http.Request) (postForm, kernel.Status) {
+	_ = r.ParseForm()
 	f := postForm{
-		title:   r.PostFormValue("title"),
-		slug:    r.PostFormValue("slug"),
-		excerpt: r.PostFormValue("excerpt"),
-		body:    r.PostFormValue("body"),
+		title:       r.PostFormValue("title"),
+		slug:        r.PostFormValue("slug"),
+		excerpt:     r.PostFormValue("excerpt"),
+		body:        r.PostFormValue("body"),
+		categoryIDs: parseBulkIDs(r.PostForm["category_ids"]),
+		tagIDs:      parseBulkIDs(r.PostForm["tag_ids"]),
 	}
 	status := kernel.ParseStatus(r.PostFormValue("status"))
 	if raw := r.PostFormValue("scheduled_at"); raw != "" {
@@ -393,22 +436,71 @@ func (h *PostAdminHandler) mutate(w http.ResponseWriter, r *http.Request, fn fun
 }
 
 func (h *PostAdminHandler) formView(r *http.Request, p posts.Post) webtempl.PostFormView {
+	cats, tagChoices := h.taxonomyChoices(r.Context(), p.ID)
 	return webtempl.PostFormView{
-		Shell:        h.shell.buildShell(r, "Edit post"),
-		IsNew:        false,
-		ID:           p.ID.String(),
-		Title:        p.Title,
-		Slug:         p.Slug,
-		Excerpt:      p.Excerpt,
-		Body:         p.Body,
-		Status:       statusView(p.Status),
-		ScheduledAt:  scheduleValue(p.ScheduledAt),
-		ActionURL:    "/admin/posts/" + p.ID.String(),
-		CSRFToken:    h.csrf(r),
-		FieldErrors:  map[string]string{},
-		RevisionsURL: "/admin/posts/" + p.ID.String() + "/revisions",
-		BackURL:      "/admin/posts",
+		Shell:           h.shell.buildShell(r, "Edit post"),
+		IsNew:           false,
+		ID:              p.ID.String(),
+		Title:           p.Title,
+		Slug:            p.Slug,
+		Excerpt:         p.Excerpt,
+		Body:            p.Body,
+		Status:          statusView(p.Status),
+		ScheduledAt:     scheduleValue(p.ScheduledAt),
+		ActionURL:       "/admin/posts/" + p.ID.String(),
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		RevisionsURL:    "/admin/posts/" + p.ID.String() + "/revisions",
+		BackURL:         "/admin/posts",
+		CategoryChoices: cats,
+		TagChoices:      tagChoices,
 	}
+}
+
+// taxonomyChoices builds the editor's category (tree, pre-selected) + tag (flat,
+// pre-selected) choice lists for a post. postID is uuid.Nil on the new-post path
+// (nothing pre-selected). Returns empty slices when taxonomy is not wired.
+func (h *PostAdminHandler) taxonomyChoices(ctx context.Context, postID uuid.UUID) (cats, tagChoices []webtempl.TaxonomyChoice) {
+	if h.categories != nil {
+		selected := map[uuid.UUID]bool{}
+		if postID != uuid.Nil {
+			if ids, err := h.categories.IDsForPost(ctx, postID); err == nil {
+				for _, id := range ids {
+					selected[id] = true
+				}
+			}
+		}
+		if nodes, err := h.categories.Tree(ctx); err == nil {
+			for _, n := range nodes {
+				cats = append(cats, webtempl.TaxonomyChoice{
+					ID:       n.Category.ID.String(),
+					Label:    n.Category.Name,
+					Depth:    n.Depth,
+					Selected: selected[n.Category.ID],
+				})
+			}
+		}
+	}
+	if h.tags != nil {
+		selected := map[uuid.UUID]bool{}
+		if postID != uuid.Nil {
+			if ids, err := h.tags.IDsForPost(ctx, postID); err == nil {
+				for _, id := range ids {
+					selected[id] = true
+				}
+			}
+		}
+		if all, err := h.tags.AllFlat(ctx); err == nil {
+			for _, t := range all {
+				tagChoices = append(tagChoices, webtempl.TaxonomyChoice{
+					ID:       t.ID.String(),
+					Label:    t.Name,
+					Selected: selected[t.ID],
+				})
+			}
+		}
+	}
+	return cats, tagChoices
 }
 
 func (h *PostAdminHandler) rows(ctx context.Context, items []posts.Post) []webtempl.PostRow {
@@ -423,9 +515,31 @@ func (h *PostAdminHandler) rows(ctx context.Context, items []posts.Post) []webte
 			Scheduled:  p.Scheduled(),
 			Date:       postDisplayDate(p),
 			EditURL:    "/admin/posts/" + p.ID.String() + "/edit",
+			Taxonomy:   h.rowTaxonomy(ctx, p.ID),
 		})
 	}
 	return rows
+}
+
+// rowTaxonomy returns a short category+tag label list for a post's admin row.
+// Best-effort: any read error yields no labels rather than failing the list.
+func (h *PostAdminHandler) rowTaxonomy(ctx context.Context, postID uuid.UUID) []string {
+	var out []string
+	if h.categories != nil {
+		if cats, err := h.categories.CategoriesForPost(ctx, postID); err == nil {
+			for _, c := range cats {
+				out = append(out, c.Name)
+			}
+		}
+	}
+	if h.tags != nil {
+		if ts, err := h.tags.TagsForPost(ctx, postID); err == nil {
+			for _, t := range ts {
+				out = append(out, "#"+t.Name)
+			}
+		}
+	}
+	return out
 }
 
 func (h *PostAdminHandler) revisionRows(ctx context.Context, _ uuid.UUID, revs []kernel.Revision) []webtempl.RevisionRow {

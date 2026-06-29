@@ -120,6 +120,26 @@ func (m *memRepo) CountTrashed(context.Context) (int, error)               { ret
 func (m *memRepo) ListPublished(context.Context, int, int) ([]Post, error) { return nil, nil }
 func (m *memRepo) CountPublished(context.Context) (int, error)             { return 0, nil }
 
+func (m *memRepo) ListPublishedFiltered(context.Context, string, string, int, int) ([]Post, error) {
+	return nil, nil
+}
+func (m *memRepo) CountPublishedFiltered(context.Context, string, string) (int, error) { return 0, nil }
+func (m *memRepo) ListRelatedPublished(context.Context, uuid.UUID, int) ([]Post, error) {
+	return nil, nil
+}
+
+func (m *memRepo) GetPublishedByIDs(_ context.Context, ids []uuid.UUID) ([]Post, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Post
+	for _, id := range ids {
+		if p, ok := m.posts[id]; ok && p.Published() {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func (m *memRepo) ListPublishedByAuthor(_ context.Context, authorID uuid.UUID) ([]Post, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

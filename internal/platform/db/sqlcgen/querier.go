@@ -11,22 +11,32 @@ import (
 )
 
 type Querier interface {
+	AttachPostCategory(ctx context.Context, arg AttachPostCategoryParams) error
+	AttachPostTag(ctx context.Context, arg AttachPostTagParams) error
 	ConsumeEmailVerificationToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	CountCategories(ctx context.Context) (int64, error)
+	CountCategoriesBySlug(ctx context.Context, arg CountCategoriesBySlugParams) (int64, error)
 	CountPages(ctx context.Context, status *string) (int64, error)
 	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
 	CountPosts(ctx context.Context, arg CountPostsParams) (int64, error)
 	CountPostsBySlug(ctx context.Context, arg CountPostsBySlugParams) (int64, error)
 	CountPublishedPages(ctx context.Context) (int64, error)
 	CountPublishedPosts(ctx context.Context) (int64, error)
+	CountPublishedPostsFiltered(ctx context.Context, arg CountPublishedPostsFilteredParams) (int64, error)
+	CountPublishedPostsInCategory(ctx context.Context, categoryID pgtype.UUID) (int64, error)
+	CountPublishedPostsInTag(ctx context.Context, tagID pgtype.UUID) (int64, error)
 	CountPublishedServices(ctx context.Context) (int64, error)
 	CountServices(ctx context.Context, status *string) (int64, error)
 	CountServicesBySlug(ctx context.Context, arg CountServicesBySlugParams) (int64, error)
+	CountTags(ctx context.Context) (int64, error)
+	CountTagsBySlug(ctx context.Context, arg CountTagsBySlugParams) (int64, error)
 	CountTrashedPages(ctx context.Context) (int64, error)
 	CountTrashedPosts(ctx context.Context) (int64, error)
 	CountTrashedServices(ctx context.Context) (int64, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
@@ -35,14 +45,21 @@ type Querier interface {
 	CreateRevision(ctx context.Context, arg CreateRevisionParams) (Revision, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateServiceFAQ(ctx context.Context, arg CreateServiceFAQParams) (ServiceFaq, error)
+	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
+	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
+	DeleteTag(ctx context.Context, id pgtype.UUID) error
+	DetachAllPostCategories(ctx context.Context, postID pgtype.UUID) error
+	DetachAllPostTags(ctx context.Context, postID pgtype.UUID) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
 	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
+	GetCategoryBySlug(ctx context.Context, slug string) (Category, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
 	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
@@ -50,11 +67,17 @@ type Querier interface {
 	GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error)
 	GetPublishedPostBySlug(ctx context.Context, slug string) (Post, error)
+	// Hydrate a set of post ids to their published, non-trashed rows. Used by the
+	// taxonomy archives, which first resolve ordered ids then load the rows. Order
+	// is re-applied in Go to preserve the archive's ranking.
+	GetPublishedPostsByIDs(ctx context.Context, ids []pgtype.UUID) ([]Post, error)
 	GetPublishedServiceBySlug(ctx context.Context, slug string) (Service, error)
 	GetRevision(ctx context.Context, id pgtype.UUID) (Revision, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
 	GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
+	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username *string) (User, error)
@@ -62,6 +85,11 @@ type Querier interface {
 	HasLiked(ctx context.Context, arg HasLikedParams) (bool, error)
 	LikePost(ctx context.Context, arg LikePostParams) (int64, error)
 	ListAllActivePages(ctx context.Context) ([]Page, error)
+	ListAllCategories(ctx context.Context) ([]Category, error)
+	ListAllTags(ctx context.Context) ([]Tag, error)
+	ListCategories(ctx context.Context, arg ListCategoriesParams) ([]Category, error)
+	ListCategoriesForPost(ctx context.Context, postID pgtype.UUID) ([]Category, error)
+	ListChildCategories(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
 	ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]Page, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
@@ -70,12 +98,25 @@ type Querier interface {
 	ListPublishedPages(ctx context.Context, arg ListPublishedPagesParams) ([]Page, error)
 	ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]Post, error)
 	ListPublishedPostsByAuthor(ctx context.Context, authorID pgtype.UUID) ([]Post, error)
+	// Public blog listing with optional, combinable category + tag slug filters. A
+	// NULL slug param means "no constraint on that axis"; both set means the post
+	// must match BOTH (intersection). Drafts/trashed are always excluded.
+	ListPublishedPostsFiltered(ctx context.Context, arg ListPublishedPostsFilteredParams) ([]Post, error)
+	ListPublishedPostsInCategory(ctx context.Context, arg ListPublishedPostsInCategoryParams) ([]Post, error)
+	ListPublishedPostsInTag(ctx context.Context, arg ListPublishedPostsInTagParams) ([]Post, error)
 	ListPublishedServices(ctx context.Context, arg ListPublishedServicesParams) ([]Service, error)
+	// Posts sharing >=1 category OR tag with the given post (laravel parity).
+	// Self is excluded; only published, non-trashed posts are considered. Results
+	// are ranked by the number of shared taxonomy terms (most-related first), then
+	// recency, and limited.
+	ListRelatedPublishedPosts(ctx context.Context, arg ListRelatedPublishedPostsParams) ([]ListRelatedPublishedPostsRow, error)
 	ListRevisions(ctx context.Context, arg ListRevisionsParams) ([]Revision, error)
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListServiceFAQs(ctx context.Context, serviceID pgtype.UUID) ([]ServiceFaq, error)
 	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
+	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
+	ListTagsForPost(ctx context.Context, postID pgtype.UUID) ([]Tag, error)
 	ListTrashedPages(ctx context.Context, arg ListTrashedPagesParams) ([]Page, error)
 	ListTrashedPosts(ctx context.Context, arg ListTrashedPostsParams) ([]Post, error)
 	ListTrashedServices(ctx context.Context, arg ListTrashedServicesParams) ([]Service, error)
@@ -95,9 +136,11 @@ type Querier interface {
 	TrashPost(ctx context.Context, id pgtype.UUID) error
 	TrashService(ctx context.Context, id pgtype.UUID) error
 	UnlikePost(ctx context.Context, arg UnlikePostParams) (int64, error)
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
+	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
 	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)

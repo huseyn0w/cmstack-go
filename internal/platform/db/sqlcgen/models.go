@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Category struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Slug        string             `json:"slug"`
+	Description string             `json:"description"`
+	ParentID    pgtype.UUID        `json:"parent_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type EmailVerificationToken struct {
 	ID         pgtype.UUID        `json:"id"`
 	UserID     pgtype.UUID        `json:"user_id"`
@@ -84,9 +94,21 @@ type Post struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PostCategory struct {
+	PostID     pgtype.UUID        `json:"post_id"`
+	CategoryID pgtype.UUID        `json:"category_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type PostLike struct {
 	PostID    pgtype.UUID        `json:"post_id"`
 	UserID    pgtype.UUID        `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type PostTag struct {
+	PostID    pgtype.UUID        `json:"post_id"`
+	TagID     pgtype.UUID        `json:"tag_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -140,6 +162,14 @@ type ServiceFaq struct {
 	Question  string             `json:"question"`
 	Answer    string             `json:"answer"`
 	Position  int32              `json:"position"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Tag struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Slug      string             `json:"slug"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

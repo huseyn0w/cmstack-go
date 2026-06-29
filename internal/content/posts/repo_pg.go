@@ -153,6 +153,75 @@ func (r *RepoPG) ListPublishedByAuthor(ctx context.Context, authorID uuid.UUID) 
 	return postsFromRows(rows), nil
 }
 
+// ListPublishedFiltered returns published posts narrowed by optional category/
+// tag slug filters (M3). An empty slug param maps to a NULL narg (no constraint).
+func (r *RepoPG) ListPublishedFiltered(ctx context.Context, categorySlug, tagSlug string, limit, offset int) ([]Post, error) {
+	rows, err := r.q.ListPublishedPostsFiltered(ctx, sqlcgen.ListPublishedPostsFilteredParams{
+		Limit:        int32(limitOrDefault(limit)),
+		Offset:       int32(offset),
+		CategorySlug: slugFilter(categorySlug),
+		TagSlug:      slugFilter(tagSlug),
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return postsFromRows(rows), nil
+}
+
+// CountPublishedFiltered returns the total published posts matching the filters.
+func (r *RepoPG) CountPublishedFiltered(ctx context.Context, categorySlug, tagSlug string) (int, error) {
+	n, err := r.q.CountPublishedPostsFiltered(ctx, sqlcgen.CountPublishedPostsFilteredParams{
+		CategorySlug: slugFilter(categorySlug),
+		TagSlug:      slugFilter(tagSlug),
+	})
+	return int(n), mapErr(err)
+}
+
+// ListRelatedPublished returns up to limit published posts sharing >=1 category
+// or tag with postID (excluding self), most-related first.
+func (r *RepoPG) ListRelatedPublished(ctx context.Context, postID uuid.UUID, limit int) ([]Post, error) {
+	rows, err := r.q.ListRelatedPublishedPosts(ctx, sqlcgen.ListRelatedPublishedPostsParams{
+		PostID: toPgUUID(postID),
+		Limit:  int32(limitOrDefault(limit)),
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Post, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, relatedRowToPost(row))
+	}
+	return out, nil
+}
+
+// GetPublishedByIDs loads the published, non-trashed posts among ids, preserving
+// the given id order (the order the archive computed).
+func (r *RepoPG) GetPublishedByIDs(ctx context.Context, ids []uuid.UUID) ([]Post, error) {
+	if len(ids) == 0 {
+		return []Post{}, nil
+	}
+	pgIDs := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		pgIDs = append(pgIDs, toPgUUID(id))
+	}
+	rows, err := r.q.GetPublishedPostsByIDs(ctx, pgIDs)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	byID := make(map[uuid.UUID]Post, len(rows))
+	for _, row := range rows {
+		p := postFromRow(row)
+		byID[p.ID] = p
+	}
+	out := make([]Post, 0, len(rows))
+	for _, id := range ids {
+		if p, ok := byID[id]; ok {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 // TrashTx soft-deletes within tx.
 func (r *RepoPG) TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 	return mapErr(r.q.WithTx(tx).TrashPost(ctx, toPgUUID(id)))
@@ -345,6 +414,36 @@ func postFromRow(p sqlcgen.Post) Post {
 		DeletedAt:   fromTimestamptz(p.DeletedAt),
 		CreatedAt:   p.CreatedAt.Time,
 		UpdatedAt:   p.UpdatedAt.Time,
+	}
+}
+
+// slugFilter maps an empty slug to a NULL narg ("no constraint") and a non-empty
+// slug to a pointer the filtered queries treat as a constraint.
+func slugFilter(slug string) *string {
+	if slug == "" {
+		return nil
+	}
+	return &slug
+}
+
+// relatedRowToPost maps the related-posts row (Post columns + shared_count) to a
+// domain Post; the shared_count ranking is consumed only by the SQL ORDER BY.
+func relatedRowToPost(r sqlcgen.ListRelatedPublishedPostsRow) Post {
+	return Post{
+		ID:          fromPgUUID(r.ID),
+		Title:       r.Title,
+		Slug:        r.Slug,
+		Excerpt:     r.Excerpt,
+		Body:        r.Body,
+		Status:      kernel.Status(r.Status),
+		PublishedAt: fromTimestamptz(r.PublishedAt),
+		ScheduledAt: fromTimestamptz(r.ScheduledAt),
+		AuthorID:    fromPgUUID(r.AuthorID),
+		ReadingTime: int(r.ReadingTime),
+		LikeCount:   int(r.LikeCount),
+		DeletedAt:   fromTimestamptz(r.DeletedAt),
+		CreatedAt:   r.CreatedAt.Time,
+		UpdatedAt:   r.UpdatedAt.Time,
 	}
 }
 
