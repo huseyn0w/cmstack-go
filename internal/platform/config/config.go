@@ -43,9 +43,29 @@ type Config struct {
 	AdminEmail    string `env:"ADMIN_EMAIL" envDefault:"admin@cmstack.local"`
 	AdminPassword string `env:"ADMIN_PASSWORD" envDefault:"changeme-admin-password"`
 
-	// UploadDir is the filesystem root for user uploads (avatars now; richer media
-	// in M4). Served read-only at /uploads with a sniff-proof handler.
+	// UploadDir is the filesystem root for user uploads (avatars + the M4 media
+	// library) when STORAGE_DRIVER=local. Served read-only at /uploads with a
+	// sniff-proof handler.
 	UploadDir string `env:"UPLOAD_DIR" envDefault:"./uploads"`
+
+	// Storage driver selection (M4). "local" (default) writes under UploadDir and
+	// serves /uploads; "s3" stores objects in an S3 (or S3-compatible: MinIO,
+	// Cloudflare R2) bucket configured by the S3_* vars below.
+	StorageDriver string `env:"STORAGE_DRIVER" envDefault:"local"`
+	// MediaMaxBytes caps a single media upload (default 10 MiB). Enforced on bytes
+	// actually read, not a client Content-Length.
+	MediaMaxBytes int64 `env:"MEDIA_MAX_BYTES" envDefault:"10485760"`
+	// S3 storage config (used only when STORAGE_DRIVER=s3). Credentials may be
+	// empty to use the AWS default credential chain (env/shared config/IAM role).
+	// Endpoint+PathStyle target S3-compatible providers; PublicBaseURL is an
+	// optional CDN/website base for object URLs.
+	S3Bucket        string `env:"S3_BUCKET" envDefault:""`
+	S3Region        string `env:"S3_REGION" envDefault:""`
+	S3Endpoint      string `env:"S3_ENDPOINT" envDefault:""`
+	S3AccessKeyID   string `env:"S3_ACCESS_KEY_ID" envDefault:""`
+	S3SecretKey     string `env:"S3_SECRET_ACCESS_KEY" envDefault:""`
+	S3UsePathStyle  bool   `env:"S3_USE_PATH_STYLE" envDefault:"false"`
+	S3PublicBaseURL string `env:"S3_PUBLIC_BASE_URL" envDefault:""`
 
 	// OAuth (social login, M1-ext). A provider is offered ONLY when its client
 	// id+secret are both present; absent keys mean the provider is silently not

@@ -27,6 +27,32 @@ type EmailVerificationToken struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type MediaThumbnail struct {
+	ID         pgtype.UUID        `json:"id"`
+	MediaID    pgtype.UUID        `json:"media_id"`
+	Variant    string             `json:"variant"`
+	StorageKey string             `json:"storage_key"`
+	Width      int32              `json:"width"`
+	Height     int32              `json:"height"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Medium struct {
+	ID               pgtype.UUID        `json:"id"`
+	StorageKey       string             `json:"storage_key"`
+	OriginalFilename string             `json:"original_filename"`
+	Mime             string             `json:"mime"`
+	SizeBytes        int64              `json:"size_bytes"`
+	Width            *int32             `json:"width"`
+	Height           *int32             `json:"height"`
+	Alt              string             `json:"alt"`
+	Title            string             `json:"title"`
+	Caption          string             `json:"caption"`
+	UploadedBy       pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type OauthAccount struct {
 	ID             pgtype.UUID        `json:"id"`
 	UserID         pgtype.UUID        `json:"user_id"`

@@ -149,6 +149,36 @@ templ richTextField(body string) {
 			></div>
 		</div>
 		<textarea x-ref="hidden" name="body" class="hidden" aria-hidden="true"></textarea>
+		@mediaPickerModal()
+	</div>
+}
+
+// mediaPickerModal is the editor's media-library picker (M4): a Modal/dialog
+// that loads the MediaPickerGrid fragment (paginated, htmx-fetched) and, on
+// selecting an image, inserts an <img src alt> into the editor. The inserted
+// HTML is still bluemonday-sanitized server-side on save. Keyboard accessible:
+// real focusable controls, Esc/scrim close, aria-modal. The grid's pick/loadPage
+// helpers live in the same Alpine scope (richTextEditor) so a clicked tile calls
+// into insertImageFromPicker.
+templ mediaPickerModal() {
+	<div
+		x-show="picker.open"
+		x-cloak
+		@keydown.escape.window="closePicker()"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="media-picker-title"
+		data-testid="media-picker-modal"
+	>
+		<div @click="closePicker()" class="absolute inset-0 bg-black/45" aria-hidden="true"></div>
+		<div class="relative w-full max-w-2xl rounded-lg border border-border bg-surface p-6 shadow-lg">
+			<div class="flex items-center justify-between">
+				<h3 id="media-picker-title" class="text-h4 text-text">Insert image from library</h3>
+				<button type="button" @click="closePicker()" aria-label="Close" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">✕</button>
+			</div>
+			<div class="mt-4 max-h-[60vh] overflow-y-auto" data-testid="media-picker-target" x-html="picker.html"></div>
+		</div>
 	</div>
 }
 

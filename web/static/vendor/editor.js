@@ -19,6 +19,10 @@ document.addEventListener('alpine:init', () => {
   window.Alpine.data('richTextEditor', (initialHTML) => ({
     html: initialHTML || '',
     active: { bold: false, italic: false, h2: false, h3: false, ul: false, ol: false, blockquote: false },
+    // Media-library picker (M4). open toggles the modal; html holds the loaded
+    // MediaPickerGrid fragment; savedRange preserves the caret so an inserted
+    // image lands where the user was editing (the modal steals focus otherwise).
+    picker: { open: false, html: '', savedRange: null },
 
     init() {
       // Seed the contenteditable surface with the initial (sanitized) HTML.
@@ -69,12 +73,64 @@ document.addEventListener('alpine:init', () => {
       this.exec('createLink', url);
     },
 
-    // TODO(M4): wire to the media-library picker (Modal/Dialog). For now this is
-    // a stub that opens a prompt so the toolbar button is functional.
+    // media() opens the media-library picker modal (M4) and loads the first page
+    // of selectable images. The current caret range is saved so the eventual
+    // insertion lands where the user was typing.
     media() {
-      const url = window.prompt('Image URL (http/https) — media library lands in M4:', 'https://');
-      if (!url) return;
-      this.exec('insertImage', url);
+      const sel = window.getSelection();
+      this.picker.savedRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0).cloneRange() : null;
+      this.picker.open = true;
+      this.loadPage('/admin/media/picker');
+    },
+
+    loadPage(url) {
+      this.picker.html = '<p class="text-small text-muted">Loading…</p>';
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((r) => r.text())
+        .then((html) => { this.picker.html = html; })
+        .catch(() => { this.picker.html = '<p class="text-small text-error">Could not load the media library.</p>'; });
+    },
+
+    closePicker() {
+      this.picker.open = false;
+      this.picker.html = '';
+    },
+
+    // pick() is invoked by a grid tile's @click; it reads the chosen image's
+    // src/alt from the button's data-* attributes, inserts the <img>, and closes
+    // the modal. The inserted markup is re-sanitized server-side on save.
+    pick(e) {
+      const btn = e.currentTarget;
+      const src = btn.getAttribute('data-src');
+      const alt = btn.getAttribute('data-alt') || '';
+      if (src) this.insertImageFromPicker(src, alt);
+      this.closePicker();
+    },
+
+    insertImageFromPicker(src, alt) {
+      this.$refs.surface.focus();
+      // Restore the caret position captured when the picker opened so the image
+      // is inserted in-place rather than at the start of the surface.
+      const sel = window.getSelection();
+      if (this.picker.savedRange && sel) {
+        sel.removeAllRanges();
+        sel.addRange(this.picker.savedRange);
+      }
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = alt;
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        range.collapse(false);
+        range.insertNode(img);
+        range.setStartAfter(img);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        this.$refs.surface.appendChild(img);
+      }
+      this.syncFromSurface();
     },
   }));
 });

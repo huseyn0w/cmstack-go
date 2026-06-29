@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
@@ -59,6 +60,9 @@ func run() error {
 	// the relay can dispatch the async content.published events the server
 	// enqueued (cache invalidation + search reindex seams).
 	posts.NewPublishListener(logger, nil, nil).Register(bus)
+	// The media upload listener must likewise be on the WORKER bus so the relay
+	// dispatches the async media.uploaded events the server enqueued (M4 seams).
+	media.NewUploadListener(logger).Register(bus)
 
 	relay := events.NewRelay(pool, bus, 100, logger)
 

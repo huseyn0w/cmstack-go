@@ -84,6 +84,11 @@ type Deps struct {
 	TagPublicSvc      TagPublicService
 	TagPostSvc        PostTagReader // public detail pills
 	PostHydrateSvc    PostHydrator  // archive id->post hydration
+
+	// Media (M4). MediaAdminSvc is the gated admin media library; the editor
+	// picker reuses the same service via the post/page/service editors. Optional.
+	MediaAdminSvc MediaAdminService
+
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -288,7 +293,40 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountServicesAdmin(gr, d, shell)
 	mountCategoriesAdmin(gr, d, shell)
 	mountTagsAdmin(gr, d, shell)
+	mountMediaAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountMediaAdmin wires the gated admin media library (M4). Read routes require
+// read:media; upload requires create:media; metadata update requires
+// update:media; delete + bulk-delete require delete:media. Media has no
+// per-author ownership in the canon — the coarse grant is the gate.
+func mountMediaAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.MediaAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewMediaAdminHandler(d.MediaAdminSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/media", func(mr chi.Router) {
+		mr.Use(d.AuthMW.RequireAuth)
+
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectMedia)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/picker", h.Picker)
+			rr.Get("/{id}/detail", h.Detail)
+		})
+
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectMedia)).
+			Post("/", h.Upload)
+
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectMedia)).
+			Post("/{id}", h.UpdateMetadata)
+
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectMedia)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/delete", h.Delete)
+			dr.Post("/bulk", h.Bulk)
+		})
+	})
 }
 
 // mountCategoriesAdmin wires the gated admin categories area. Categories have NO

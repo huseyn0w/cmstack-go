@@ -87,6 +87,43 @@ func TestLoad(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "storage driver defaults to local",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/cms",
+			},
+			check: func(t *testing.T, c Config) {
+				if c.StorageDriver != "local" {
+					t.Errorf("StorageDriver = %q, want local", c.StorageDriver)
+				}
+				if c.MediaMaxBytes != 10485760 {
+					t.Errorf("MediaMaxBytes = %d, want 10485760 (10 MiB)", c.MediaMaxBytes)
+				}
+			},
+		},
+		{
+			name: "s3 storage vars apply",
+			env: map[string]string{
+				"DATABASE_URL":      "postgres://localhost/cms",
+				"STORAGE_DRIVER":    "s3",
+				"S3_BUCKET":         "my-media",
+				"S3_REGION":         "eu-central-1",
+				"S3_ENDPOINT":       "https://r2.example.com",
+				"S3_USE_PATH_STYLE": "true",
+				"MEDIA_MAX_BYTES":   "5242880",
+			},
+			check: func(t *testing.T, c Config) {
+				if c.StorageDriver != "s3" || c.S3Bucket != "my-media" || c.S3Region != "eu-central-1" {
+					t.Errorf("s3 config wrong: %+v", c)
+				}
+				if !c.S3UsePathStyle {
+					t.Error("S3UsePathStyle should be true")
+				}
+				if c.MediaMaxBytes != 5242880 {
+					t.Errorf("MediaMaxBytes = %d, want 5242880", c.MediaMaxBytes)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +131,7 @@ func TestLoad(t *testing.T) {
 			// Clear potentially inherited vars, then set the case's vars.
 			// t.Setenv guarantees restoration; Unsetenv ensures "required" tags
 			// observe a genuinely absent variable.
-			for _, k := range []string{"DATABASE_URL", "SESSION_KEY", "APP_ENV", "HTTP_ADDR", "REDIS_URL", "BASE_URL", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "SHUTDOWN_TIMEOUT"} {
+			for _, k := range []string{"DATABASE_URL", "SESSION_KEY", "APP_ENV", "HTTP_ADDR", "REDIS_URL", "BASE_URL", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "SHUTDOWN_TIMEOUT", "STORAGE_DRIVER", "MEDIA_MAX_BYTES", "S3_BUCKET", "S3_REGION", "S3_ENDPOINT", "S3_USE_PATH_STYLE"} {
 				t.Setenv(k, "")
 				if err := os.Unsetenv(k); err != nil {
 					t.Fatalf("unset %s: %v", k, err)

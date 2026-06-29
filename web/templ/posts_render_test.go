@@ -129,8 +129,10 @@ func TestPostEditor_ToolbarA11y(t *testing.T) {
 		`aria-label="Bold"`,
 		`aria-label="Italic"`,
 		`aria-label="Insert link"`,
-		`aria-label="Insert media"`, // media-insert stub button
-		`:aria-pressed=`,            // toggle buttons bind aria-pressed
+		`aria-label="Insert media"`,         // media-insert toolbar button (M4)
+		`data-testid="media-picker-modal"`,  // M4: editor media-library picker modal
+		`data-testid="media-picker-target"`, // htmx target the grid loads into
+		`:aria-pressed=`,                    // toggle buttons bind aria-pressed
 		`contenteditable="true"`,
 		`role="textbox"`,
 		`aria-multiline="true"`,

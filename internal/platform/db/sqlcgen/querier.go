@@ -17,6 +17,7 @@ type Querier interface {
 	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	CountCategories(ctx context.Context) (int64, error)
 	CountCategoriesBySlug(ctx context.Context, arg CountCategoriesBySlugParams) (int64, error)
+	CountMedia(ctx context.Context) (int64, error)
 	CountPages(ctx context.Context, status *string) (int64, error)
 	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
 	CountPosts(ctx context.Context, arg CountPostsParams) (int64, error)
@@ -38,6 +39,7 @@ type Querier interface {
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
@@ -46,9 +48,11 @@ type Querier interface {
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateServiceFAQ(ctx context.Context, arg CreateServiceFAQParams) (ServiceFaq, error)
 	CreateTag(ctx context.Context, arg CreateTagParams) (Tag, error)
+	CreateThumbnail(ctx context.Context, arg CreateThumbnailParams) (MediaThumbnail, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
+	DeleteMedia(ctx context.Context, id pgtype.UUID) error
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachAllPostCategories(ctx context.Context, postID pgtype.UUID) error
@@ -61,6 +65,7 @@ type Querier interface {
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
 	GetCategoryBySlug(ctx context.Context, slug string) (Category, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
+	GetMediaByID(ctx context.Context, id pgtype.UUID) (Medium, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
 	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
@@ -92,6 +97,7 @@ type Querier interface {
 	ListChildCategories(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
 	ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]Page, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
+	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
 	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
 	ListPermissionsForRole(ctx context.Context, roleID pgtype.UUID) ([]ListPermissionsForRoleRow, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
@@ -117,6 +123,8 @@ type Querier interface {
 	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsForPost(ctx context.Context, postID pgtype.UUID) ([]Tag, error)
+	ListThumbnailsForMedia(ctx context.Context, mediaID pgtype.UUID) ([]MediaThumbnail, error)
+	ListThumbnailsForMediaIDs(ctx context.Context, mediaIds []pgtype.UUID) ([]MediaThumbnail, error)
 	ListTrashedPages(ctx context.Context, arg ListTrashedPagesParams) ([]Page, error)
 	ListTrashedPosts(ctx context.Context, arg ListTrashedPostsParams) ([]Post, error)
 	ListTrashedServices(ctx context.Context, arg ListTrashedServicesParams) ([]Service, error)
@@ -137,6 +145,7 @@ type Querier interface {
 	TrashService(ctx context.Context, id pgtype.UUID) error
 	UnlikePost(ctx context.Context, arg UnlikePostParams) (int64, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateMediaMetadata(ctx context.Context, arg UpdateMediaMetadataParams) (Medium, error)
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)

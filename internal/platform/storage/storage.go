@@ -1,11 +1,14 @@
-// Package storage is a minimal blob-storage abstraction for user uploads
-// (avatars now; richer media later). It exposes a small Storage interface plus a
-// LocalStorage implementation that writes under an upload directory and serves
-// the files over HTTP with a hardened, sniff-proof handler.
+// Package storage is the blob-storage abstraction for user uploads (avatars and
+// the M4 media library). It exposes a small Storage interface (Strategy/Adapter)
+// with two interchangeable backends — LocalStorage (the dev/single-node default,
+// served over HTTP with a hardened sniff-proof handler) and S3Storage (S3 or any
+// S3-compatible provider: MinIO, Cloudflare R2) — selected at startup via New.
 //
-// NOTE(M4): this is intentionally small. The full media driver — S3/object
-// storage backends, thumbnail/variant generation, content-addressing, and a
-// media library UI — lands in M4 and will extend (not replace) this interface.
+// On top of the interface it provides the M4 media security core: magic-byte
+// upload validation against an allow-list (jpg/png/gif/webp/pdf; SVG rejected),
+// the stored extension derived from the VALIDATED MIME (anti-polyglot), a size
+// cap, a decompression-bomb guard (header-probed pixel area), and server-side
+// thumbnail/dimension generation for raster images.
 package storage
 
 import (

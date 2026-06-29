@@ -1,0 +1,371 @@
+package templ
+
+import "fmt"
+
+// MediaLibrary renders the admin media library (DESIGN_SYSTEM §5): a File-upload
+// dropzone, a responsive grid of asset cards (thumbnail or file-type icon), per-
+// asset metadata edit (modal) + delete (confirm modal), bulk delete, pagination,
+// and an empty state. The page is gated upstream by RequirePermission(media).
+templ MediaLibrary(v MediaListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="media-library" x-data="mediaLibrary()">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">Media</h2>
+					<p class="mt-1 text-small text-muted">Upload and manage images and files.</p>
+				</div>
+			</div>
+			@mediaDropzone(v)
+			if v.UploadError != "" {
+				<div role="alert" data-testid="media-upload-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.UploadError }</div>
+			}
+			@bulkSummaryBanner(v.Summary)
+			if len(v.Cards) == 0 {
+				@mediaEmpty()
+			} else {
+				<div class="mt-6" x-data={ bulkSelectData(mediaCardIDs(v.Cards)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, mediaBulkActions())
+					<ul
+						role="list"
+						data-testid="media-grid"
+						class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+					>
+						for _, card := range v.Cards {
+							@mediaGridCard(card)
+						}
+					</ul>
+				</div>
+				@pagination(v.Pager)
+			}
+			@mediaDeleteModal(v.CSRFToken)
+			@mediaDetailModal()
+		</section>
+		<script src="/static/vendor/media.js" defer></script>
+	}
+}
+
+// mediaDeleteModal is the single delete-confirm dialog (DESIGN_SYSTEM §5 Modal):
+// explicit consequence text, Esc/scrim close, a real focusable confirm button.
+// It is driven by the `confirmDelete` object set on a card's delete button, and
+// posts to that card's DeleteURL.
+templ mediaDeleteModal(csrf string) {
+	<div
+		x-show="confirmDelete !== null"
+		x-cloak
+		@keydown.escape.window="confirmDelete = null"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="media-delete-title"
+		data-testid="media-delete-modal"
+	>
+		<div @click="confirmDelete = null" class="absolute inset-0 bg-black/45" aria-hidden="true"></div>
+		<div class="relative w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg">
+			<h3 id="media-delete-title" class="text-h4 text-text">Delete file</h3>
+			<p class="mt-2 text-small text-muted">
+				Permanently delete <span class="font-medium text-text" x-text="confirmDelete?.title"></span>, including its thumbnails? This cannot be undone.
+			</p>
+			<form method="post" :action="confirmDelete?.url" class="mt-5 flex justify-end gap-3" data-testid="media-delete-form">
+				@csrfField(csrf)
+				<button type="button" @click="confirmDelete = null" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Cancel</button>
+				<button type="submit" data-testid="media-delete-confirm" class="inline-flex h-9 items-center rounded-md bg-error px-4 text-small font-medium text-on-primary hover:opacity-90">Delete</button>
+			</form>
+		</div>
+	</div>
+}
+
+// mediaDetailModal is the container the per-asset metadata panel is loaded into
+// (htmx swaps MediaDetailPanel here). Opening it fetches EditURL; the panel form
+// posts back and the library reloads to reflect saved metadata.
+templ mediaDetailModal() {
+	<div
+		x-show="detailOpen"
+		x-cloak
+		@keydown.escape.window="closeDetail()"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="media-detail-title"
+		data-testid="media-detail-modal"
+	>
+		<div @click="closeDetail()" class="absolute inset-0 bg-black/45" aria-hidden="true"></div>
+		<div class="relative w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-lg">
+			<div class="flex items-center justify-between">
+				<h3 id="media-detail-title" class="text-h4 text-text">File details</h3>
+				<button type="button" @click="closeDetail()" aria-label="Close" class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">✕</button>
+			</div>
+			<div class="mt-4" data-testid="media-detail-target" x-html="detailHTML"></div>
+		</div>
+	</div>
+}
+
+// mediaDropzone is the DESIGN_SYSTEM §5 File-upload control: a native
+// <input type=file> (works with zero JS) progressively enhanced with drag-drop,
+// per-file progress/status, and accepted-types/size hints. The form posts
+// multipart to UploadURL; the Alpine layer intercepts to show progress and
+// reloads on completion, but a non-JS submit still uploads one file.
+templ mediaDropzone(v MediaListView) {
+	<form
+		method="post"
+		action={ templ.SafeURL(v.UploadURL) }
+		enctype="multipart/form-data"
+		data-testid="media-upload-form"
+		class="mt-6"
+		@submit="onNativeSubmit($event)"
+	>
+		@csrfField(v.CSRFToken)
+		<label
+			for="media-file"
+			data-testid="media-dropzone"
+			tabindex="0"
+			role="button"
+			aria-label="Upload files: choose files or drag and drop"
+			class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-strong bg-surface-2 px-6 py-10 text-center transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			:class="dragging ? 'border-primary bg-surface' : ''"
+			@dragover.prevent="dragging = true"
+			@dragleave.prevent="dragging = false"
+			@drop.prevent="onDrop($event)"
+		>
+			<span class="text-subtle">@iconUpload()</span>
+			<span class="mt-3 text-small font-medium text-text">Drop files here, or click to choose</span>
+			<span class="mt-1 text-caption text-muted" data-testid="media-accept-hint">
+				{ v.AcceptHint } · up to { v.MaxBytesLabel() }
+			</span>
+			<input
+				id="media-file"
+				name="file"
+				type="file"
+				multiple
+				accept={ v.AcceptAttr }
+				data-testid="media-file-input"
+				class="sr-only"
+				@change="onPick($event)"
+			/>
+		</label>
+		<noscript>
+			<button type="submit" class="mt-3 inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary">Upload</button>
+		</noscript>
+	</form>
+	// Per-file upload progress/status list (JS-enhanced path). Announced via
+	// aria-live so screen-reader users hear each file's outcome.
+	<ul
+		x-show="queue.length > 0"
+		x-cloak
+		data-testid="media-upload-queue"
+		aria-live="polite"
+		class="mt-4 space-y-2"
+	>
+		<template x-for="item in queue" :key="item.id">
+			<li class="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-small">
+				<span class="flex-1 truncate text-text" x-text="item.name"></span>
+				<div class="h-1.5 w-32 overflow-hidden rounded-full bg-surface-2">
+					<div class="h-full bg-primary transition-all" :style="`width: ${item.progress}%`"></div>
+				</div>
+				<span
+					class="w-20 text-right font-mono text-caption"
+					:class="item.status === 'error' ? 'text-error' : (item.status === 'done' ? 'text-success' : 'text-muted')"
+					x-text="item.statusLabel"
+				></span>
+			</li>
+		</template>
+	</ul>
+}
+
+// mediaGridCard is one asset tile: a selectable checkbox, thumbnail (raster) or
+// file-type icon (document), the display title, and quick edit/delete actions.
+templ mediaGridCard(card MediaCard) {
+	<li
+		data-testid={ "media-card-" + card.ID }
+		class="group relative overflow-hidden rounded-lg border border-border bg-surface"
+	>
+		<div class="absolute left-2 top-2 z-10">
+			<input
+				type="checkbox"
+				value={ card.ID }
+				data-testid={ "bulk-select-" + card.ID }
+				aria-label={ "Select " + card.Title }
+				x-bind:checked={ "selected.includes('" + card.ID + "')" }
+				x-on:change={ "toggle('" + card.ID + "', $event.target.checked)" }
+				class="h-4 w-4 rounded border-border-strong bg-surface text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			/>
+		</div>
+		<button
+			type="button"
+			data-testid={ "media-open-" + card.ID }
+			@click={ "openDetail('" + card.EditURL + "')" }
+			aria-label={ "Edit " + card.Title }
+			class="block aspect-square w-full bg-surface-2"
+		>
+			if card.IsImage && card.ThumbURL != "" {
+				<img src={ card.ThumbURL } alt={ card.Alt } loading="lazy" class="h-full w-full object-cover"/>
+			} else {
+				<span class="flex h-full w-full flex-col items-center justify-center gap-2 text-subtle">
+					@iconDoc()
+					<span class="font-mono text-caption uppercase">{ card.MIMELabel }</span>
+				</span>
+			}
+		</button>
+		<div class="flex items-start justify-between gap-2 px-3 py-2">
+			<div class="min-w-0">
+				<p class="truncate text-small font-medium text-text" title={ card.Title }>{ card.Title }</p>
+				<p class="font-mono text-caption text-subtle">
+					if card.Dimensions != "" {
+						{ card.Dimensions } ·
+					}
+					{ card.SizeLabel }
+				</p>
+			</div>
+			<div class="flex shrink-0 items-center gap-1">
+				<button
+					type="button"
+					@click={ "openDetail('" + card.EditURL + "')" }
+					data-testid={ "media-edit-" + card.ID }
+					aria-label="Edit metadata"
+					class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>@iconEdit()</button>
+				<button
+					type="button"
+					@click={ "confirmDelete = { id: '" + card.ID + "', url: '" + card.DeleteURL + "', title: " + jsString(card.Title) + " }" }
+					data-testid={ "media-delete-" + card.ID }
+					aria-label="Delete file"
+					class="inline-flex h-7 w-7 items-center justify-center rounded-md text-error hover:bg-error-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>@iconTrash()</button>
+			</div>
+		</div>
+	</li>
+}
+
+// mediaEmpty is the library empty state (DESIGN_SYSTEM §5).
+templ mediaEmpty() {
+	<div class="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="media-empty">
+		<span class="text-subtle">@iconImage()</span>
+		<h3 class="mt-4 text-h4 text-text">No media yet</h3>
+		<p class="mt-1 text-small text-muted">Upload your first image or file using the box above.</p>
+	</div>
+}
+
+// MediaDetailPanel is the per-asset metadata edit form (alt/title/caption),
+// rendered into a Modal/detail panel (htmx-loaded). It is keyboard accessible
+// (real inputs + buttons) and posts to UpdateURL.
+templ MediaDetailPanel(v MediaDetailView) {
+	<div data-testid="media-detail" class="space-y-4">
+		<div class="overflow-hidden rounded-md border border-border bg-surface-2">
+			if v.Card.IsImage && v.Card.FullURL != "" {
+				<img src={ v.Card.FullURL } alt={ v.Card.Alt } class="max-h-64 w-full object-contain"/>
+			} else {
+				<div class="flex h-40 flex-col items-center justify-center gap-2 text-subtle">
+					@iconDoc()
+					<span class="font-mono text-caption uppercase">{ v.Card.MIMELabel }</span>
+				</div>
+			}
+		</div>
+		<dl class="grid grid-cols-2 gap-2 font-mono text-caption text-muted">
+			if v.Card.Dimensions != "" {
+				<dt>Dimensions</dt><dd class="text-right text-text">{ v.Card.Dimensions }</dd>
+			}
+			<dt>Size</dt><dd class="text-right text-text">{ v.Card.SizeLabel }</dd>
+			<dt>Uploaded</dt><dd class="text-right text-text">{ v.Card.Uploaded }</dd>
+		</dl>
+		if v.Saved {
+			<p role="status" data-testid="media-saved" class="rounded-md border border-success bg-success-bg px-3 py-2 text-small text-success">Saved.</p>
+		}
+		<form method="post" action={ templ.SafeURL(v.UpdateURL) } data-testid="media-detail-form" class="space-y-3">
+			@csrfField(v.CSRFToken)
+			<div>
+				<label for="alt" class="block text-small font-medium text-text">Alt text</label>
+				<input
+					id="alt" name="alt" type="text" value={ v.Card.Alt }
+					data-testid="media-field-alt"
+					class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				/>
+				<p class="mt-1 text-caption text-subtle">Describe the image for screen readers and search.</p>
+			</div>
+			<div>
+				<label for="title" class="block text-small font-medium text-text">Title</label>
+				<input
+					id="title" name="title" type="text" value={ v.Card.RawTitle }
+					data-testid="media-field-title"
+					class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				/>
+			</div>
+			<div>
+				<label for="caption" class="block text-small font-medium text-text">Caption</label>
+				<textarea
+					id="caption" name="caption" rows="2"
+					data-testid="media-field-caption"
+					class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>{ v.Card.Caption }</textarea>
+			</div>
+			<div class="flex justify-end">
+				<button type="submit" data-testid="media-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
+			</div>
+		</form>
+	</div>
+}
+
+// MediaPickerGrid is the editor media-picker fragment (htmx-loaded into the
+// editor's picker modal). It lists selectable images; clicking one dispatches a
+// `media-pick` CustomEvent carrying the src+alt the editor inserts as <img>.
+// Keyboard accessible: each tile is a real button. Pager links htmx-swap the
+// fragment in place so the modal stays open while browsing pages.
+templ MediaPickerGrid(v MediaPickerView) {
+	<div data-testid="media-picker-grid">
+		if len(v.Items) == 0 {
+			<p class="px-2 py-8 text-center text-small text-muted" data-testid="media-picker-empty">No images in the library yet. Upload some in Media first.</p>
+		} else {
+			<ul role="list" class="grid grid-cols-3 gap-3 sm:grid-cols-4">
+				for _, it := range v.Items {
+					<li>
+						<button
+							type="button"
+							data-testid={ "media-pick-" + it.ID }
+							data-src={ it.Src }
+							data-alt={ it.Alt }
+							@click="pick($event)"
+							class="block w-full overflow-hidden rounded-md border border-border bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-primary"
+							title={ it.Title }
+						>
+							<img src={ it.ThumbURL } alt={ it.Alt } loading="lazy" class="aspect-square h-full w-full object-cover"/>
+						</button>
+					</li>
+				}
+			</ul>
+			if v.Pages > 1 {
+				<nav aria-label="Media picker pagination" data-testid="media-picker-pager" class="mt-4 flex items-center justify-between font-mono text-caption text-muted">
+					if v.PrevURL != "" {
+						<button type="button" @click={ "loadPage('" + v.PrevURL + "')" } class="hover:text-text" data-testid="media-picker-prev">← Previous</button>
+					} else {
+						<span class="text-subtle">← Previous</span>
+					}
+					<span>Page { fmt.Sprint(v.Page) } of { fmt.Sprint(v.Pages) }</span>
+					if v.NextURL != "" {
+						<button type="button" @click={ "loadPage('" + v.NextURL + "')" } class="hover:text-text" data-testid="media-picker-next">Next →</button>
+					} else {
+						<span class="text-subtle">Next →</span>
+					}
+				</nav>
+			}
+		}
+	</div>
+}
+
+// --- media icons -------------------------------------------------------------
+
+templ iconUpload() {
+	@iconBase(`<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>`)
+}
+templ iconEdit() {
+	@iconBase(`<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>`)
+}
+templ iconTrash() {
+	@iconBase(`<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>`)
+}
+
+// DimensionsLabel formats a width/height pair as "W × H", or "" when either is
+// missing (a document). Used by the web layer to build cards.
+func DimensionsLabel(w, h *int) string {
+	if w == nil || h == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d × %d", *w, *h)
+}

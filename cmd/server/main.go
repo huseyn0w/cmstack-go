@@ -16,6 +16,7 @@ import (
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
+	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
@@ -91,13 +92,28 @@ func run() error {
 	authz := accounts.NewAuthorizer(userRepo, roleRepo)
 	authSvc := accounts.NewAuthService(pool, userRepo, roleRepo, tokenRepo, oauthRepo, hasher, bus, settings, nil)
 
-	// Avatar storage (local backend; S3 + thumbnails arrive in M4). The profile
-	// service stores avatars through it; the same instance serves /uploads.
-	avatarStore, err := storage.NewLocalStorage(cfg.UploadDir, "/uploads")
+	// Blob storage (M4): one backend, selected by STORAGE_DRIVER, shared by
+	// avatars and the media library. Local serves /uploads via uploadsHandler;
+	// S3 serves objects directly (uploadsHandler is nil). The profile + media
+	// services store blobs through the same Storage interface.
+	blobStore, uploadsHandler, uploadsPrefix, err := storage.New(ctx, storage.DriverConfig{
+		Driver:            cfg.StorageDriver,
+		LocalBaseDir:      cfg.UploadDir,
+		LocalPublicPrefix: "/uploads",
+		S3: storage.S3Config{
+			Bucket:          cfg.S3Bucket,
+			Region:          cfg.S3Region,
+			Endpoint:        cfg.S3Endpoint,
+			AccessKeyID:     cfg.S3AccessKeyID,
+			SecretAccessKey: cfg.S3SecretKey,
+			UsePathStyle:    cfg.S3UsePathStyle,
+			PublicBaseURL:   cfg.S3PublicBaseURL,
+		},
+	})
 	if err != nil {
 		return err
 	}
-	profileSvc := accounts.NewProfileService(pool, userRepo, roleRepo, avatarStore)
+	profileSvc := accounts.NewProfileService(pool, userRepo, roleRepo, blobStore)
 
 	// Idempotent seed: roles, permissions, mappings, default administrator.
 	seeder := accounts.NewSeeder(pool, queries, userRepo, roleRepo, hasher)
@@ -168,6 +184,14 @@ func run() error {
 	serviceRevisionRepo := services.NewRevisionRepoPG(queries)
 	serviceMgr := services.NewManager(pool, serviceRepo, serviceRevisionRepo, authz, bus, nil)
 
+	// Media (M4) wiring: the configured blob store + magic-byte validator +
+	// thumbnailer, behind the media service. The async media.uploaded listener is
+	// registered on the server bus so the event is enqueued in-tx.
+	mediaRepo := media.NewRepoPG(queries)
+	mediaValidator := storage.NewValidator(cfg.MediaMaxBytes, 0)
+	mediaSvc := media.NewService(pool, mediaRepo, blobStore, mediaValidator, media.NewThumbnailer(), authz, bus, nil)
+	media.NewUploadListener(logger).Register(bus)
+
 	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
 
 	handler := web.Router(web.Deps{
@@ -185,8 +209,8 @@ func run() error {
 		OAuth:         oauthHandler,
 		Account:       accountHandler,
 		Author:        authorHandler,
-		Uploads:       avatarStore.Handler(),
-		UploadsPrefix: avatarStore.PublicPrefix(),
+		Uploads:       uploadsHandler,
+		UploadsPrefix: uploadsPrefix,
 		PostAdminSvc:  postSvc,
 		PostPublicSvc: postSvc,
 		Authors:       userRepo,
@@ -208,6 +232,9 @@ func run() error {
 		TagPublicSvc:      tagSvc,
 		TagPostSvc:        tagSvc,
 		PostHydrateSvc:    postSvc,
+
+		// Media (M4).
+		MediaAdminSvc: mediaSvc,
 	})
 
 	srv := &http.Server{

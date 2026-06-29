@@ -52,7 +52,7 @@ func navBlueprint() []NavGroup {
 				{Label: "Services", Href: "/admin/services", Icon: "service", Action: "read", Subject: "service"},
 				{Label: "Categories", Href: "/admin/categories", Icon: "tag", Action: "read", Subject: "category"},
 				{Label: "Tags", Href: "/admin/tags", Icon: "tag", Action: "read", Subject: "tag"},
-				{Label: "Media", Href: "#", Icon: "media", Action: "read", Subject: "media"},
+				{Label: "Media", Href: "/admin/media", Icon: "media", Action: "read", Subject: "media"},
 				{Label: "Comments", Href: "#", Icon: "comment", Action: "read", Subject: "comment"},
 			},
 		},
