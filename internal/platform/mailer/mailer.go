@@ -39,3 +39,25 @@ func (m *LogMailer) SendPasswordResetEmail(_ context.Context, to, resetURL strin
 	)
 	return nil
 }
+
+// CommentNotification is the dev-mailer view of a comment-moderation email. It
+// mirrors comments.CommentNotification structurally so the LogMailer can satisfy
+// the comments.CommentNotifier interface without importing the comments package
+// (avoiding an import cycle): the comments package passes its own struct whose
+// fields are read here via the adapter in the web wiring. To keep the LogMailer
+// self-contained, it accepts the already-composed fields.
+
+// SendCommentNotification logs the comment-moderation notification (dev). The
+// recipients + composed message are visible in development without SMTP. The
+// signature matches comments.CommentNotifier via a thin wrapper in wiring, but
+// is also directly usable.
+func (m *LogMailer) SendCommentNotification(_ context.Context, to []string, postTitle, authorName, excerpt, moderateURL string) error {
+	m.log.Info("dev mailer: comment notification email",
+		"to", to,
+		"post_title", postTitle,
+		"author", authorName,
+		"excerpt", excerpt,
+		"moderate_url", moderateURL,
+	)
+	return nil
+}

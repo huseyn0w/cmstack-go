@@ -18,6 +18,21 @@ type Category struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Comment struct {
+	ID           pgtype.UUID        `json:"id"`
+	PostID       pgtype.UUID        `json:"post_id"`
+	ParentID     pgtype.UUID        `json:"parent_id"`
+	AuthorUserID pgtype.UUID        `json:"author_user_id"`
+	AuthorName   string             `json:"author_name"`
+	AuthorEmail  string             `json:"author_email"`
+	AuthorIp     string             `json:"author_ip"`
+	Body         string             `json:"body"`
+	Status       string             `json:"status"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	EditedAt     pgtype.Timestamptz `json:"edited_at"`
+}
+
 type EmailVerificationToken struct {
 	ID         pgtype.UUID        `json:"id"`
 	UserID     pgtype.UUID        `json:"user_id"`

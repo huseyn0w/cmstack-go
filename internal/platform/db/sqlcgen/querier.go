@@ -17,6 +17,8 @@ type Querier interface {
 	ConsumePasswordResetToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	CountCategories(ctx context.Context) (int64, error)
 	CountCategoriesBySlug(ctx context.Context, arg CountCategoriesBySlugParams) (int64, error)
+	CountCommentsByStatus(ctx context.Context) ([]CountCommentsByStatusRow, error)
+	CountCommentsForModeration(ctx context.Context, status *string) (int64, error)
 	CountMedia(ctx context.Context) (int64, error)
 	CountPages(ctx context.Context, status *string) (int64, error)
 	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
@@ -38,6 +40,7 @@ type Querier interface {
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
+	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
@@ -52,6 +55,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
+	DeleteComment(ctx context.Context, id pgtype.UUID) error
 	DeleteMedia(ctx context.Context, id pgtype.UUID) error
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
@@ -62,8 +66,10 @@ type Querier interface {
 	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetApprovedCommentByID(ctx context.Context, arg GetApprovedCommentByIDParams) (Comment, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
 	GetCategoryBySlug(ctx context.Context, slug string) (Category, error)
+	GetCommentByID(ctx context.Context, id pgtype.UUID) (Comment, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetMediaByID(ctx context.Context, id pgtype.UUID) (Medium, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
@@ -92,10 +98,12 @@ type Querier interface {
 	ListAllActivePages(ctx context.Context) ([]Page, error)
 	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListAllTags(ctx context.Context) ([]Tag, error)
+	ListApprovedCommentsForPost(ctx context.Context, postID pgtype.UUID) ([]Comment, error)
 	ListCategories(ctx context.Context, arg ListCategoriesParams) ([]Category, error)
 	ListCategoriesForPost(ctx context.Context, postID pgtype.UUID) ([]Category, error)
 	ListChildCategories(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
 	ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]Page, error)
+	ListCommentsForModeration(ctx context.Context, arg ListCommentsForModerationParams) ([]Comment, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
 	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
@@ -145,6 +153,8 @@ type Querier interface {
 	TrashService(ctx context.Context, id pgtype.UUID) error
 	UnlikePost(ctx context.Context, arg UnlikePostParams) (int64, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
+	UpdateCommentStatus(ctx context.Context, arg UpdateCommentStatusParams) (Comment, error)
 	UpdateMediaMetadata(ctx context.Context, arg UpdateMediaMetadataParams) (Medium, error)
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
