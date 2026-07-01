@@ -89,6 +89,15 @@ type Deps struct {
 	// picker reuses the same service via the post/page/service editors. Optional.
 	MediaAdminSvc MediaAdminService
 
+	// Comments (M5). CommentPublicSvc backs the public /blog/{slug}/comments
+	// thread + submit; CommentAdminSvc backs the gated /admin/comments moderation
+	// area. CommentPostTitler resolves target-post titles for the moderation rows
+	// (optional). RecaptchaSiteKey is exposed to the public form's v3 token hook.
+	// All optional so reduced-Deps tests keep working.
+	CommentPublicSvc  CommentsPublicService
+	CommentAdminSvc   CommentsAdminService
+	CommentPostTitler CommentPostTitler
+
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -173,6 +182,19 @@ func Router(d Deps) http.Handler {
 			if d.AuthMW != nil {
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
 				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
+			}
+		}
+
+		// Public comments (M5). The thread + top-level submit are open to guests
+		// (spam-checked + rate-limited inside the service); self-edit/delete are
+		// auth-gated (the handler additionally verifies ownership + window).
+		if d.CommentPublicSvc != nil {
+			ch := NewCommentsPublicHandler(d.CommentPublicSvc, d.CSRFFunc, d.Config.RecaptchaSiteKey)
+			gr.Get("/blog/{slug}/comments", ch.Thread)
+			gr.Post("/blog/{slug}/comments", ch.Submit)
+			if d.AuthMW != nil {
+				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/edit", ch.SelfEdit)
+				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/delete", ch.SelfDelete)
 			}
 		}
 
@@ -294,7 +316,38 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountCategoriesAdmin(gr, d, shell)
 	mountTagsAdmin(gr, d, shell)
 	mountMediaAdmin(gr, d, shell)
+	mountCommentsAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountCommentsAdmin wires the gated admin comment-moderation area (M5). The
+// list/badge read routes require read:comment; the moderation status changes +
+// bulk require update:comment; permanent delete requires delete:comment.
+// Comments have no per-author ownership in moderation — the coarse grant is the
+// gate, and the service re-checks each action.
+func mountCommentsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.CommentAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewCommentsAdminHandler(d.CommentAdminSvc, shell, d.CommentPostTitler, d.CSRFFunc)
+
+	gr.Route("/admin/comments", func(cr chi.Router) {
+		cr.Use(d.AuthMW.RequireAuth)
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectComment)).
+			Get("/", h.List)
+
+		// Status changes + bulk are a coarse update gate; delete is coarse delete.
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectComment)).Group(func(ur chi.Router) {
+			ur.Post("/{id}/approve", h.Approve)
+			ur.Post("/{id}/spam", h.Spam)
+			ur.Post("/{id}/trash", h.Trash)
+			ur.Post("/bulk", h.Bulk)
+		})
+
+		cr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectComment)).
+			Post("/{id}/delete", h.Delete)
+	})
 }
 
 // mountMediaAdmin wires the gated admin media library (M4). Read routes require

@@ -121,6 +121,17 @@ func dedupeEmails(in []string) []string {
 	return out
 }
 
+// Title satisfies CommentPostTitler: it resolves a target post's title for the
+// moderation row, returning "" (the handler falls back to an id fragment) when
+// the post is missing or the lookup fails.
+func (a *CommentAdapters) Title(ctx context.Context, postID uuid.UUID) string {
+	p, err := a.postID.GetByID(ctx, postID)
+	if err != nil {
+		return ""
+	}
+	return p.Title
+}
+
 // commentMailer is the subset of *mailer.LogMailer the notifier adapter calls.
 type commentMailer interface {
 	SendCommentNotification(ctx context.Context, to []string, postTitle, authorName, excerpt, moderateURL string) error

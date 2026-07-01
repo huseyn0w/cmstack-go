@@ -1,5 +1,15 @@
 package templ
 
+import "strconv"
+
+// navBadgeLabel caps a badge count for display ("99+" beyond 99).
+func navBadgeLabel(n int) string {
+	if n > 99 {
+		return "99+"
+	}
+	return strconv.Itoa(n)
+}
+
 // AdminShell carries everything the admin layout needs: the current user's
 // display identity, the permission-filtered navigation, the active section, and
 // the CSRF token for the logout form. It is assembled by the web layer (which
@@ -33,6 +43,9 @@ type NavItem struct {
 	Icon    string // key into the icon set (see admin.templ navIcon)
 	Action  string
 	Subject string
+	// Badge, when > 0, renders a small count pill next to the item (e.g. the
+	// number of comments awaiting moderation).
+	Badge int
 }
 
 // navBlueprint is the full, unfiltered admin navigation. Each item declares the
@@ -53,7 +66,7 @@ func navBlueprint() []NavGroup {
 				{Label: "Categories", Href: "/admin/categories", Icon: "tag", Action: "read", Subject: "category"},
 				{Label: "Tags", Href: "/admin/tags", Icon: "tag", Action: "read", Subject: "tag"},
 				{Label: "Media", Href: "/admin/media", Icon: "media", Action: "read", Subject: "media"},
-				{Label: "Comments", Href: "#", Icon: "comment", Action: "read", Subject: "comment"},
+				{Label: "Comments", Href: "/admin/comments", Icon: "comment", Action: "read", Subject: "comment"},
 			},
 		},
 		{
@@ -95,6 +108,20 @@ func BuildAdminNav(can func(action, subject string) bool) []NavGroup {
 		}
 	}
 	return out
+}
+
+// SetNavBadge stamps a count badge onto the nav item with the given label
+// (matching NavItem.Label) across all groups. A count <= 0 clears it. It is used
+// to surface the pending-comments count in the sidebar. Returns the same slice.
+func SetNavBadge(nav []NavGroup, label string, count int) []NavGroup {
+	for gi := range nav {
+		for ii := range nav[gi].Items {
+			if nav[gi].Items[ii].Label == label {
+				nav[gi].Items[ii].Badge = count
+			}
+		}
+	}
+	return nav
 }
 
 // initials returns up to two uppercase initials for the avatar fallback.

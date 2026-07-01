@@ -24,12 +24,12 @@ type CommentNode struct {
 // rendered thread, the (guest or member) submit form, the optional success/error
 // banners, the CSRF token, and the reCAPTCHA site key hook.
 type CommentThreadView struct {
-	PostSlug    string
-	Count       int
-	Comments    []CommentNode
-	SubmitURL   string // POST target for a new top-level comment
-	CSRFToken   string
-	IsGuest     bool // true -> render name+email fields; false -> body only
+	PostSlug     string
+	Count        int
+	Comments     []CommentNode
+	SubmitURL    string // POST target for a new top-level comment
+	CSRFToken    string
+	IsGuest      bool // true -> render name+email fields; false -> body only
 	RecaptchaKey string
 
 	// Submitted/Error banners (set after a POST round-trip).

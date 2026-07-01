@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
@@ -23,6 +24,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
+	"github.com/huseyn0w/cmstack-go/internal/web"
 )
 
 func main() {
@@ -82,6 +84,21 @@ func run() error {
 	publishBus := events.NewBus(events.NewOutboxRepository())
 	posts.NewPublishListener(logger, nil, nil).Register(publishBus)
 	postSvc := posts.NewService(pool, postRepo, revisionRepo, authz, roleKeys, publishBus, nil)
+
+	// The comment notification listener must be on the WORKER bus so the relay
+	// dispatches the async comment.created events the server enqueued: it resolves
+	// the recipients (post author + moderators) and sends the moderation email.
+	commentAdapters := web.NewCommentAdapters(
+		postSvc,
+		postRepo,
+		web.NewUserEmailRepo(userRepo, func(u accounts.User) string { return u.Email }),
+	)
+	comments.NewNotificationListener(
+		logger,
+		commentAdapters,
+		web.NewCommentNotifierAdapter(mailer.NewLogMailer(logger)),
+		cfg.BaseURL,
+	).Register(bus)
 
 	logger.Info("worker started", "env", cfg.AppEnv)
 

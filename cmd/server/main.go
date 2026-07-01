@@ -16,6 +16,7 @@ import (
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
+	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
@@ -30,6 +31,8 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
 	"github.com/huseyn0w/cmstack-go/internal/platform/oauth"
+	"github.com/huseyn0w/cmstack-go/internal/platform/ratelimit"
+	"github.com/huseyn0w/cmstack-go/internal/platform/recaptcha"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
@@ -192,6 +195,28 @@ func run() error {
 	mediaSvc := media.NewService(pool, mediaRepo, blobStore, mediaValidator, media.NewThumbnailer(), authz, bus, nil)
 	media.NewUploadListener(logger).Register(bus)
 
+	// Comments (M5) wiring: the repo over the shared querier; the adapters that
+	// bridge the comment ports onto the post/user/mailer infrastructure; the
+	// reCAPTCHA verifier (no-op without a secret) + per-IP submit limiter
+	// (~8/min, ts parity); and the comment service. The async comment.created
+	// notification listener is registered on the server bus so the event is
+	// enqueued in-tx; the worker drains + sends it.
+	commentRepo := comments.NewRepoPG(queries)
+	commentAdapters := web.NewCommentAdapters(
+		postSvc,
+		postRepo,
+		web.NewUserEmailRepo(userRepo, func(u accounts.User) string { return u.Email }),
+	)
+	recaptchaVerifier := recaptcha.New(cfg.RecaptchaSecret, cfg.RecaptchaMinScore)
+	commentLimiter := ratelimit.New(8.0/60.0, 8)
+	commentSvc := comments.NewService(pool, commentRepo, commentAdapters, authz, recaptchaVerifier, commentLimiter, bus, nil)
+	comments.NewNotificationListener(
+		logger,
+		commentAdapters,
+		web.NewCommentNotifierAdapter(mailer.NewLogMailer(logger)),
+		cfg.BaseURL,
+	).Register(bus)
+
 	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
 
 	handler := web.Router(web.Deps{
@@ -235,6 +260,11 @@ func run() error {
 
 		// Media (M4).
 		MediaAdminSvc: mediaSvc,
+
+		// Comments (M5).
+		CommentPublicSvc:  commentSvc,
+		CommentAdminSvc:   commentSvc,
+		CommentPostTitler: commentAdapters,
 	})
 
 	srv := &http.Server{

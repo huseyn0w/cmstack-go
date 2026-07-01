@@ -28,8 +28,8 @@ type CommentsPublicService interface {
 // partial: it decodes, resolves the viewer/IP, calls the service, and renders the
 // thread fragment. It holds NO business logic and NEVER emits author email/IP.
 type CommentsPublicHandler struct {
-	svc         CommentsPublicService
-	csrf        func(*http.Request) string
+	svc          CommentsPublicService
+	csrf         func(*http.Request) string
 	recaptchaKey string
 }
 

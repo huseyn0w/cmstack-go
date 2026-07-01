@@ -1,0 +1,169 @@
+package templ
+
+// CommentModeration renders the admin comment-moderation page (DESIGN_SYSTEM
+// §5): status filter tabs with a pending count badge, a table (author, target
+// post, excerpt, status badge, date) with per-row moderation actions, bulk
+// actions, pagination, and an empty state. Gated upstream by
+// RequirePermission(read|update, comment).
+templ CommentModeration(v CommentModerationView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="comments-list">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-h3 text-text">
+						Comments
+						if v.PendingCount > 0 {
+							<span data-testid="comments-pending-badge" class="ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-caption font-medium text-on-primary">{ navBadgeLabel(v.PendingCount) }</span>
+						}
+					</h2>
+					<p class="mt-1 text-small text-muted">Review and moderate reader comments.</p>
+				</div>
+			</div>
+			// Status filter tabs (Pending / Approved / Spam / Trash) with counts.
+			<div role="tablist" aria-label="Filter comments by status" data-testid="comment-tabs" class="mt-6 flex items-center gap-1 border-b border-border">
+				for _, tab := range v.Tabs {
+					<a
+						role="tab"
+						href={ templ.SafeURL(tab.Href) }
+						data-testid={ "comment-tab-" + tab.Value }
+						if tab.Active {
+							aria-selected="true"
+							class="relative -mb-px flex items-center gap-2 border-b-2 border-primary px-3 py-2 text-small font-medium text-text"
+						} else {
+							aria-selected="false"
+							class="relative -mb-px flex items-center gap-2 border-b-2 border-transparent px-3 py-2 text-small font-medium text-muted hover:text-text"
+						}
+					>
+						<span>{ tab.Label }</span>
+						if tab.ShowBadge && tab.Count > 0 {
+							<span data-testid={ "comment-tab-count-" + tab.Value } class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-caption font-medium text-on-primary">{ navBadgeLabel(tab.Count) }</span>
+						} else {
+							<span class="font-mono text-caption text-subtle">{ navBadgeLabel(tab.Count) }</span>
+						}
+					</a>
+				}
+			</div>
+			@bulkSummaryBanner(v.Summary)
+			if len(v.Rows) == 0 {
+				@commentsEmpty()
+			} else {
+				<div x-data={ bulkSelectData(commentRowIDs(v.Rows)) }>
+					@bulkActionBar(v.BulkURL, v.CSRFToken, commentBulkActions())
+					<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
+						<div class="overflow-x-auto">
+							<table class="w-full text-left" data-testid="comments-table">
+								<thead class="bg-surface-2">
+									<tr class="text-subtle">
+										@bulkSelectAll()
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Author</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Comment</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Post</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+										<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Date</th>
+										<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr class="border-t border-border hover:bg-surface-2" data-testid={ "comment-row-" + row.ID }>
+											@bulkRowCheckbox(row.ID)
+											<td class="px-4 py-3 text-small font-medium text-text" data-testid={ "comment-author-" + row.ID }>{ row.AuthorName }</td>
+											<td class="px-4 py-3 text-small text-muted">
+												<p class="max-w-md truncate" data-testid={ "comment-excerpt-" + row.ID } title={ row.Excerpt }>{ row.Excerpt }</p>
+											</td>
+											<td class="px-4 py-3 text-small text-muted" data-testid={ "comment-post-" + row.ID }>{ row.PostTitle }</td>
+											<td class="px-4 py-3">@commentStatusBadge(row.Status)</td>
+											<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Date }</td>
+											<td class="px-4 py-3 text-right">
+												@commentRowActions(row, v.CSRFToken)
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				@pagination(v.Pager)
+			}
+		</section>
+	}
+}
+
+// commentStatusBadge renders a moderation-status pill (DESIGN_SYSTEM §5 Badges).
+templ commentStatusBadge(s CommentStatus) {
+	switch s {
+		case CommentStatusApproved:
+			<span data-testid="comment-status-badge" class="inline-flex h-[22px] items-center rounded-full bg-success-bg px-2.5 text-caption font-medium text-success">Approved</span>
+		case CommentStatusSpam:
+			<span data-testid="comment-status-badge" class="inline-flex h-[22px] items-center rounded-full bg-error-bg px-2.5 text-caption font-medium text-error">Spam</span>
+		case CommentStatusTrash:
+			<span data-testid="comment-status-badge" class="inline-flex h-[22px] items-center rounded-full bg-surface-2 px-2.5 text-caption font-medium text-muted">Trash</span>
+		default:
+			<span data-testid="comment-status-badge" class="inline-flex h-[22px] items-center rounded-full bg-warning-bg px-2.5 text-caption font-medium text-warning">Pending</span>
+	}
+}
+
+// commentRowActions is the trailing-cell kebab Dropdown for a comment row:
+// Approve / Spam / Trash / Delete. Each is a real POST form so it works without
+// JS; the dropdown just hides them until opened.
+templ commentRowActions(row CommentAdminRow, csrf string) {
+	<div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.stop="open = false">
+		<button
+			type="button"
+			@click="open = !open"
+			data-testid={ "comment-menu-" + row.ID }
+			aria-haspopup="menu"
+			:aria-expanded="open.toString()"
+			aria-label="Comment actions"
+			class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>@iconKebab()</button>
+		<div x-show="open" x-cloak x-transition role="menu" class="absolute right-0 z-20 mt-1 w-40 rounded-md border border-border bg-surface p-1.5 shadow-md">
+			<form method="post" action={ templ.SafeURL(row.ApproveURL) } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "comment-approve-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-text hover:bg-surface-2">Approve</button>
+			</form>
+			<form method="post" action={ templ.SafeURL(row.SpamURL) } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "comment-spam-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-text hover:bg-surface-2">Mark as spam</button>
+			</form>
+			<form method="post" action={ templ.SafeURL(row.TrashURL) } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "comment-trash-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-text hover:bg-surface-2">Move to trash</button>
+			</form>
+			<form method="post" action={ templ.SafeURL(row.DeleteURL) } role="none">
+				@csrfField(csrf)
+				<button type="submit" role="menuitem" data-testid={ "comment-delete-" + row.ID } class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2">Delete permanently</button>
+			</form>
+		</div>
+	</div>
+}
+
+// commentsEmpty is the moderation empty state (DESIGN_SYSTEM §5).
+templ commentsEmpty() {
+	<div class="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="comments-empty">
+		<span class="text-subtle">@iconChat()</span>
+		<h3 class="mt-4 text-h4 text-text">No comments here</h3>
+		<p class="mt-1 text-small text-muted">Nothing to moderate in this view.</p>
+	</div>
+}
+
+// commentRowIDs collects the row ids for the bulk-selection Alpine store.
+func commentRowIDs(rows []CommentAdminRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// commentBulkActions is the moderation bulk-action bar spec: approve/spam/trash
+// are non-destructive; permanent delete opens the confirm modal.
+func commentBulkActions() []BulkActionSpec {
+	return []BulkActionSpec{
+		{Action: "approve", Label: "Approve"},
+		{Action: "spam", Label: "Mark spam"},
+		{Action: "trash", Label: "Trash"},
+		{Action: "delete", Label: "Delete", Destructive: true, Consequence: "Permanently delete the selected comments. This cannot be undone."},
+	}
+}
