@@ -1,0 +1,37 @@
+{
+  "nav.home": "Главная",
+  "nav.blog": "Блог",
+  "nav.services": "Услуги",
+  "nav.search": "Поиск",
+  "nav.signIn": "Войти",
+  "nav.account": "Аккаунт",
+
+  "site.name": "CMStack",
+  "site.tagline": "CMS с серверным рендерингом",
+
+  "localeSwitcher.label": "Язык",
+  "localeSwitcher.en": "English",
+  "localeSwitcher.de": "Deutsch",
+  "localeSwitcher.ru": "Русский",
+
+  "search.label": "Поиск",
+  "search.placeholder": "Поиск…",
+  "search.submit": "Найти",
+  "search.noResults": "Ничего не найдено по запросу «{query}».",
+
+  "blog.empty": "Пока нет опубликованных постов.",
+  "post.by": "Автор",
+  "post.related": "Похожие посты",
+
+  "services.empty": "Пока нет услуг.",
+
+  "form.name": "Имя",
+  "form.email": "Эл. почта",
+  "form.subject": "Тема",
+  "form.message": "Сообщение",
+  "form.submit": "Отправить",
+
+  "pagination.previous": "Назад",
+
+  "footer.tagline": "CMStack-Go"
+}

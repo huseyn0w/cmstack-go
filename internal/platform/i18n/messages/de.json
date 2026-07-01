@@ -1,0 +1,39 @@
+{
+  "nav.home": "Startseite",
+  "nav.blog": "Blog",
+  "nav.services": "Leistungen",
+  "nav.search": "Suche",
+  "nav.signIn": "Anmelden",
+  "nav.account": "Konto",
+
+  "site.name": "CMStack",
+  "site.tagline": "Servergerendertes CMS",
+
+  "localeSwitcher.label": "Sprache",
+  "localeSwitcher.en": "English",
+  "localeSwitcher.de": "Deutsch",
+  "localeSwitcher.ru": "Русский",
+
+  "search.label": "Suche",
+  "search.placeholder": "Suchen…",
+  "search.submit": "Suchen",
+  "search.noResults": "Keine Ergebnisse für „{query}“.",
+
+  "blog.empty": "Noch keine veröffentlichten Beiträge.",
+  "post.by": "Von",
+  "post.related": "Ähnliche Beiträge",
+  "post.comments": "Kommentare",
+
+  "services.empty": "Noch keine Leistungen aufgeführt.",
+
+  "form.name": "Name",
+  "form.email": "E-Mail",
+  "form.subject": "Betreff",
+  "form.message": "Nachricht",
+  "form.submit": "Absenden",
+
+  "pagination.previous": "Zurück",
+  "pagination.next": "Weiter",
+
+  "footer.tagline": "CMStack-Go"
+}

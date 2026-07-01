@@ -106,6 +106,14 @@ type Deps struct {
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
+
+	// Locale is the i18n resolver (M7a). When wired, its middleware runs at the
+	// head of the PUBLIC route group: it resolves the active locale from the URL
+	// prefix ("as-needed": en unprefixed, /de + /ru prefixed), strips the prefix
+	// so downstream routes match unchanged, and threads the locale + translator
+	// to templ. Admin routes are intentionally NOT localized (they stay en).
+	// Optional so reduced-Deps tests keep working (they then render as en).
+	Locale *LocaleResolver
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -238,6 +246,17 @@ func Router(d Deps) http.Handler {
 		mountAuthRoutes(gr, d)
 	})
 
+	// i18n locale resolution (M7a) wraps the whole chi router as an OUTER handler,
+	// not a chi middleware: chi resolves the route from the path BEFORE its
+	// middleware chain runs, so a prefix strip performed inside the chain would be
+	// too late (chi would already have 404'd /de/blog). Wrapping outside means the
+	// prefix is stripped and the locale/translator are in context before chi ever
+	// sees the request. "As-needed": /de + /ru select and strip; everything else
+	// (including every unprefixed /admin route) resolves to the default en with the
+	// path unchanged, so admin stays en without separate wiring.
+	if d.Locale != nil {
+		return d.Locale.Middleware(r)
+	}
 	return r
 }
 

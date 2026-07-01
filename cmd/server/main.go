@@ -29,6 +29,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
 	"github.com/huseyn0w/cmstack-go/internal/platform/oauth"
@@ -226,6 +227,11 @@ func run() error {
 	searchRepo := search.NewRepoPG(queries)
 	searchSvc := search.NewService(searchRepo)
 
+	// i18n foundation (M7a): the embedded UI-string catalogs back the public
+	// locale resolver, which the router mounts on the public group. A broken
+	// embedded catalog is a build-time programming error, so panic on load.
+	localeResolver := web.NewLocaleResolver(i18n.MustLoadCatalog())
+
 	handler := web.Router(web.Deps{
 		Config:        cfg,
 		Health:        healthHandler,
@@ -275,6 +281,9 @@ func run() error {
 
 		// Search (M6).
 		SearchSvc: searchSvc,
+
+		// i18n (M7a).
+		Locale: localeResolver,
 	})
 
 	srv := &http.Server{

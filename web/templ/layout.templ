@@ -11,13 +11,16 @@ type LayoutData struct {
 // Tailwind stylesheet, and the vendored htmx + Alpine runtimes. Page content is
 // passed as children.
 templ Base(data LayoutData) {
+	{{ loc := LocaleView(ctx) }}
 	<!DOCTYPE html>
-	<html lang="en" class="h-full">
+	<html lang={ loc.Active.String() } class="h-full">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<meta name="description" content={ data.Description }/>
 			<title>{ data.Title }</title>
+			// TODO(M8): emit loc.Switch as <link rel="alternate" hreflang> +
+			// x-default here. The alternate data is already assembled by LocaleView.
 			<link rel="preload" href="/static/fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="stylesheet" href="/static/app.css"/>
@@ -28,23 +31,26 @@ templ Base(data LayoutData) {
 			<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2">Skip to content</a>
 			<header class="border-b border-border bg-bg">
 				<nav aria-label="Primary" class="mx-auto flex h-16 max-w-screen-xl items-center px-4">
-					<a href="/" class="font-mono text-eyebrow uppercase tracking-widest text-text hover:text-muted">CMStack</a>
-					// Public search affordance (§5): a compact GET form to /search,
-					// labeled for screen readers, with a submit-icon button.
-					<form method="get" action="/search" role="search" class="ml-auto flex items-center gap-2" data-testid="header-search">
-						<label for="header-q" class="sr-only">Search</label>
-						<input
-							id="header-q"
-							name="q"
-							type="search"
-							placeholder="Search…"
-							aria-label="Search"
-							class="w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-small text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring sm:w-56"
-						/>
-						<button type="submit" aria-label="Search" class="inline-flex items-center justify-center rounded-md border border-border px-2.5 py-1.5 text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-							@iconSearch()
-						</button>
-					</form>
+					<a href="/" class="font-mono text-eyebrow uppercase tracking-widest text-text hover:text-muted">{ loc.T.T("site.name") }</a>
+					<div class="ml-auto flex items-center gap-3">
+						// Public search affordance (§5): a compact GET form to /search,
+						// labeled for screen readers, with a submit-icon button.
+						<form method="get" action="/search" role="search" class="flex items-center gap-2" data-testid="header-search">
+							<label for="header-q" class="sr-only">{ loc.T.T("search.label") }</label>
+							<input
+								id="header-q"
+								name="q"
+								type="search"
+								placeholder={ loc.T.T("search.placeholder") }
+								aria-label={ loc.T.T("search.label") }
+								class="w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-small text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring sm:w-56"
+							/>
+							<button type="submit" aria-label={ loc.T.T("search.submit") } class="inline-flex items-center justify-center rounded-md border border-border px-2.5 py-1.5 text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+								@iconSearch()
+							</button>
+						</form>
+						@localeSwitcher(loc)
+					</div>
 				</nav>
 			</header>
 			<main id="main" class="mx-auto max-w-screen-lg px-4 py-12">
@@ -52,11 +58,68 @@ templ Base(data LayoutData) {
 			</main>
 			<footer class="border-t border-border bg-surface-2">
 				<div class="mx-auto max-w-screen-xl px-4 py-8 font-mono text-caption text-muted">
-					CMStack-Go
+					{ loc.T.T("footer.tagline") }
 				</div>
 			</footer>
 		</body>
 	</html>
+}
+
+// localeSwitcher renders the public header language switcher (DESIGN_SYSTEM §5):
+// a keyboard-accessible Alpine dropdown of mono locale labels, each linking to
+// the CURRENT page in that locale (preserving path + query via the alternate
+// URLs). The active locale is marked with aria-current.
+templ localeSwitcher(loc LocaleViewData) {
+	<div x-data="{ open: false }" class="relative" data-testid="locale-switcher">
+		<button
+			type="button"
+			@click="open = !open"
+			@keydown.escape="open = false"
+			x-bind:aria-expanded="open ? 'true' : 'false'"
+			aria-haspopup="menu"
+			aria-label={ loc.T.T("localeSwitcher.label") }
+			class="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 font-mono text-eyebrow uppercase tracking-widest text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>
+			{ loc.Active.String() }
+		</button>
+		<div
+			x-show="open"
+			x-cloak
+			@click.outside="open = false"
+			role="menu"
+			aria-label={ loc.T.T("localeSwitcher.label") }
+			class="absolute right-0 z-50 mt-2 min-w-[8rem] rounded-md border border-border bg-surface py-1 shadow-lg"
+		>
+			for _, alt := range loc.Switch {
+				@localeSwitcherItem(loc, alt)
+			}
+		</div>
+	</div>
+}
+
+// localeSwitcherItem is one entry in the switcher menu. The active locale is
+// non-navigational-marked with aria-current="true" and a distinct style.
+templ localeSwitcherItem(loc LocaleViewData, alt Alternate) {
+	if alt.Locale == loc.Active {
+		<a
+			href={ templ.SafeURL(alt.URL) }
+			role="menuitem"
+			aria-current="true"
+			data-testid={ "locale-option-" + alt.Locale.String() }
+			class="block px-3 py-1.5 font-mono text-small text-text bg-surface-2"
+		>
+			{ loc.T.T("localeSwitcher." + alt.Locale.String()) }
+		</a>
+	} else {
+		<a
+			href={ templ.SafeURL(alt.URL) }
+			role="menuitem"
+			data-testid={ "locale-option-" + alt.Locale.String() }
+			class="block px-3 py-1.5 font-mono text-small text-muted hover:bg-surface-2 hover:text-text"
+		>
+			{ loc.T.T("localeSwitcher." + alt.Locale.String()) }
+		</a>
+	}
 }
 
 // Home is a trivial page used to validate the layout end-to-end in M0.
