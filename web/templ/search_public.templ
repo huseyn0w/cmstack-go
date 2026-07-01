@@ -1,0 +1,87 @@
+package templ
+
+// PublicSearch renders the public /search page: breadcrumbs, a labeled search
+// box (§5 form), result cards (type eyebrow, title link, highlighted snippet,
+// mono date), pagination, and helpful empty/blank states. Semantic landmarks +
+// a11y throughout. The form is a GET (idempotent, shareable URL) so it carries
+// no CSRF token.
+templ PublicSearch(v SearchView) {
+	@Base(LayoutData{Title: searchTitle(v), Description: "Search " + v.SiteName}) {
+		<nav aria-label="Breadcrumb" data-testid="search-breadcrumb">
+			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>
+				<li aria-hidden="true">/</li>
+				<li aria-current="page" class="text-text">Search</li>
+			</ol>
+		</nav>
+		<header class="mt-8">
+			<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Search</p>
+			<h1 class="mt-2 text-h1 text-text">Search { v.SiteName }</h1>
+		</header>
+		<section aria-label="Search" class="mt-6">
+			<form method="get" action={ templ.SafeURL(v.ActionURL) } role="search" data-testid="search-form">
+				<label for="q" class="block text-small font-medium text-text">Search terms</label>
+				<div class="mt-1 flex gap-2">
+					<input
+						id="q"
+						name="q"
+						type="search"
+						value={ v.Query }
+						placeholder="Search posts, pages, and services..."
+						autocomplete="off"
+						aria-label="Search terms"
+						data-testid="search-input"
+						class="block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+					/>
+					<button
+						type="submit"
+						data-testid="search-submit"
+						class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 font-medium text-primary-contrast transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+					>
+						Search
+					</button>
+				</div>
+			</form>
+		</section>
+		if !v.Submitted {
+			<div class="mt-10 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="search-prompt">
+				<h2 class="text-h4 text-text">What are you looking for?</h2>
+				<p class="mt-1 text-small text-muted">Enter a term above to search posts, pages, and services.</p>
+			</div>
+		}
+		if v.Submitted && len(v.Cards) == 0 {
+			<div class="mt-10 flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-2 px-6 py-16 text-center" data-testid="search-empty">
+				<h2 class="text-h4 text-text" data-testid="search-empty-heading">{ searchEmptyHeading(v) }</h2>
+				<p class="mt-1 text-small text-muted">Try a different or broader term.</p>
+			</div>
+		}
+		if v.Submitted && len(v.Cards) > 0 {
+			<section aria-label="Search results" class="mt-8">
+				<p class="font-mono text-caption text-subtle" data-testid="search-summary">
+					{ searchSummary(v) }
+				</p>
+				<ul class="mt-4 space-y-4" data-testid="search-results">
+					for _, c := range v.Cards {
+						<li>
+							<article class="rounded-lg border border-border bg-surface p-6 transition-colors hover:bg-surface-2" data-testid="search-card">
+								<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle" data-testid="search-card-type">{ c.Eyebrow }</p>
+								<h3 class="mt-2 text-h4 text-text">
+									<a href={ templ.SafeURL(c.URL) } class="hover:underline" data-testid="search-card-link">{ c.Title }</a>
+								</h3>
+								if c.SnippetHTML != "" {
+									<p class="mt-2 text-body text-muted" data-testid="search-card-snippet">
+										@templ.Raw(c.SnippetHTML)
+									</p>
+								}
+								if c.Date != "" {
+									<p class="mt-3 font-mono text-caption text-subtle" data-testid="search-card-date">{ c.Date }</p>
+								}
+							</article>
+						</li>
+					}
+				</ul>
+				@pagination(v.Pager)
+			</section>
+		}
+	}
+}

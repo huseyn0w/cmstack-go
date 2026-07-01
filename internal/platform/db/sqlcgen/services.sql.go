@@ -68,7 +68,7 @@ INSERT INTO services (
     title, slug, summary, body, price, area_served, status, published_at, reading_time
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at
+RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector
 `
 
 type CreateServiceParams struct {
@@ -110,6 +110,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
@@ -157,7 +158,7 @@ func (q *Queries) DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) 
 }
 
 const getActiveServiceByID = `-- name: GetActiveServiceByID :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services WHERE id = $1 AND deleted_at IS NULL
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -177,12 +178,13 @@ func (q *Queries) GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Ser
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const getPublishedServiceBySlug = `-- name: GetPublishedServiceBySlug :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
 WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 `
 
@@ -203,12 +205,13 @@ func (q *Queries) GetPublishedServiceBySlug(ctx context.Context, slug string) (S
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const getServiceByID = `-- name: GetServiceByID :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services WHERE id = $1
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services WHERE id = $1
 `
 
 func (q *Queries) GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -228,12 +231,13 @@ func (q *Queries) GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, 
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const listPublishedServices = `-- name: ListPublishedServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
 WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY published_at DESC NULLS LAST, created_at DESC
 LIMIT $1 OFFSET $2
@@ -267,6 +271,7 @@ func (q *Queries) ListPublishedServices(ctx context.Context, arg ListPublishedSe
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -313,7 +318,7 @@ func (q *Queries) ListServiceFAQs(ctx context.Context, serviceID pgtype.UUID) ([
 }
 
 const listServices = `-- name: ListServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
 WHERE deleted_at IS NULL
   AND ($3::text IS NULL OR status = $3::text)
 ORDER BY created_at DESC
@@ -349,6 +354,7 @@ func (q *Queries) ListServices(ctx context.Context, arg ListServicesParams) ([]S
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -361,7 +367,7 @@ func (q *Queries) ListServices(ctx context.Context, arg ListServicesParams) ([]S
 }
 
 const listTrashedServices = `-- name: ListTrashedServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
 WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT $1 OFFSET $2
@@ -395,6 +401,7 @@ func (q *Queries) ListTrashedServices(ctx context.Context, arg ListTrashedServic
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -448,7 +455,7 @@ SET title = $2,
     reading_time = $10,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at
+RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector
 `
 
 type UpdateServiceParams struct {
@@ -492,6 +499,7 @@ func (q *Queries) UpdateService(ctx context.Context, arg UpdateServiceParams) (S
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }

@@ -30,6 +30,8 @@ type Querier interface {
 	CountPublishedPostsInCategory(ctx context.Context, categoryID pgtype.UUID) (int64, error)
 	CountPublishedPostsInTag(ctx context.Context, tagID pgtype.UUID) (int64, error)
 	CountPublishedServices(ctx context.Context) (int64, error)
+	CountSearchFTS(ctx context.Context, query string) (int64, error)
+	CountSearchILIKE(ctx context.Context, pattern string) (int64, error)
 	CountServices(ctx context.Context, status *string) (int64, error)
 	CountServicesBySlug(ctx context.Context, arg CountServicesBySlugParams) (int64, error)
 	CountTags(ctx context.Context) (int64, error)
@@ -145,6 +147,23 @@ type Querier interface {
 	RestorePage(ctx context.Context, id pgtype.UUID) error
 	RestorePost(ctx context.Context, id pgtype.UUID) error
 	RestoreService(ctx context.Context, id pgtype.UUID) error
+	// M6 Search queries. A UNION across the three public content types (posts,
+	// pages, services), scoped to published + non-trashed rows. Two strategies:
+	//   1. SearchFTS  — websearch_to_tsquery match, ranked by ts_rank (title>body via
+	//      the weighted search_vector), with a type/recency tie-break. ts_headline
+	//      builds a highlighted snippet from the body/excerpt.
+	//   2. SearchILIKE — parameterized substring scan (django parity) used as a
+	//      FALLBACK when FTS yields nothing (handles substrings/typos tsquery misses).
+	// The query string is ALWAYS a bound parameter ($1) — never interpolated.
+	//
+	// Drafts / trashed are excluded by (status = 'PUBLISHED' AND deleted_at IS NULL).
+	// TODO(M7 locale scope): the 'english' regconfig is fixed; a locale param is the seam.
+	// TODO(M8 noindex): add `AND noindex = false` once the flag lands.
+	SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchFTSRow, error)
+	// Fallback substring scan. @pattern is the caller-built '%'||term||'%' literal,
+	// bound as a parameter (never interpolated). Ranking degrades to a title-first,
+	// recency tie-break since there is no ts_rank here.
+	SearchILIKE(ctx context.Context, arg SearchILIKEParams) ([]SearchILIKERow, error)
 	SetPostLikeCount(ctx context.Context, postID pgtype.UUID) error
 	SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error)
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error

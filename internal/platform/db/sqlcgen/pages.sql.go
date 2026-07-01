@@ -68,7 +68,7 @@ INSERT INTO pages (
     title, slug, body, status, published_at, parent_id, template, reading_time
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at
+RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector
 `
 
 type CreatePageParams struct {
@@ -107,12 +107,13 @@ func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (Page, e
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const getActivePageByID = `-- name: GetActivePageByID :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages WHERE id = $1 AND deleted_at IS NULL
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error) {
@@ -131,12 +132,13 @@ func (q *Queries) GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, 
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const getPageByID = `-- name: GetPageByID :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages WHERE id = $1
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages WHERE id = $1
 `
 
 func (q *Queries) GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error) {
@@ -155,12 +157,13 @@ func (q *Queries) GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const getPublishedPageBySlug = `-- name: GetPublishedPageBySlug :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 `
 
@@ -180,12 +183,13 @@ func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (Page
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }
 
 const listAllActivePages = `-- name: ListAllActivePages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE deleted_at IS NULL
 ORDER BY title ASC
 `
@@ -212,6 +216,7 @@ func (q *Queries) ListAllActivePages(ctx context.Context) ([]Page, error) {
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -224,7 +229,7 @@ func (q *Queries) ListAllActivePages(ctx context.Context) ([]Page, error) {
 }
 
 const listChildPages = `-- name: ListChildPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY title ASC
 `
@@ -251,6 +256,7 @@ func (q *Queries) ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]P
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +269,7 @@ func (q *Queries) ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]P
 }
 
 const listPages = `-- name: ListPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE deleted_at IS NULL
   AND ($3::text IS NULL OR status = $3::text)
 ORDER BY title ASC
@@ -298,6 +304,7 @@ func (q *Queries) ListPages(ctx context.Context, arg ListPagesParams) ([]Page, e
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -310,7 +317,7 @@ func (q *Queries) ListPages(ctx context.Context, arg ListPagesParams) ([]Page, e
 }
 
 const listPublishedPages = `-- name: ListPublishedPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY title ASC
 LIMIT $1 OFFSET $2
@@ -343,6 +350,7 @@ func (q *Queries) ListPublishedPages(ctx context.Context, arg ListPublishedPages
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -355,7 +363,7 @@ func (q *Queries) ListPublishedPages(ctx context.Context, arg ListPublishedPages
 }
 
 const listTrashedPages = `-- name: ListTrashedPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
 WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT $1 OFFSET $2
@@ -388,6 +396,7 @@ func (q *Queries) ListTrashedPages(ctx context.Context, arg ListTrashedPagesPara
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}
@@ -440,7 +449,7 @@ SET title = $2,
     reading_time = $9,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at
+RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector
 `
 
 type UpdatePageParams struct {
@@ -481,6 +490,7 @@ func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, e
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVector,
 	)
 	return i, err
 }

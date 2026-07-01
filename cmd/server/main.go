@@ -20,6 +20,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/cmstack-go/internal/content/search"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/content/taxonomy"
@@ -219,6 +220,12 @@ func run() error {
 
 	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
 
+	// Search (M6) wiring: the sqlc-backed search repo over the shared querier +
+	// the public search service (FTS with ILIKE fallback across published
+	// posts/pages/services). Public, no auth.
+	searchRepo := search.NewRepoPG(queries)
+	searchSvc := search.NewService(searchRepo)
+
 	handler := web.Router(web.Deps{
 		Config:        cfg,
 		Health:        healthHandler,
@@ -265,6 +272,9 @@ func run() error {
 		CommentPublicSvc:  commentSvc,
 		CommentAdminSvc:   commentSvc,
 		CommentPostTitler: commentAdapters,
+
+		// Search (M6).
+		SearchSvc: searchSvc,
 	})
 
 	srv := &http.Server{

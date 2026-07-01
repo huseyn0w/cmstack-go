@@ -98,6 +98,11 @@ type Deps struct {
 	CommentAdminSvc   CommentsAdminService
 	CommentPostTitler CommentPostTitler
 
+	// Search (M6). SearchSvc backs the public /search results page (FTS with an
+	// ILIKE fallback across published posts/pages/services). Public, GET-only,
+	// no auth. Optional so reduced-Deps tests keep working.
+	SearchSvc SearchService
+
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -221,6 +226,13 @@ func Router(d Deps) http.Handler {
 			sp := NewServicePublicHandler(d.ServicePublicSvc, d.SiteName, d.Config.BaseURL)
 			gr.Get("/services", sp.Index)
 			gr.Get("/services/{slug}", sp.Show)
+		}
+
+		// Public search (M6, no auth). GET /search renders the results page (FTS
+		// with an ILIKE fallback) across published posts/pages/services.
+		if d.SearchSvc != nil {
+			sh := NewSearchPublicHandler(d.SearchSvc, d.SiteName)
+			gr.Get("/search", sh.Search)
 		}
 
 		mountAuthRoutes(gr, d)

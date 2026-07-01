@@ -301,7 +301,7 @@ func (q *Queries) ListChildCategories(ctx context.Context, parentID pgtype.UUID)
 }
 
 const listPublishedPostsInCategory = `-- name: ListPublishedPostsInCategory :many
-SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at FROM posts p
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector FROM posts p
 JOIN post_categories pc ON pc.post_id = p.id
 WHERE pc.category_id = $1
   AND p.status = 'PUBLISHED'
@@ -340,6 +340,7 @@ func (q *Queries) ListPublishedPostsInCategory(ctx context.Context, arg ListPubl
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVector,
 		); err != nil {
 			return nil, err
 		}

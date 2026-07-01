@@ -65,7 +65,15 @@ func Base(data LayoutData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</title><link rel=\"preload\" href=\"/static/fonts/newsreader-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"preload\" href=\"/static/fonts/inter-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/alpine.min.js\" defer></script></head><body class=\"h-full bg-bg text-text antialiased\"><a href=\"#main\" class=\"sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2\">Skip to content</a><header class=\"border-b border-border bg-bg\"><nav aria-label=\"Primary\" class=\"mx-auto flex h-16 max-w-screen-xl items-center px-4\"><span class=\"font-mono text-eyebrow uppercase tracking-widest text-text\">CMStack</span></nav></header><main id=\"main\" class=\"mx-auto max-w-screen-lg px-4 py-12\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</title><link rel=\"preload\" href=\"/static/fonts/newsreader-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"preload\" href=\"/static/fonts/inter-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/alpine.min.js\" defer></script></head><body class=\"h-full bg-bg text-text antialiased\"><a href=\"#main\" class=\"sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2\">Skip to content</a><header class=\"border-b border-border bg-bg\"><nav aria-label=\"Primary\" class=\"mx-auto flex h-16 max-w-screen-xl items-center px-4\"><a href=\"/\" class=\"font-mono text-eyebrow uppercase tracking-widest text-text hover:text-muted\">CMStack</a><form method=\"get\" action=\"/search\" role=\"search\" class=\"ml-auto flex items-center gap-2\" data-testid=\"header-search\"><label for=\"header-q\" class=\"sr-only\">Search</label> <input id=\"header-q\" name=\"q\" type=\"search\" placeholder=\"Search…\" aria-label=\"Search\" class=\"w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-small text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring sm:w-56\"> <button type=\"submit\" aria-label=\"Search\" class=\"inline-flex items-center justify-center rounded-md border border-border px-2.5 py-1.5 text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = iconSearch().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</button></form></nav></header><main id=\"main\" class=\"mx-auto max-w-screen-lg px-4 py-12\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -73,7 +81,7 @@ func Base(data LayoutData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</main><footer class=\"border-t border-border bg-surface-2\"><div class=\"mx-auto max-w-screen-xl px-4 py-8 font-mono text-caption text-muted\">CMStack-Go</div></footer></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</main><footer class=\"border-t border-border bg-surface-2\"><div class=\"mx-auto max-w-screen-xl px-4 py-8 font-mono text-caption text-muted\">CMStack-Go</div></footer></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -115,7 +123,7 @@ func Home() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<h1 class=\"text-h1 text-text\">Welcome to CMStack-Go</h1><p class=\"mt-4 text-body text-muted\">The walking skeleton is alive.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<h1 class=\"text-h1 text-text\">Welcome to CMStack-Go</h1><p class=\"mt-4 text-body text-muted\">The walking skeleton is alive.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
