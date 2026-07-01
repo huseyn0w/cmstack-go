@@ -204,6 +204,10 @@ func PublicPostDetail(v PublicPostView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = CommentsLoader(v.Slug).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			return nil
 		})
 		templ_7745c5c3_Err = Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
@@ -250,7 +254,7 @@ func LikeIsland(v PublicPostView) templ.Component {
 			var templ_7745c5c3_Var12 templ.SafeURL
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.LikeURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 54, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 55, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -263,7 +267,7 @@ func LikeIsland(v PublicPostView) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.LikeURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 55, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 56, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 			if templ_7745c5c3_Err != nil {
@@ -289,7 +293,7 @@ func LikeIsland(v PublicPostView) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(boolAttr(v.Liked))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 63, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 64, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 			if templ_7745c5c3_Err != nil {
@@ -323,7 +327,7 @@ func LikeIsland(v PublicPostView) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(v.LikeCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 67, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 68, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -349,7 +353,7 @@ func LikeIsland(v PublicPostView) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(v.LikeCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 74, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 75, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -425,7 +429,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 					var templ_7745c5c3_Var21 templ.SafeURL
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 96, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 97, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -438,7 +442,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(c.Date)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 98, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 99, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -456,7 +460,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(c.ReadingTime))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 100, Col: 71}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 101, Col: 71}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -474,7 +478,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(c.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 103, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 104, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -492,7 +496,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(c.Excerpt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 105, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 106, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -510,7 +514,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(c.AuthorName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 107, Col: 59}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/posts_public.templ`, Line: 108, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {

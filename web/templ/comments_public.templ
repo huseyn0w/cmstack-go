@@ -1,0 +1,184 @@
+package templ
+
+import "fmt"
+
+// CommentsSection is the htmx-loaded public comments partial: the thread header
+// with the count, the nested approved comments, the optional outcome banners, and
+// the submit form (guest name+email+body, or member body-only). It is rendered
+// both as the initial GET payload and after a POST round-trip, swapping itself
+// in place (hx-target="this"). It NEVER outputs author email or IP.
+templ CommentsSection(v CommentThreadView) {
+	<section
+		id="comments"
+		data-testid="comments-section"
+		class="mx-auto mt-12 max-w-prose border-t border-border pt-8"
+	>
+		<h2 class="text-h4 text-text" data-testid="comments-heading">{ v.CountLabel() }</h2>
+		if v.Submitted {
+			<div
+				role="status"
+				aria-live="polite"
+				data-testid="comment-pending-banner"
+				class="mt-4 rounded-md border border-success bg-success-bg p-4 text-success"
+			>Thanks! Your comment is awaiting moderation and will appear once approved.</div>
+		}
+		if len(v.Comments) == 0 {
+			<p class="mt-4 text-small text-muted" data-testid="comments-empty">No comments yet. Be the first to share what you think.</p>
+		} else {
+			<ol role="list" class="mt-6 space-y-6" data-testid="comments-list">
+				for _, c := range v.Comments {
+					@commentItem(c, v)
+				}
+			</ol>
+		}
+		@commentForm(v, "", "comment-form")
+	</section>
+}
+
+// commentItem renders one comment and (recursively) its replies. Self-edit and
+// delete controls appear only on the viewer's OWN comment (c.Mine). A pending
+// own-comment shows an "awaiting moderation" tag.
+templ commentItem(c CommentNode, v CommentThreadView) {
+	<li data-testid={ "comment-" + c.ID } class="">
+		<article class="flex gap-3">
+			<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-caption font-medium text-text" aria-hidden="true">{ c.Initials }</div>
+			<div class="min-w-0 flex-1">
+				<div class="flex flex-wrap items-baseline gap-2">
+					<span class="text-small font-medium text-text" data-testid="comment-author">{ c.AuthorName }</span>
+					<time class="font-mono text-caption text-subtle" data-testid="comment-date">{ c.Date }</time>
+					if c.Edited {
+						<span class="font-mono text-caption text-subtle">(edited)</span>
+					}
+					if c.Pending {
+						<span data-testid="comment-pending" class="rounded-full border border-warning px-2 text-caption text-warning">Awaiting moderation</span>
+					}
+				</div>
+				<div class="mt-1 whitespace-pre-line text-body text-text" data-testid="comment-body">{ c.Body }</div>
+				if c.Mine {
+					<div class="mt-2 flex items-center gap-3 text-caption">
+						<form method="post" action={ templ.SafeURL(c.DeleteURL) } hx-post={ c.DeleteURL } hx-target="#comments" hx-swap="outerHTML">
+							@csrfField(v.CSRFToken)
+							<button type="submit" data-testid={ "comment-delete-" + c.ID } class="text-error hover:underline">Delete</button>
+						</form>
+					</div>
+				}
+				if len(c.Replies) > 0 {
+					<ol role="list" class="mt-4 space-y-4 border-l border-border pl-4" data-testid="comment-replies">
+						for _, r := range c.Replies {
+							@commentItem(r, v)
+						}
+					</ol>
+				}
+			</div>
+		</article>
+	</li>
+}
+
+// commentForm renders the submit form. When parentID is non-empty it is a reply
+// form (a hidden parent_id). It is guest-aware (name+email vs body-only) and
+// fully a11y-wired (labels, aria-invalid, aria-describedby, error-summary).
+templ commentForm(v CommentThreadView, parentID, testid string) {
+	<form
+		method="post"
+		action={ templ.SafeURL(v.SubmitURL) }
+		hx-post={ v.SubmitURL }
+		hx-target="#comments"
+		hx-swap="outerHTML"
+		data-testid={ testid }
+		class="mt-8 rounded-lg border border-border bg-surface p-5"
+		aria-labelledby="comment-form-title"
+	>
+		<h3 id="comment-form-title" class="text-small font-medium text-text">Leave a comment</h3>
+		@csrfField(v.CSRFToken)
+		if parentID != "" {
+			<input type="hidden" name="parent_id" value={ parentID }/>
+		}
+		if v.Error != "" {
+			<div role="alert" data-testid="comment-error" class="mt-3 rounded-md border border-error bg-error-bg p-3 text-error">{ v.Error }</div>
+		}
+		if v.HasFieldErrors() {
+			<div role="alert" id="comment-error-summary" data-testid="comment-error-summary" class="mt-3 rounded-md border border-error bg-error-bg p-3 text-error">
+				<p class="font-medium">Please fix the following:</p>
+				<ul class="mt-1 list-disc pl-5">
+					for field, msg := range v.FieldErrors {
+						<li><a class="underline" href={ templ.SafeURL("#comment-" + field) }>{ msg }</a></li>
+					}
+				</ul>
+			</div>
+		}
+		if v.IsGuest {
+			<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+				@commentField(v, "name", "Name", "text", v.PrefillName, true)
+				@commentField(v, "email", "Email", "email", v.PrefillEmail, true)
+			</div>
+			<p class="mt-1 text-caption text-subtle">Your email is never published.</p>
+		}
+		<div class="mt-3">
+			<label for="comment-body" class="block text-small font-medium text-text">Comment</label>
+			<textarea
+				id="comment-body"
+				name="body"
+				rows="4"
+				required
+				if v.FieldErr("body") != "" {
+					aria-invalid="true"
+					aria-describedby="comment-body-error"
+				}
+				data-testid="comment-input-body"
+				class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+			>{ v.PrefillBody }</textarea>
+			if v.FieldErr("body") != "" {
+				<p id="comment-body-error" class="mt-1 text-caption text-error">{ v.FieldErr("body") }</p>
+			}
+		</div>
+		if v.RecaptchaKey != "" {
+			<input type="hidden" name="recaptcha_token" data-testid="comment-recaptcha-token" data-recaptcha-key={ v.RecaptchaKey }/>
+		}
+		<button
+			type="submit"
+			data-testid="comment-submit"
+			class="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+		>Post comment</button>
+	</form>
+}
+
+// commentField renders one labeled guest input with a11y error wiring.
+templ commentField(v CommentThreadView, name, label, inputType, value string, required bool) {
+	<div>
+		<label for={ "comment-" + name } class="block text-small font-medium text-text">{ label }</label>
+		<input
+			id={ "comment-" + name }
+			name={ name }
+			type={ inputType }
+			value={ value }
+			if required {
+				required
+			}
+			if v.FieldErr(name) != "" {
+				aria-invalid="true"
+				aria-describedby={ "comment-" + name + "-error" }
+			}
+			data-testid={ "comment-input-" + name }
+			class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+		/>
+		if v.FieldErr(name) != "" {
+			<p id={ "comment-" + name + "-error" } class="mt-1 text-caption text-error">{ v.FieldErr(name) }</p>
+		}
+	</div>
+}
+
+// CommentsLoader is the placeholder rendered into the post page that htmx-loads
+// the full comments section on reveal. It decouples the comments vertical from
+// the posts view-model.
+templ CommentsLoader(slug string) {
+	<div
+		id="comments"
+		data-testid="comments-loader"
+		hx-get={ fmt.Sprintf("/blog/%s/comments", slug) }
+		hx-trigger="load"
+		hx-swap="outerHTML"
+		class="mx-auto mt-12 max-w-prose"
+	>
+		<p class="text-small text-muted">Loading comments…</p>
+	</div>
+}

@@ -77,6 +77,19 @@ type Config struct {
 	GoogleClientSecret string `env:"OAUTH_GOOGLE_CLIENT_SECRET" envDefault:""`
 	GitHubClientID     string `env:"OAUTH_GITHUB_CLIENT_ID" envDefault:""`
 	GitHubClientSecret string `env:"OAUTH_GITHUB_CLIENT_SECRET" envDefault:""`
+
+	// reCAPTCHA v3 (M5 comments anti-spam). The secret is OPTIONAL: when empty the
+	// verifier is a graceful no-op (guest comments work without keys, mirroring the
+	// reference stacks); when set, a guest submission must carry a token whose
+	// score meets RecaptchaMinScore. RecaptchaSiteKey is exposed to the public form
+	// to fetch the token client-side.
+	RecaptchaSecret   string  `env:"RECAPTCHA_SECRET" envDefault:""`
+	RecaptchaSiteKey  string  `env:"RECAPTCHA_SITE_KEY" envDefault:""`
+	RecaptchaMinScore float64 `env:"RECAPTCHA_MIN_SCORE" envDefault:"0.5"`
+
+	// CommentRateLimitPerMinute caps guest/member comment submissions per client
+	// IP (M5). Defaults to 8/min (ts parity).
+	CommentRateLimitPerMinute float64 `env:"COMMENT_RATE_LIMIT_PER_MINUTE" envDefault:"8"`
 }
 
 // IsProduction reports whether the app runs in production mode.
