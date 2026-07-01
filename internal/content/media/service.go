@@ -216,7 +216,10 @@ func (s *Service) Delete(ctx context.Context, actorID, id uuid.UUID) error {
 }
 
 // List returns a page of media (newest first) plus the total count.
-func (s *Service) List(ctx context.Context, limit, offset int) ([]Media, int, error) {
+func (s *Service) List(ctx context.Context, actorID uuid.UUID, limit, offset int) ([]Media, int, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectMedia) {
+		return nil, 0, ErrForbidden
+	}
 	items, err := s.repo.List(ctx, limit, offset)
 	if err != nil {
 		return nil, 0, err

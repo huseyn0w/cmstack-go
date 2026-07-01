@@ -132,7 +132,13 @@ func (s *LocalStorage) Handler() http.Handler {
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
-		w.Header().Set("Content-Disposition", "inline")
+		// PDFs can embed JS; serve them as a download (belt-and-suspenders on top
+		// of the sandbox CSP) rather than rendering inline. Images stay inline.
+		if strings.HasSuffix(strings.ToLower(full), ".pdf") {
+			w.Header().Set("Content-Disposition", "attachment")
+		} else {
+			w.Header().Set("Content-Disposition", "inline")
+		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		http.ServeFile(w, r, full)
 	})

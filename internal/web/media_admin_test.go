@@ -39,7 +39,7 @@ type stubMediaAdmin struct {
 	deleteCalls *[]uuid.UUID
 }
 
-func (s stubMediaAdmin) List(context.Context, int, int) ([]media.Media, int, error) {
+func (s stubMediaAdmin) List(context.Context, uuid.UUID, int, int) ([]media.Media, int, error) {
 	return s.list, s.listTotal, nil
 }
 

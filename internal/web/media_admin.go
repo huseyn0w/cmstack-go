@@ -19,9 +19,13 @@ import (
 // mediaPageSize is the media library grid page size.
 const mediaPageSize = 24
 
+// maxFilesPerUpload bounds how many files a single multipart upload may carry,
+// so one request can't fan out into an unbounded number of validate+store passes.
+const maxFilesPerUpload = 8
+
 // MediaAdminService is the subset of *media.Service the admin handler calls.
 type MediaAdminService interface {
-	List(ctx context.Context, limit, offset int) ([]media.Media, int, error)
+	List(ctx context.Context, actorID uuid.UUID, limit, offset int) ([]media.Media, int, error)
 	Get(ctx context.Context, actorID, id uuid.UUID) (media.Media, error)
 	Upload(ctx context.Context, actorID uuid.UUID, in media.UploadInput) (media.Media, error)
 	UpdateMetadata(ctx context.Context, actorID, id uuid.UUID, alt, title, caption string) (media.Media, error)
@@ -46,7 +50,8 @@ func NewMediaAdminHandler(svc MediaAdminService, shell adminShellDeps, csrf func
 // List renders the media library grid with pagination + dropzone.
 func (h *MediaAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 	page := pageParam(r)
-	items, total, err := h.svc.List(r.Context(), mediaPageSize, (page-1)*mediaPageSize)
+	u, _ := UserFromContext(r.Context())
+	items, total, err := h.svc.List(r.Context(), u.ID, mediaPageSize, (page-1)*mediaPageSize)
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
@@ -75,6 +80,13 @@ func (h *MediaAdminHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.MultipartForm == nil || len(r.MultipartForm.File["file"]) == 0 {
 		h.uploadFailure(w, r, "Choose a file to upload.", http.StatusUnprocessableEntity)
+		return
+	}
+	// Bound files-per-request so one multipart body can't fan out into an
+	// unbounded number of validate+store passes (each file is still capped at
+	// maxBytes). Matches the ~8x body budget above.
+	if len(r.MultipartForm.File["file"]) > maxFilesPerUpload {
+		h.uploadFailure(w, r, "Too many files in one upload.", http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -235,7 +247,8 @@ func (h *MediaAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 // Gated by read:media like the rest of the read routes.
 func (h *MediaAdminHandler) Picker(w http.ResponseWriter, r *http.Request) {
 	page := pageParam(r)
-	items, total, err := h.svc.List(r.Context(), mediaPageSize, (page-1)*mediaPageSize)
+	u, _ := UserFromContext(r.Context())
+	items, total, err := h.svc.List(r.Context(), u.ID, mediaPageSize, (page-1)*mediaPageSize)
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
