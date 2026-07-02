@@ -3,7 +3,11 @@
 Living continuation doc. Refreshed at every milestone. Pairs with `BUILD_PLAN.md` (full plan/stack
 mapping/event classification) and the read-only canon `../FEATURE_MATRIX.md` + `../DESIGN_SYSTEM.md`.
 
-**Last updated:** M0–M6 + M7a DONE and pushed to `main`. M7b (content translation) next. Module `github.com/huseyn0w/cmstack-go`. Push with `git push origin HEAD:main` (fast-forward). Latest commit at write time: `002e0ec`.
+**Last updated:** M0–M7a + **M7b-1 (posts) + M7b-2 (pages+services)** translation DONE and pushed to `main`. **NEXT = M7b-3** (categories+tags translation, same overlay pattern), then M8. Module `github.com/huseyn0w/cmstack-go`. Push with `git push origin HEAD:main` (fast-forward). Latest commit at write time: `b4fa01c`.
+
+**Docker note:** flaky under parallel testcontainers on this machine — run DB tests with `go test -p 2 ./...` (or per-package).
+
+**M7b translation pattern (established, mirror for M7b-3):** additive OVERLAY — base row stays default locale (en); `<type>_translations(<id>, locale, <fields>, UNIQUE(<id>,locale))` holds de/ru; reads overlay active-locale with per-field base fallback via `COALESCE(NULLIF(t.field,''), base.field)`; service `SaveTranslation` (rejects default locale, permission-gated, sanitize), `GetInLocale`/`PublicBySlugLocale`/`TranslatedLocales`; en path byte-for-byte unchanged; editor per-locale Tab strip via `?language=xx` (structural fields on en tab only). Reference impl: `internal/content/posts` (posts_translations) + `pages`/`services`. Migrations 00011/00012/00013 done. M7b-3 adds 00014 for `category_translations`(name,description)+`tag_translations`(name).
 
 **Orchestration note (learned):** big single-agent milestones repeatedly hit the SHARED session token limit mid-run (looks like a "hang" but is throttling). Mitigation: scope each subagent tightly (one bounded slice), keep a compiling committed checkpoint before risky work, and split invasive milestones (e.g. M7b) per content type. Verify every "done" with real `go build/vet/lint/test` before commit; commit+push per milestone.
 
