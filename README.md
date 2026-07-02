@@ -42,16 +42,41 @@ Full rationale and the per-concern mapping from the mature stacks lives in [`BUI
 
 ## Quick start
 
+First-time setup — install the codegen tools and generate the templ/sqlc code + CSS
+(needed once, and after changing `.templ`/`.sql`/Tailwind sources):
+
 ```bash
-make tools                  # install templ, sqlc, goose, golangci-lint, gofumpt, tailwind
-cp .env.example .env         # set DATABASE_URL, SESSION_KEY, ADMIN_EMAIL/PASSWORD, etc.
-make generate                # templ generate + sqlc generate
-make tailwind                # build web/static/app.css
-make migrate-up              # apply DB migrations
-go run ./cmd/seed            # seed roles, permissions, default administrator
-make run                     # start the server (http://localhost:8090)
-go run ./cmd/worker          # (separate process) outbox relay + scheduled publishing
+make tools       # install templ, sqlc, goose, golangci-lint, gofumpt, tailwind (once)
+make generate    # templ generate + sqlc generate
+make tailwind    # build web/static/app.css
 ```
+
+Then a **single command** boots everything for local dev — it creates `.env` from the
+example, starts a local Postgres on `:5434`, applies migrations, seeds roles/permissions/
+admin, and runs the server:
+
+```bash
+make dev         # .env + Postgres (:5434) + migrate + seed, then run (http://localhost:8090)
+```
+
+Run `make help` to list every target. The common ones:
+
+| Target | What it does |
+| --- | --- |
+| `make dev` | One-command local dev: `.env` + local Postgres + migrate + seed, then run |
+| `make db-up` / `make db-down` | Start / stop the local Postgres container (`:5434`) |
+| `make run` / `make worker` | Run the server / the background worker (both load `.env`) |
+| `make seed` | Idempotently seed roles, permissions, and the default admin |
+| `make migrate-up` / `make migrate-down` | Apply / roll back migrations |
+| `make test` · `make lint` · `make fmt` | Test suite · linter · formatter |
+
+The worker (outbox relay + scheduled publishing) runs as a separate process — `make worker`
+in a second terminal. Prefer your own Postgres? Point `DATABASE_URL` in `.env` at it and use
+`make migrate-up && make seed && make run` (skip `make db-up`).
+
+> **Ports.** This repo lives beside sibling `cmstack-*` stacks. Host ports are deduplicated
+> so they can all run at once — this stack uses **server 8090 / postgres 5434** (`HTTP_ADDR` /
+> `DATABASE_URL` in `.env`). See [`../PORTS.md`](../PORTS.md) for the cross-stack allocation.
 
 ## Architecture
 
