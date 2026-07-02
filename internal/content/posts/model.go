@@ -36,6 +36,19 @@ type Post struct {
 	// TODO(M3 categories/tags M2M): Categories, Tags.
 }
 
+// Translation is the per-locale CONTENT overlay for a post (M7b-1). It carries
+// only the translatable text fields for a NON-default locale; the base post row
+// holds the default-locale (en) content plus every structural field (slug,
+// status, author, schedule, taxonomy), which are shared across locales.
+//
+// TODO(M8): MetaTitle/MetaDescription join here when SEO fields translate.
+type Translation struct {
+	Locale  string
+	Title   string
+	Excerpt string
+	Body    string // sanitized HTML (kernel.SanitizeRichText on every save)
+}
+
 // Published reports whether the post is visible on the public site.
 func (p Post) Published() bool {
 	return p.Status == kernel.StatusPublished && p.DeletedAt == nil

@@ -27,7 +27,8 @@ func TestMediaLibrary_GridAndDropzone(t *testing.T) {
 		AcceptAttr: "image/png,application/pdf",
 	}
 	html := renderStr(t, webtempl.MediaLibrary(v))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="media-library"`,
 		`data-testid="media-grid"`,
 		`data-testid="media-card-m1"`,
@@ -56,7 +57,8 @@ func TestMediaLibrary_GridAndDropzone(t *testing.T) {
 func TestMediaLibrary_DropzoneAccessibility(t *testing.T) {
 	v := webtempl.MediaListView{UploadURL: "/admin/media", AcceptHint: "PNG", AcceptAttr: "image/png", MaxBytes: 1024}
 	html := renderStr(t, webtempl.MediaLibrary(v))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`role="button"`,
 		`tabindex="0"`,
 		`aria-label="Upload files: choose files or drag and drop"`,
@@ -76,7 +78,8 @@ func TestMediaDetailPanel_MetadataForm(t *testing.T) {
 		Saved:     true,
 	}
 	html := renderStr(t, webtempl.MediaDetailPanel(v))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="media-detail"`,
 		`data-testid="media-field-alt"`,
 		`data-testid="media-field-title"`,
@@ -97,7 +100,8 @@ func TestMediaPickerGrid_OffersImagesWithSrcAlt(t *testing.T) {
 		Page: 1, Pages: 2, NextURL: "/admin/media/picker?page=2",
 	}
 	html := renderStr(t, webtempl.MediaPickerGrid(v))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="media-picker-grid"`,
 		`data-testid="media-pick-m1"`,
 		// The pick button carries the src+alt the editor inserts as <img>.

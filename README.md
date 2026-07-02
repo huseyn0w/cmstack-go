@@ -49,7 +49,7 @@ make generate                # templ generate + sqlc generate
 make tailwind                # build web/static/app.css
 make migrate-up              # apply DB migrations
 go run ./cmd/seed            # seed roles, permissions, default administrator
-make run                     # start the server (http://localhost:8080)
+make run                     # start the server (http://localhost:8090)
 go run ./cmd/worker          # (separate process) outbox relay + scheduled publishing
 ```
 

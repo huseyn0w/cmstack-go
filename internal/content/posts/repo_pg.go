@@ -250,6 +250,118 @@ func (r *RepoPG) ListDueScheduledIDs(ctx context.Context, now time.Time) ([]uuid
 	return out, nil
 }
 
+// --- per-locale content overlay (M7b-1) -------------------------------------
+
+// UpsertTranslationTx inserts or updates a NON-default locale's translation row.
+func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, t Translation) error {
+	_, err := r.q.WithTx(tx).UpsertPostTranslation(ctx, sqlcgen.UpsertPostTranslationParams{
+		PostID:  toPgUUID(postID),
+		Locale:  t.Locale,
+		Title:   t.Title,
+		Excerpt: t.Excerpt,
+		Body:    t.Body,
+	})
+	return mapErr(err)
+}
+
+// GetTranslation returns one locale's translation row.
+func (r *RepoPG) GetTranslation(ctx context.Context, postID uuid.UUID, locale string) (Translation, error) {
+	row, err := r.q.GetPostTranslation(ctx, sqlcgen.GetPostTranslationParams{
+		PostID: toPgUUID(postID),
+		Locale: locale,
+	})
+	if err != nil {
+		return Translation{}, mapErr(err)
+	}
+	return translationFromRow(row), nil
+}
+
+// ListTranslations returns every translation row for a post.
+func (r *RepoPG) ListTranslations(ctx context.Context, postID uuid.UUID) ([]Translation, error) {
+	rows, err := r.q.ListPostTranslations(ctx, toPgUUID(postID))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, translationFromRow(row))
+	}
+	return out, nil
+}
+
+// TranslatedLocales returns the locales that already have a translation row.
+func (r *RepoPG) TranslatedLocales(ctx context.Context, postID uuid.UUID) ([]string, error) {
+	locales, err := r.q.ListPostTranslationLocales(ctx, toPgUUID(postID))
+	return locales, mapErr(err)
+}
+
+// DeleteTranslationTx removes a locale's translation row within tx.
+func (r *RepoPG) DeleteTranslationTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, locale string) error {
+	return mapErr(r.q.WithTx(tx).DeletePostTranslation(ctx, sqlcgen.DeletePostTranslationParams{
+		PostID: toPgUUID(postID),
+		Locale: locale,
+	}))
+}
+
+// GetActiveInLocaleByID loads an active post overlaid by locale (base fallback).
+func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Post, error) {
+	row, err := r.q.GetActivePostInLocaleByID(ctx, sqlcgen.GetActivePostInLocaleByIDParams{
+		ID:     toPgUUID(id),
+		Locale: locale,
+	})
+	if err != nil {
+		return Post{}, mapErr(err)
+	}
+	return Post{
+		ID: fromPgUUID(row.ID), Title: row.Title, Slug: row.Slug, Excerpt: row.Excerpt,
+		Body: row.Body, Status: kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
+		AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+	}, nil
+}
+
+// GetPublishedInLocaleBySlug loads a published post by slug overlaid by locale.
+func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Post, error) {
+	row, err := r.q.GetPublishedPostInLocaleBySlug(ctx, sqlcgen.GetPublishedPostInLocaleBySlugParams{
+		Slug:   slug,
+		Locale: locale,
+	})
+	if err != nil {
+		return Post{}, mapErr(err)
+	}
+	return Post{
+		ID: fromPgUUID(row.ID), Title: row.Title, Slug: row.Slug, Excerpt: row.Excerpt,
+		Body: row.Body, Status: kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
+		AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+	}, nil
+}
+
+// ListPublishedInLocale returns a page of published posts overlaid by locale.
+func (r *RepoPG) ListPublishedInLocale(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
+	rows, err := r.q.ListPublishedPostsInLocale(ctx, sqlcgen.ListPublishedPostsInLocaleParams{
+		Locale: locale,
+		Limit:  int32(limitOrDefault(limit)),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Post, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Post{
+			ID: fromPgUUID(row.ID), Title: row.Title, Slug: row.Slug, Excerpt: row.Excerpt,
+			Body: row.Body, Status: kernel.Status(row.Status),
+			PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
+			AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+			DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 // LikeTx inserts a like (idempotent); added reports whether a row was created.
 func (r *RepoPG) LikeTx(ctx context.Context, tx pgx.Tx, postID, userID uuid.UUID) (bool, error) {
 	n, err := r.q.WithTx(tx).LikePost(ctx, sqlcgen.LikePostParams{
@@ -444,6 +556,15 @@ func relatedRowToPost(r sqlcgen.ListRelatedPublishedPostsRow) Post {
 		DeletedAt:   fromTimestamptz(r.DeletedAt),
 		CreatedAt:   r.CreatedAt.Time,
 		UpdatedAt:   r.UpdatedAt.Time,
+	}
+}
+
+func translationFromRow(t sqlcgen.PostTranslation) Translation {
+	return Translation{
+		Locale:  t.Locale,
+		Title:   t.Title,
+		Excerpt: t.Excerpt,
+		Body:    t.Body,
 	}
 }
 

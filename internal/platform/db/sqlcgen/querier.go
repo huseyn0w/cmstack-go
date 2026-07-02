@@ -59,6 +59,7 @@ type Querier interface {
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeleteComment(ctx context.Context, id pgtype.UUID) error
 	DeleteMedia(ctx context.Context, id pgtype.UUID) error
+	DeletePostTranslation(ctx context.Context, arg DeletePostTranslationParams) error
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachAllPostCategories(ctx context.Context, postID pgtype.UUID) error
@@ -67,6 +68,13 @@ type Querier interface {
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
 	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error)
+	// Load an ACTIVE (non-trashed) post by id with its title/excerpt/body OVERLAID
+	// by the given locale's translation where present, falling back to the base row
+	// for any empty/absent translation field. NULLIF('') makes an empty translation
+	// field fall through to COALESCE's base value. Structural columns come straight
+	// from the base row. The projected row matches the posts column shape so the
+	// repo maps it with the existing postFromRow.
+	GetActivePostInLocaleByID(ctx context.Context, arg GetActivePostInLocaleByIDParams) (GetActivePostInLocaleByIDRow, error)
 	GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetApprovedCommentByID(ctx context.Context, arg GetApprovedCommentByIDParams) (Comment, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
@@ -78,8 +86,13 @@ type Querier interface {
 	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
+	GetPostTranslation(ctx context.Context, arg GetPostTranslationParams) (PostTranslation, error)
 	GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error)
 	GetPublishedPostBySlug(ctx context.Context, slug string) (Post, error)
+	// Public detail read: a published, non-trashed post by slug with its content
+	// overlaid by the given locale (base fallback per field). Slug/status are shared
+	// so the slug is the same across locales.
+	GetPublishedPostInLocaleBySlug(ctx context.Context, arg GetPublishedPostInLocaleBySlugParams) (GetPublishedPostInLocaleBySlugRow, error)
 	// Hydrate a set of post ids to their published, non-trashed rows. Used by the
 	// taxonomy archives, which first resolve ordered ids then load the rows. Order
 	// is re-applied in Go to preserve the archive's ranking.
@@ -110,6 +123,11 @@ type Querier interface {
 	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
 	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
 	ListPermissionsForRole(ctx context.Context, roleID pgtype.UUID) ([]ListPermissionsForRoleRow, error)
+	// The set of locales that already have a translation row for a post — used to
+	// mark "has translation" indicators on the editor's locale tabs.
+	ListPostTranslationLocales(ctx context.Context, postID pgtype.UUID) ([]string, error)
+	// All translation rows for a post (every non-default locale that has one).
+	ListPostTranslations(ctx context.Context, postID pgtype.UUID) ([]PostTranslation, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
 	ListPublishedPages(ctx context.Context, arg ListPublishedPagesParams) ([]Page, error)
 	ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]Post, error)
@@ -119,6 +137,9 @@ type Querier interface {
 	// must match BOTH (intersection). Drafts/trashed are always excluded.
 	ListPublishedPostsFiltered(ctx context.Context, arg ListPublishedPostsFilteredParams) ([]Post, error)
 	ListPublishedPostsInCategory(ctx context.Context, arg ListPublishedPostsInCategoryParams) ([]Post, error)
+	// Public blog index in a locale: published posts (newest first) with content
+	// overlaid by the locale, base fallback per field.
+	ListPublishedPostsInLocale(ctx context.Context, arg ListPublishedPostsInLocaleParams) ([]ListPublishedPostsInLocaleRow, error)
 	ListPublishedPostsInTag(ctx context.Context, arg ListPublishedPostsInTagParams) ([]Post, error)
 	ListPublishedServices(ctx context.Context, arg ListPublishedServicesParams) ([]Service, error)
 	// Posts sharing >=1 category OR tag with the given post (laravel parity).
@@ -181,6 +202,10 @@ type Querier interface {
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
+	// Insert or update the translation row for (post_id, locale). Callers pass a
+	// NON-default locale (en content lives on the base posts row). Body is sanitized
+	// by the service before it reaches here.
+	UpsertPostTranslation(ctx context.Context, arg UpsertPostTranslationParams) (PostTranslation, error)
 	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)
 }
 

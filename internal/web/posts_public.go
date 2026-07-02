@@ -13,6 +13,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -25,6 +26,10 @@ const publicPageSize = 9
 // *posts.Service satisfies them all.
 type PostPublicService interface {
 	PublicBySlug(ctx context.Context, slug string) (posts.Post, error)
+	// PublicBySlugLocale + PublicListLocale overlay the active-locale translation
+	// with base (en) fallback (M7b-1); the default locale resolves to the base row.
+	PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (posts.Post, error)
+	PublicListLocale(ctx context.Context, locale i18n.Locale, limit, offset int) ([]posts.Post, int, error)
 	PublicList(ctx context.Context, limit, offset int) ([]posts.Post, int, error)
 	PublicListFiltered(ctx context.Context, categorySlug, tagSlug string, limit, offset int) ([]posts.Post, int, error)
 	Related(ctx context.Context, postID uuid.UUID, limit int) ([]posts.Post, error)
@@ -88,10 +93,13 @@ func (h *PostPublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 		total int
 		err   error
 	)
+	locale := LocaleFromContext(r.Context())
 	if categorySlug != "" || tagSlug != "" {
+		// Taxonomy-filtered listing stays base-locale for now (M7b-3 will overlay
+		// filtered lists alongside translated category/tag terms).
 		items, total, err = h.svc.PublicListFiltered(r.Context(), categorySlug, tagSlug, publicPageSize, (page-1)*publicPageSize)
 	} else {
-		items, total, err = h.svc.PublicList(r.Context(), publicPageSize, (page-1)*publicPageSize)
+		items, total, err = h.svc.PublicListLocale(r.Context(), locale, publicPageSize, (page-1)*publicPageSize)
 	}
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
@@ -101,7 +109,7 @@ func (h *PostPublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 	for _, p := range items {
 		cards = append(cards, webtempl.PublicPostCard{
 			Title:       p.Title,
-			URL:         "/blog/" + p.Slug,
+			URL:         i18n.LocalizePath(locale, "/blog/"+p.Slug),
 			Excerpt:     p.Excerpt,
 			AuthorName:  h.authorName(r.Context(), p.AuthorID),
 			Date:        publishedDate(p),
@@ -110,9 +118,9 @@ func (h *PostPublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	view := webtempl.PublicPostIndexView{
 		SiteName: h.siteName,
-		HomeURL:  "/",
+		HomeURL:  i18n.LocalizePath(locale, "/"),
 		Cards:    cards,
-		Pager:    pager(page, publicPageSize, total, "/blog", blogFilterQuery(categorySlug, tagSlug)),
+		Pager:    pager(page, publicPageSize, total, i18n.LocalizePath(locale, "/blog"), blogFilterQuery(categorySlug, tagSlug)),
 	}
 	h.render(w, r, webtempl.PublicPostIndex(view))
 }
@@ -132,7 +140,8 @@ func blogFilterQuery(categorySlug, tagSlug string) string {
 // Show renders a single published post by slug.
 func (h *PostPublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	post, err := h.svc.PublicBySlug(r.Context(), slug)
+	locale := LocaleFromContext(r.Context())
+	post, err := h.svc.PublicBySlugLocale(r.Context(), slug, locale)
 	if errors.Is(err, posts.ErrNotFound) {
 		http.NotFound(w, r)
 		return

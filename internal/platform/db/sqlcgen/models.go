@@ -155,6 +155,17 @@ type PostTag struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type PostTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	PostID    pgtype.UUID        `json:"post_id"`
+	Locale    string             `json:"locale"`
+	Title     string             `json:"title"`
+	Excerpt   string             `json:"excerpt"`
+	Body      string             `json:"body"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Revision struct {
 	ID         pgtype.UUID        `json:"id"`
 	EntityType string             `json:"entity_type"`

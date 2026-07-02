@@ -91,6 +91,38 @@ type PostFormView struct {
 	// taxonomy is not wired.
 	CategoryChoices []TaxonomyChoice
 	TagChoices      []TaxonomyChoice
+
+	// Per-locale translation (M7b-1). LocaleTabs is the one-tab-per-language strip
+	// on the editor (django-parler ?language=xx parity); ActiveLocale is the tag of
+	// the tab currently being edited (en = base row, de/ru = translation overlay).
+	// IsDefaultLocale is true on the en tab, where the structural fields (slug/
+	// status/schedule/taxonomy) render and are editable; on de/ru only the
+	// translatable title/excerpt/body show (structural fields are shared, edited on
+	// en). Empty LocaleTabs means the strip is not shown (e.g. the new-post form,
+	// which has no id yet to translate against).
+	LocaleTabs      []LocaleTab
+	ActiveLocale    string
+	IsDefaultLocale bool
+}
+
+// editStructural reports whether the editor should render the SHARED structural
+// fields (slug/status/schedule/taxonomy + publish/schedule actions). They show
+// only when editing the default-locale base row (or when the locale strip is not
+// present at all, e.g. the new-post form), never on a de/ru translation tab.
+func (v PostFormView) editStructural() bool {
+	return len(v.LocaleTabs) == 0 || v.IsDefaultLocale
+}
+
+// LocaleTab is one language tab on the post editor's per-locale tab strip
+// (DESIGN_SYSTEM §5 Tabs). HasTranslation marks a de/ru tab whose translation
+// row already exists (shown as a dot/badge). The default (en) tab edits the base
+// row and is never marked.
+type LocaleTab struct {
+	Label          string // display name (e.g. "English", "Deutsch")
+	Code           string // BCP-47 tag (e.g. "en", "de")
+	Href           string // editor URL for this locale (?language=xx)
+	Active         bool
+	HasTranslation bool
 }
 
 // TaxonomyChoice is one selectable category/tag in the post editor. Depth

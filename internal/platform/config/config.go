@@ -13,10 +13,12 @@ import (
 type Config struct {
 	// AppEnv selects environment-specific behaviour (development|production|test).
 	AppEnv string `env:"APP_ENV" envDefault:"development"`
-	// HTTPAddr is the listen address for the HTTP server.
-	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8080"`
+	// HTTPAddr is the listen address for the HTTP server. Default :8090 keeps the
+	// Go stack off :8080 so it can run alongside the sibling cmstack-* projects
+	// during local dev (see ../../../../PORTS.md for the cross-stack allocation).
+	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8090"`
 	// BaseURL is the externally reachable base URL used for absolute links.
-	BaseURL string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+	BaseURL string `env:"BASE_URL" envDefault:"http://localhost:8090"`
 	// DatabaseURL is the Postgres DSN (required).
 	DatabaseURL string `env:"DATABASE_URL,required"`
 	// RedisURL is optional; used for caching/sessions when present.

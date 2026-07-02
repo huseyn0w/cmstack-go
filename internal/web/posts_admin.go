@@ -15,6 +15,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -51,6 +52,14 @@ type PostAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (posts.Post, error)
+
+	// Per-locale content overlay (M7b-1). GetInLocale loads the editor's content
+	// overlaid by the active tab's locale (base fallback); TranslatedLocales marks
+	// which tabs already have a translation; SaveTranslation upserts a de/ru tab's
+	// content. The default locale (en) still edits the base row via Update.
+	GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (posts.Post, error)
+	TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error)
+	SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in posts.TranslationInput) error
 
 	// Bulk list actions (M2c). Each reuses the matching single-item op per id, so
 	// per-post ownership/permission/events stay correct; the concrete *posts.Service
@@ -177,7 +186,11 @@ func (h *PostAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	post, err := h.svc.Get(r.Context(), u.ID, id)
+	// The active editor tab is chosen by ?language=xx (django-parler parity); it
+	// defaults to en (the base row). Content is loaded overlaid by that locale so
+	// the tab shows the translation (with base fallback) it will edit.
+	locale := editorLocale(r)
+	post, err := h.svc.GetInLocale(r.Context(), u.ID, id, locale)
 	if errors.Is(err, posts.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -190,7 +203,16 @@ func (h *PostAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	h.render(w, r, webtempl.PostEditor(h.formView(r, post)))
+	h.render(w, r, webtempl.PostEditor(h.formView(r, post, locale)))
+}
+
+// editorLocale resolves the active editor tab locale from ?language=xx, falling
+// back to the default locale (en) for an empty/unknown value.
+func editorLocale(r *http.Request) i18n.Locale {
+	if loc, ok := i18n.Parse(r.URL.Query().Get("language")); ok {
+		return loc
+	}
+	return i18n.Default()
 }
 
 // Update handles the edit POST (save/publish/schedule via the action button).
@@ -202,6 +224,35 @@ func (h *PostAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in, status := h.decodeForm(r)
+
+	// Per-locale save (M7b-1): a non-default `locale` field means the editor is on
+	// a de/ru translation tab, so the translatable content is upserted to the
+	// overlay rather than the base row. en (default/empty) takes the unchanged base
+	// Update path below.
+	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
+		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, posts.TranslationInput{
+			Title:   in.title,
+			Excerpt: in.excerpt,
+			Body:    in.body,
+		})
+		if errors.Is(err, posts.ErrForbidden) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, posts.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			post, _ := h.svc.GetInLocale(r.Context(), u.ID, id, loc)
+			view := h.formView(r, post, loc)
+			view.Error = humanError(err)
+			h.render(w, r, webtempl.PostEditor(view))
+			return
+		}
+		http.Redirect(w, r, "/admin/posts/"+id.String()+"/edit?language="+loc.String(), http.StatusSeeOther)
+		return
+	}
 
 	upd := posts.UpdateInput{
 		Title:       &in.title,
@@ -238,9 +289,9 @@ func (h *PostAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		// Re-render the editor with the error.
+		// Re-render the editor with the error (base/en tab).
 		post, _ := h.svc.Get(r.Context(), u.ID, id)
-		view := h.formView(r, post)
+		view := h.formView(r, post, i18n.Default())
 		view.Error = humanError(err)
 		h.render(w, r, webtempl.PostEditor(view))
 		return
@@ -435,7 +486,7 @@ func (h *PostAdminHandler) mutate(w http.ResponseWriter, r *http.Request, fn fun
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
-func (h *PostAdminHandler) formView(r *http.Request, p posts.Post) webtempl.PostFormView {
+func (h *PostAdminHandler) formView(r *http.Request, p posts.Post, locale i18n.Locale) webtempl.PostFormView {
 	cats, tagChoices := h.taxonomyChoices(r.Context(), p.ID)
 	return webtempl.PostFormView{
 		Shell:           h.shell.buildShell(r, "Edit post"),
@@ -454,7 +505,52 @@ func (h *PostAdminHandler) formView(r *http.Request, p posts.Post) webtempl.Post
 		BackURL:         "/admin/posts",
 		CategoryChoices: cats,
 		TagChoices:      tagChoices,
+		LocaleTabs:      h.localeTabs(r.Context(), r, p.ID, locale),
+		ActiveLocale:    locale.String(),
+		IsDefaultLocale: locale.IsDefault(),
 	}
+}
+
+// localeDisplayNames maps a locale to its editor-tab display label. The admin
+// area is en, so English endonyms keep the strip legible for admins.
+var localeDisplayNames = map[i18n.Locale]string{
+	i18n.LocaleEN: "English",
+	i18n.LocaleDE: "Deutsch",
+	i18n.LocaleRU: "Русский",
+}
+
+// localeTabs builds the editor's per-locale tab strip: one tab per supported
+// locale, the active one selected, de/ru tabs marked when a translation row
+// already exists. Best-effort: a translated-locales read error yields no dots
+// (the strip still renders). Each tab links to the editor with ?language=xx.
+func (h *PostAdminHandler) localeTabs(ctx context.Context, r *http.Request, postID uuid.UUID, active i18n.Locale) []webtempl.LocaleTab {
+	u, _ := UserFromContext(ctx)
+	has := map[i18n.Locale]bool{}
+	if locs, err := h.svc.TranslatedLocales(r.Context(), u.ID, postID); err == nil {
+		for _, l := range locs {
+			has[l] = true
+		}
+	}
+	base := "/admin/posts/" + postID.String() + "/edit"
+	tabs := make([]webtempl.LocaleTab, 0, len(i18n.All()))
+	for _, loc := range i18n.All() {
+		href := base
+		if !loc.IsDefault() {
+			href += "?language=" + loc.String()
+		}
+		label := localeDisplayNames[loc]
+		if label == "" {
+			label = loc.String()
+		}
+		tabs = append(tabs, webtempl.LocaleTab{
+			Label:          label,
+			Code:           loc.String(),
+			Href:           href,
+			Active:         loc == active,
+			HasTranslation: has[loc],
+		})
+	}
+	return tabs
 }
 
 // taxonomyChoices builds the editor's category (tree, pre-selected) + tag (flat,

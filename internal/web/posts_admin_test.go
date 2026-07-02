@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
@@ -17,6 +18,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 )
@@ -34,6 +36,18 @@ type stubPostAdmin struct {
 	// assert an allow-listed action reached the service (and that an unknown action
 	// did NOT — the handler rejects it before any service call).
 	bulkCalls *[]string
+
+	// Per-locale translation (M7b-1). translated is the set of locales the stub
+	// reports as already having a translation (drives has-translation tab markers);
+	// savedTranslation records the last SaveTranslation call so a handler test can
+	// assert the de/ru save reached the service with the right locale + content.
+	translated       []i18n.Locale
+	savedTranslation *savedTranslation
+}
+
+type savedTranslation struct {
+	locale i18n.Locale
+	in     posts.TranslationInput
 }
 
 func (s stubPostAdmin) record(verb string) {
@@ -95,6 +109,21 @@ func (s stubPostAdmin) Revisions(context.Context, uuid.UUID, uuid.UUID) ([]kerne
 
 func (s stubPostAdmin) RestoreRevision(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (posts.Post, error) {
 	return posts.Post{}, nil
+}
+
+func (s stubPostAdmin) GetInLocale(context.Context, uuid.UUID, uuid.UUID, i18n.Locale) (posts.Post, error) {
+	return s.get, s.getErr
+}
+
+func (s stubPostAdmin) TranslatedLocales(context.Context, uuid.UUID, uuid.UUID) ([]i18n.Locale, error) {
+	return s.translated, nil
+}
+
+func (s stubPostAdmin) SaveTranslation(_ context.Context, _, _ uuid.UUID, locale i18n.Locale, in posts.TranslationInput) error {
+	if s.savedTranslation != nil {
+		*s.savedTranslation = savedTranslation{locale: locale, in: in}
+	}
+	return nil
 }
 
 // denyAuthz denies every permission.
@@ -276,5 +305,156 @@ func TestPostsAdmin_CreateForbiddenIs403(t *testing.T) {
 	h.Create(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("forbidden create = %d, want 403", rec.Code)
+	}
+}
+
+// withPostID installs a chi route context carrying the post id param plus an
+// authenticated user, so an admin handler can be driven directly (bypassing the
+// router's CSRF middleware) in a unit test.
+func withPostID(req *http.Request, id uuid.UUID, user accounts.User) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id.String())
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = withUser(ctx, user)
+	return req.WithContext(ctx)
+}
+
+// TestPostsAdmin_EditRendersLocaleTabs asserts the editor renders the per-locale
+// tab strip, marking a locale that already has a translation (M7b-1).
+func TestPostsAdmin_EditRendersLocaleTabs(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	svc := stubPostAdmin{
+		get:        posts.Post{ID: id, Title: "Hello", Slug: "hello", Status: kernel.StatusPublished, AuthorID: user.ID},
+		translated: []i18n.Locale{i18n.LocaleDE},
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/posts/"+id.String()+"/edit", nil)
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Edit(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-testid="locale-tabs"`,
+		`data-testid="locale-tab-en"`,
+		`data-testid="locale-tab-de"`,
+		`data-testid="locale-tab-ru"`,
+		`data-testid="locale-dot-de"`, // de already translated
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("editor missing %q", want)
+		}
+	}
+}
+
+// TestPostsAdmin_EditDeTabLoadsTranslation asserts ?language=de selects the de
+// tab (active + hidden locale field) and shows the shared-fields note.
+func TestPostsAdmin_EditDeTabActive(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	svc := stubPostAdmin{
+		get:        posts.Post{ID: id, Title: "Hallo", Slug: "hello", Status: kernel.StatusPublished, AuthorID: user.ID},
+		translated: []i18n.Locale{i18n.LocaleDE},
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/posts/"+id.String()+"/edit?language=de", nil)
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Edit(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `name="locale" value="de"`) {
+		t.Error("de tab did not set the hidden active-locale field to de")
+	}
+	if !strings.Contains(body, `data-testid="translation-note"`) {
+		t.Error("de tab missing the shared-fields note")
+	}
+	if strings.Contains(body, `data-testid="field-status"`) {
+		t.Error("de tab should hide the shared status field")
+	}
+}
+
+// TestPostsAdmin_UpdateSavesDeTranslation asserts a POST carrying a non-default
+// locale routes to SaveTranslation with that locale + content, then redirects
+// back to the de tab (M7b-1 persistence).
+func TestPostsAdmin_UpdateSavesDeTranslation(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	saved := savedTranslation{}
+	svc := stubPostAdmin{
+		get:              posts.Post{ID: id, Title: "Hello", AuthorID: user.ID},
+		savedTranslation: &saved,
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{
+		"title":  {"Hallo Welt"},
+		"body":   {"<p>Deutscher Text</p>"},
+		"locale": {"de"},
+		"action": {"save"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/posts/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update de = %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin/posts/"+id.String()+"/edit?language=de" {
+		t.Errorf("redirect = %q, want de tab", loc)
+	}
+	if saved.locale != i18n.LocaleDE {
+		t.Errorf("SaveTranslation locale = %v, want de", saved.locale)
+	}
+	if saved.in.Title != "Hallo Welt" || saved.in.Body != "<p>Deutscher Text</p>" {
+		t.Errorf("SaveTranslation content = %+v", saved.in)
+	}
+}
+
+// TestPostsAdmin_UpdateEnEditsBaseRow asserts an en (no/default locale) POST
+// takes the unchanged base Update path, NOT SaveTranslation (existing behavior).
+func TestPostsAdmin_UpdateEnEditsBaseRow(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	saved := savedTranslation{}
+	svc := stubPostAdmin{
+		get:              posts.Post{ID: id, Title: "Hello", AuthorID: user.ID},
+		savedTranslation: &saved,
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{
+		"title":  {"Hello Base"},
+		"body":   {"<p>en</p>"},
+		"locale": {"en"}, // default -> base path
+		"status": {"DRAFT"},
+		"action": {"save"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/posts/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update en = %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin/posts/"+id.String()+"/edit" {
+		t.Errorf("en redirect = %q, want base edit (no ?language)", loc)
+	}
+	if saved.locale != "" {
+		t.Errorf("en save must NOT call SaveTranslation, got locale %v", saved.locale)
 	}
 }

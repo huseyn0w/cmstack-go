@@ -98,6 +98,29 @@ type Repository interface {
 
 	ListDueScheduledIDs(ctx context.Context, now time.Time) ([]uuid.UUID, error)
 
+	// --- per-locale content overlay (M7b-1) ---------------------------------
+
+	// UpsertTranslationTx inserts or updates the translation row for a NON-default
+	// locale within tx (en content lives on the base post row). Body is sanitized
+	// by the service before it reaches here.
+	UpsertTranslationTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, t Translation) error
+	// GetTranslation returns one locale's translation row, or ErrNotFound.
+	GetTranslation(ctx context.Context, postID uuid.UUID, locale string) (Translation, error)
+	// ListTranslations returns every translation row for a post (all locales).
+	ListTranslations(ctx context.Context, postID uuid.UUID) ([]Translation, error)
+	// TranslatedLocales returns the set of locales that already have a translation
+	// row for the post (drives the editor's "has translation" tab markers).
+	TranslatedLocales(ctx context.Context, postID uuid.UUID) ([]string, error)
+	// DeleteTranslationTx removes a locale's translation row within tx.
+	DeleteTranslationTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, locale string) error
+	// GetActiveInLocaleByID loads an active post by id with title/excerpt/body
+	// overlaid by locale's translation (empty/absent field -> base fallback).
+	GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Post, error)
+	// GetPublishedInLocaleBySlug loads a published post by slug overlaid by locale.
+	GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Post, error)
+	// ListPublishedInLocale returns a page of published posts overlaid by locale.
+	ListPublishedInLocale(ctx context.Context, locale string, limit, offset int) ([]Post, error)
+
 	// LikeTx inserts a like (idempotent) and returns whether a row was added.
 	LikeTx(ctx context.Context, tx pgx.Tx, postID, userID uuid.UUID) (added bool, err error)
 	// UnlikeTx removes a like and returns whether a row was removed.

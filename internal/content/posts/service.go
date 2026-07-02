@@ -15,6 +15,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // Domain errors. ErrForbidden is the ownership/permission gate; ErrValidation
@@ -35,6 +36,13 @@ var (
 	// in a likeable state (trashed or unpublished). Enforced in the service so the
 	// rule holds regardless of the calling handler.
 	ErrNotLikeable = errors.New("posts: post is not available for liking")
+	// ErrDefaultLocaleTranslation is returned when a translation write targets the
+	// default locale (en). The default locale's content lives on the base post row
+	// and is edited via Create/Update, not the translation overlay (M7b-1).
+	ErrDefaultLocaleTranslation = errors.New("posts: cannot store a translation for the default locale")
+	// ErrUnsupportedLocale is returned when a translation write/read targets a
+	// locale outside the supported set.
+	ErrUnsupportedLocale = errors.New("posts: unsupported locale")
 )
 
 // Service holds ALL post logic. It accesses data only through the repositories,
@@ -602,9 +610,42 @@ func (s *Service) publishScheduled(ctx context.Context, id uuid.UUID, now time.T
 
 // --- public reads (no auth; published only) ---------------------------------
 
-// PublicBySlug returns a published, non-trashed post for the public detail page.
+// PublicBySlug returns a published, non-trashed post for the public detail page
+// in the DEFAULT locale (en). It resolves to the base row and is unchanged from
+// M2 — the locale-aware path is PublicBySlugLocale.
 func (s *Service) PublicBySlug(ctx context.Context, slug string) (Post, error) {
 	return s.repo.GetPublishedBySlug(ctx, slug)
+}
+
+// PublicBySlugLocale returns a published post by slug with its content overlaid
+// by the active locale, falling back to the base (en) row for any missing
+// translation field. When locale is the default (en) or unsupported it resolves
+// to the base row (identical to PublicBySlug), so nothing breaks (M7b-1).
+func (s *Service) PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (Post, error) {
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetPublishedBySlug(ctx, slug)
+	}
+	return s.repo.GetPublishedInLocaleBySlug(ctx, slug, locale.String())
+}
+
+// PublicListLocale returns a page of published posts overlaid by the active
+// locale (base fallback per field), plus the total. The default/unsupported
+// locale resolves to the base listing (identical to PublicList).
+func (s *Service) PublicListLocale(ctx context.Context, locale i18n.Locale, limit, offset int) ([]Post, int, error) {
+	total, err := s.repo.CountPublished(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	var items []Post
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		items, err = s.repo.ListPublished(ctx, limit, offset)
+	} else {
+		items, err = s.repo.ListPublishedInLocale(ctx, locale.String(), limit, offset)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 // PublicList returns a page of published posts for the public index.
@@ -664,6 +705,94 @@ func (s *Service) Get(ctx context.Context, actorID, id uuid.UUID) (Post, error) 
 		return Post{}, err
 	}
 	return p, nil
+}
+
+// --- per-locale content overlay (M7b-1) --------------------------------------
+
+// TranslationInput is the editor's per-locale content save for a NON-default
+// locale. The body is sanitized (same kernel sanitizer as the base body) and the
+// excerpt is stripped write-time; structural fields are NOT part of it (they are
+// shared on the base row and edited via Update).
+type TranslationInput struct {
+	Title   string
+	Excerpt string
+	Body    string
+}
+
+// SaveTranslation upserts a NON-default locale's content overlay for a post.
+// Ownership is enforced exactly like Update (Author only their own; Editor/Admin
+// any). The default locale is rejected (its content lives on the base row —
+// callers edit it via Update). No revision snapshot is taken and no event is
+// emitted: the translation overlay is content, not a publish-state change.
+func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in TranslationInput) error {
+	if !i18n.IsSupported(locale) {
+		return ErrUnsupportedLocale
+	}
+	if locale.IsDefault() {
+		return ErrDefaultLocaleTranslation
+	}
+	existing, err := s.repo.GetActiveByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.requireOwnerOrPrivileged(ctx, actorID, existing, accounts.ActionUpdate); err != nil {
+		return err
+	}
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		return ErrTitleRequired
+	}
+	t := Translation{
+		Locale:  locale.String(),
+		Title:   title,
+		Excerpt: sanitizeExcerpt(in.Excerpt),
+		Body:    kernel.SanitizeRichText(in.Body),
+	}
+	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.UpsertTranslationTx(ctx, tx, id, t)
+	})
+}
+
+// GetInLocale loads a post for the editor with its content overlaid by locale
+// (base fallback per field). The default locale resolves to the base row. Read
+// ownership/privilege is enforced. Used to populate the editor's per-locale tab.
+func (s *Service) GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (Post, error) {
+	// Ownership is checked against the base (structural) row.
+	base, err := s.repo.GetActiveByID(ctx, id)
+	if err != nil {
+		return Post{}, err
+	}
+	if err := s.requireOwnerOrPrivileged(ctx, actorID, base, accounts.ActionRead); err != nil {
+		return Post{}, err
+	}
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return base, nil
+	}
+	return s.repo.GetActiveInLocaleByID(ctx, id, locale.String())
+}
+
+// TranslatedLocales returns the NON-default locales that already have a
+// translation row for the post (drives the editor's per-tab "has translation"
+// markers). Read ownership/privilege is enforced.
+func (s *Service) TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error) {
+	base, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnerOrPrivileged(ctx, actorID, base, accounts.ActionRead); err != nil {
+		return nil, err
+	}
+	raw, err := s.repo.TranslatedLocales(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]i18n.Locale, 0, len(raw))
+	for _, r := range raw {
+		if l, ok := i18n.Parse(r); ok && !l.IsDefault() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
 }
 
 // --- ownership + helpers -----------------------------------------------------

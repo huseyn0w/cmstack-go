@@ -30,13 +30,120 @@ func (fakeBeginner) Begin(context.Context) (pgx.Tx, error) { return fakeTx{}, ni
 
 // memRepo is an in-memory post Repository.
 type memRepo struct {
-	mu    sync.Mutex
-	posts map[uuid.UUID]Post
-	likes map[uuid.UUID]map[uuid.UUID]bool // postID -> set(userID)
+	mu           sync.Mutex
+	posts        map[uuid.UUID]Post
+	likes        map[uuid.UUID]map[uuid.UUID]bool     // postID -> set(userID)
+	translations map[uuid.UUID]map[string]Translation // postID -> locale -> row
 }
 
 func newMemRepo() *memRepo {
-	return &memRepo{posts: map[uuid.UUID]Post{}, likes: map[uuid.UUID]map[uuid.UUID]bool{}}
+	return &memRepo{
+		posts:        map[uuid.UUID]Post{},
+		likes:        map[uuid.UUID]map[uuid.UUID]bool{},
+		translations: map[uuid.UUID]map[string]Translation{},
+	}
+}
+
+// --- per-locale overlay (M7b-1), functional so the service overlay/fallback is
+// exercised end-to-end in a fast unit test.
+
+func (m *memRepo) UpsertTranslationTx(_ context.Context, _ pgx.Tx, postID uuid.UUID, t Translation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.translations[postID] == nil {
+		m.translations[postID] = map[string]Translation{}
+	}
+	m.translations[postID][t.Locale] = t
+	return nil
+}
+
+func (m *memRepo) GetTranslation(_ context.Context, postID uuid.UUID, locale string) (Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.translations[postID][locale]; ok {
+		return t, nil
+	}
+	return Translation{}, ErrNotFound
+}
+
+func (m *memRepo) ListTranslations(_ context.Context, postID uuid.UUID) ([]Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Translation
+	for _, t := range m.translations[postID] {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (m *memRepo) TranslatedLocales(_ context.Context, postID uuid.UUID) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	for loc := range m.translations[postID] {
+		out = append(out, loc)
+	}
+	return out, nil
+}
+
+func (m *memRepo) DeleteTranslationTx(_ context.Context, _ pgx.Tx, postID uuid.UUID, locale string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.translations[postID], locale)
+	return nil
+}
+
+// overlay applies locale's translation to a base post with per-field base
+// fallback (empty translation field -> base), mirroring the COALESCE/NULLIF SQL.
+func (m *memRepo) overlay(p Post, locale string) Post {
+	t, ok := m.translations[p.ID][locale]
+	if !ok {
+		return p
+	}
+	if t.Title != "" {
+		p.Title = t.Title
+	}
+	if t.Excerpt != "" {
+		p.Excerpt = t.Excerpt
+	}
+	if t.Body != "" {
+		p.Body = t.Body
+	}
+	return p
+}
+
+func (m *memRepo) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Post, error) {
+	p, err := m.GetActiveByID(ctx, id)
+	if err != nil {
+		return Post{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.overlay(p, locale), nil
+}
+
+func (m *memRepo) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Post, error) {
+	p, err := m.GetPublishedBySlug(ctx, slug)
+	if err != nil {
+		return Post{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.overlay(p, locale), nil
+}
+
+func (m *memRepo) ListPublishedInLocale(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
+	items, err := m.ListPublished(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Post, 0, len(items))
+	for _, p := range items {
+		out = append(out, m.overlay(p, locale))
+	}
+	return out, nil
 }
 
 func (m *memRepo) put(p Post) {
@@ -123,7 +230,9 @@ func (m *memRepo) CountPublished(context.Context) (int, error)             { ret
 func (m *memRepo) ListPublishedFiltered(context.Context, string, string, int, int) ([]Post, error) {
 	return nil, nil
 }
+
 func (m *memRepo) CountPublishedFiltered(context.Context, string, string) (int, error) { return 0, nil }
+
 func (m *memRepo) ListRelatedPublished(context.Context, uuid.UUID, int) ([]Post, error) {
 	return nil, nil
 }

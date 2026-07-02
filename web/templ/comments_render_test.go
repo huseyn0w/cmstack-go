@@ -36,7 +36,8 @@ func TestCommentModeration_RendersTabsAndBadge(t *testing.T) {
 		TrashURL: "/admin/comments/row-1/trash", DeleteURL: "/admin/comments/row-1/delete",
 	}}
 	html := renderStr(t, webtempl.CommentModeration(adminModerationView(rows, 7)))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="comment-tabs"`,
 		`data-testid="comment-tab-PENDING"`,
 		`data-testid="comment-tab-count-PENDING"`,
@@ -89,7 +90,8 @@ func publicThreadView() webtempl.CommentThreadView {
 
 func TestCommentsPublic_ThreadRendersNoEmailOrIP(t *testing.T) {
 	html := renderStr(t, webtempl.CommentsSection(publicThreadView()))
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="comments-section"`,
 		`data-testid="comments-list"`,
 		"Jane Reader", "Loved this article",
@@ -106,7 +108,8 @@ func TestCommentsPublic_ThreadRendersNoEmailOrIP(t *testing.T) {
 func TestCommentsPublic_GuestFormIsAccessible(t *testing.T) {
 	html := renderStr(t, webtempl.CommentsSection(publicThreadView()))
 	// Guest form exposes labeled name+email inputs and a labeled body textarea.
-	mustContain(t, html,
+	mustContain(
+		t, html,
 		`data-testid="comment-input-name"`,
 		`data-testid="comment-input-email"`,
 		`data-testid="comment-input-body"`,

@@ -143,6 +143,77 @@ func TestPostEditor_ToolbarA11y(t *testing.T) {
 	)
 }
 
+// TestPostEditor_LocaleTabStrip asserts the per-locale editor tab strip renders
+// with tablist/tab a11y, an active marker, a has-translation dot, a hidden
+// active-locale field, and (on a de tab) the shared structural fields are hidden.
+func TestPostEditor_LocaleTabStrip(t *testing.T) {
+	v := webtempl.PostFormView{
+		ID:           "p1",
+		Title:        "DE Titel",
+		Body:         "<p>DE</p>",
+		Status:       webtempl.PostStatusPublished,
+		ActionURL:    "/admin/posts/p1",
+		CSRFToken:    "tok",
+		FieldErrors:  map[string]string{},
+		BackURL:      "/admin/posts",
+		ActiveLocale: "de",
+		LocaleTabs: []webtempl.LocaleTab{
+			{Label: "English", Code: "en", Href: "/admin/posts/p1/edit", Active: false},
+			{Label: "Deutsch", Code: "de", Href: "/admin/posts/p1/edit?language=de", Active: true, HasTranslation: true},
+			{Label: "Русский", Code: "ru", Href: "/admin/posts/p1/edit?language=ru", Active: false},
+		},
+		IsDefaultLocale: false,
+	}
+	html := renderStr(t, webtempl.PostEditor(v))
+	mustContain(
+		t, html,
+		`data-testid="locale-tabs"`,
+		`role="tablist"`,
+		`data-testid="locale-tab-en"`,
+		`data-testid="locale-tab-de"`,
+		`data-testid="locale-tab-ru"`,
+		`aria-selected="true"`,           // active de tab
+		`data-testid="locale-dot-de"`,    // has-translation marker
+		`role="tabpanel"`,                // the form is the panel
+		`name="locale"`,                  // hidden active-locale field
+		`data-testid="translation-note"`, // de tab shows the shared-fields note
+	)
+	// On a de tab the SHARED structural fields must NOT render.
+	for _, absent := range []string{`data-testid="field-status"`, `data-testid="field-slug"`, `data-testid="action-publish"`} {
+		if strings.Contains(html, absent) {
+			t.Errorf("de translation tab should hide %q", absent)
+		}
+	}
+}
+
+// TestPostEditor_EnTabShowsStructuralFields asserts the default (en) tab keeps
+// the shared structural fields + publish/schedule actions.
+func TestPostEditor_EnTabShowsStructuralFields(t *testing.T) {
+	v := webtempl.PostFormView{
+		ID:           "p1",
+		Title:        "EN Title",
+		ActionURL:    "/admin/posts/p1",
+		CSRFToken:    "tok",
+		FieldErrors:  map[string]string{},
+		BackURL:      "/admin/posts",
+		Status:       webtempl.PostStatusDraft,
+		ActiveLocale: "en",
+		LocaleTabs: []webtempl.LocaleTab{
+			{Label: "English", Code: "en", Href: "/admin/posts/p1/edit", Active: true},
+			{Label: "Deutsch", Code: "de", Href: "/admin/posts/p1/edit?language=de", Active: false},
+		},
+		IsDefaultLocale: true,
+	}
+	html := renderStr(t, webtempl.PostEditor(v))
+	mustContain(
+		t, html,
+		`data-testid="locale-tab-en"`,
+		`data-testid="field-status"`, // structural fields present on en
+		`data-testid="field-slug"`,
+		`data-testid="action-publish"`, // publish action present on en
+	)
+}
+
 func TestPublicPostDetail_ArticleProseBreadcrumbJSONLD(t *testing.T) {
 	v := webtempl.PublicPostView{
 		SiteName:     "CMStack",

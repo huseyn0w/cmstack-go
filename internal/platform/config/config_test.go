@@ -23,8 +23,8 @@ func TestLoad(t *testing.T) {
 				if c.AppEnv != "development" {
 					t.Errorf("AppEnv = %q, want development", c.AppEnv)
 				}
-				if c.HTTPAddr != ":8080" {
-					t.Errorf("HTTPAddr = %q, want :8080", c.HTTPAddr)
+				if c.HTTPAddr != ":8090" {
+					t.Errorf("HTTPAddr = %q, want :8090", c.HTTPAddr)
 				}
 				if !c.IsDevelopment() || c.IsProduction() {
 					t.Errorf("env predicates wrong for %q", c.AppEnv)

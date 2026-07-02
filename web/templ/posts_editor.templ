@@ -30,8 +30,21 @@ templ PostEditor(v PostFormView) {
 			if v.Error != "" {
 				<div role="alert" data-testid="editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
 			}
-			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="post-form">
+			@localeTabStrip(v.LocaleTabs)
+			<form
+				method="post"
+				action={ templ.SafeURL(v.ActionURL) }
+				class="mt-6 space-y-5"
+				data-testid="post-form"
+				if len(v.LocaleTabs) > 0 {
+					role="tabpanel"
+					aria-label={ "Content in " + v.ActiveLocale }
+				}
+			>
 				@csrfField(v.CSRFToken)
+				if len(v.LocaleTabs) > 0 {
+					<input type="hidden" name="locale" value={ v.ActiveLocale } data-testid="editor-active-locale"/>
+				}
 				<div>
 					<label for="title" class="block text-small font-medium text-text">Title</label>
 					<input
@@ -43,14 +56,16 @@ templ PostEditor(v PostFormView) {
 						<p class="mt-1 text-caption text-error" data-testid="error-title">{ msg }</p>
 					}
 				</div>
-				<div>
-					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
-					<input
-						id="slug" name="slug" type="text" value={ v.Slug }
-						data-testid="field-slug"
-						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					/>
-				</div>
+				if v.editStructural() {
+					<div>
+						<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+						<input
+							id="slug" name="slug" type="text" value={ v.Slug }
+							data-testid="field-slug"
+							class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</div>
+				}
 				<div>
 					<label for="excerpt" class="block text-small font-medium text-text">Excerpt</label>
 					<textarea
@@ -60,28 +75,34 @@ templ PostEditor(v PostFormView) {
 					>{ v.Excerpt }</textarea>
 				</div>
 				@richTextField(v.Body)
-				@taxonomySelectors(v.CategoryChoices, v.TagChoices)
-				<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-					<div>
-						<label for="status" class="block text-small font-medium text-text">Status</label>
-						<select id="status" name="status" data-testid="field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-							<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
-							<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
-						</select>
+				if v.editStructural() {
+					@taxonomySelectors(v.CategoryChoices, v.TagChoices)
+					<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+						<div>
+							<label for="status" class="block text-small font-medium text-text">Status</label>
+							<select id="status" name="status" data-testid="field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+								<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
+								<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
+							</select>
+						</div>
+						<div>
+							<label for="scheduled_at" class="block text-small font-medium text-text">Schedule at <span class="text-subtle">(optional)</span></label>
+							<input
+								id="scheduled_at" name="scheduled_at" type="datetime-local" value={ v.ScheduledAt }
+								data-testid="field-schedule"
+								class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							/>
+						</div>
 					</div>
-					<div>
-						<label for="scheduled_at" class="block text-small font-medium text-text">Schedule at <span class="text-subtle">(optional)</span></label>
-						<input
-							id="scheduled_at" name="scheduled_at" type="datetime-local" value={ v.ScheduledAt }
-							data-testid="field-schedule"
-							class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-						/>
-					</div>
-				</div>
+				} else {
+					<p class="text-caption text-muted" data-testid="translation-note">Editing the { v.ActiveLocale } translation. Slug, status, schedule and taxonomy are shared across languages and edited on the English tab.</p>
+				}
 				<div class="flex items-center gap-3 border-t border-border pt-5">
 					<button type="submit" name="action" value="save" data-testid="action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
-					<button type="submit" name="action" value="publish" data-testid="action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
-					<button type="submit" name="action" value="schedule" data-testid="action-schedule" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Schedule</button>
+					if v.editStructural() {
+						<button type="submit" name="action" value="publish" data-testid="action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
+						<button type="submit" name="action" value="schedule" data-testid="action-schedule" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Schedule</button>
+					}
 					if !v.IsNew && v.RevisionsURL != "" {
 						<a href={ templ.SafeURL(v.RevisionsURL) } data-testid="revisions-link" class="ml-auto text-small text-muted hover:text-text">Revision history</a>
 					}
@@ -89,6 +110,53 @@ templ PostEditor(v PostFormView) {
 			</form>
 		</section>
 		<script src="/static/vendor/editor.js" defer></script>
+	}
+}
+
+// localeTabStrip renders the per-locale editor tab strip (DESIGN_SYSTEM §5 Tabs
+// — "Primary use: per-locale content editing"). Each tab is an anchor that loads
+// the editor for that language via ?language=xx (django-parler parity): switching
+// tab is a normal navigation, so the tab's content is always the freshly loaded,
+// overlaid-with-base-fallback row — no client state to lose. The active tab has
+// aria-selected=true; de/ru tabs whose translation row already exists show a dot
+// (has-translation marker). Arrow-key roving focus (Left/Right/Home/End) is
+// wired with a tiny Alpine handler for keyboard tablist navigation. The strip is
+// omitted entirely when there are no tabs (the new-post form).
+templ localeTabStrip(tabs []LocaleTab) {
+	if len(tabs) > 0 {
+		<div
+			role="tablist"
+			aria-label="Content language"
+			data-testid="locale-tabs"
+			class="mt-6 flex items-center gap-1 border-b border-border"
+			@keydown.arrow-right.prevent="$focus.wrap().next()"
+			@keydown.arrow-left.prevent="$focus.wrap().previous()"
+			@keydown.home.prevent="$focus.first()"
+			@keydown.end.prevent="$focus.last()"
+			x-data
+		>
+			for _, tab := range tabs {
+				<a
+					role="tab"
+					href={ templ.SafeURL(tab.Href) }
+					data-testid={ "locale-tab-" + tab.Code }
+					if tab.Active {
+						aria-selected="true"
+						tabindex="0"
+						class="relative -mb-px flex items-center gap-1.5 border-b-2 border-primary px-3 py-2 text-small font-medium text-text"
+					} else {
+						aria-selected="false"
+						tabindex="-1"
+						class="relative -mb-px flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-small font-medium text-muted hover:text-text"
+					}
+				>
+					<span>{ tab.Label }</span>
+					if tab.HasTranslation {
+						<span aria-label="Translated" title="Translation exists" data-testid={ "locale-dot-" + tab.Code } class="inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>
+					}
+				</a>
+			}
+		</div>
 	}
 }
 
