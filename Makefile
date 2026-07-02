@@ -3,8 +3,37 @@ GOPATH_BIN := $(shell go env GOPATH)/bin
 export PATH := $(PATH):$(GOPATH_BIN)
 
 TAILWIND := ./bin/tailwindcss
+PG_CONTAINER := cmstack-go-db
 
-.PHONY: tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
+# The Go config reads process env and does NOT auto-load .env, so the DB-facing
+# targets (run/worker/seed/migrate-*) source it here. Local dev only.
+LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
+
+.DEFAULT_GOAL := help
+.PHONY: help dev env db-up db-down tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
+
+help: ## List the common targets
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
+
+dev: env db-up migrate-up seed ## One command: .env + local Postgres + migrate + seed, then run
+	@echo "server: http://localhost:8090"
+	@$(LOAD_ENV); go run ./cmd/server
+
+env: ## Create .env from .env.example if it does not exist yet
+	@[ -f .env ] || { cp .env.example .env; echo "created .env from .env.example"; }
+
+db-up: ## Start a local Postgres for this stack on :5434 (matches .env.example)
+	@if [ -z "$$(docker ps -q -f name=^$(PG_CONTAINER)$$)" ]; then \
+	  if [ -n "$$(docker ps -aq -f name=^$(PG_CONTAINER)$$)" ]; then docker start $(PG_CONTAINER) >/dev/null; \
+	  else docker run -d --name $(PG_CONTAINER) \
+	    -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=cmstack \
+	    -p 5434:5432 postgres:16-alpine >/dev/null; fi; \
+	fi
+	@echo "waiting for postgres…"; until docker exec $(PG_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done; echo "postgres ready on :5434"
+
+db-down: ## Stop and remove the local Postgres container
+	-docker rm -f $(PG_CONTAINER)
 
 ## Install pinned dev tools into GOPATH/bin.
 tools:
@@ -27,26 +56,25 @@ sqlc:
 tailwind:
 	$(TAILWIND) -i web/tailwind.css -o web/static/app.css --minify
 
-build:
+build: ## Compile everything
 	go build ./...
 
-run:
-	go run ./cmd/server
+run: ## Run the HTTP server (loads .env)
+	@$(LOAD_ENV); go run ./cmd/server
 
-worker:
-	go run ./cmd/worker
+worker: ## Run the background worker (loads .env)
+	@$(LOAD_ENV); go run ./cmd/worker
 
-## Idempotently seed roles/permissions/admin (also runs at server startup).
-seed:
-	go run ./cmd/seed
+seed: ## Idempotently seed roles/permissions/admin (loads .env)
+	@$(LOAD_ENV); go run ./cmd/seed
 
-migrate-up:
-	go run ./cmd/migrate up
+migrate-up: ## Apply DB migrations (loads .env)
+	@$(LOAD_ENV); go run ./cmd/migrate up
 
-migrate-down:
-	go run ./cmd/migrate down
+migrate-down: ## Roll back the last migration (loads .env)
+	@$(LOAD_ENV); go run ./cmd/migrate down
 
-test:
+test: ## Run the test suite
 	go test ./...
 
 cover:
