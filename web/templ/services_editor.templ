@@ -32,8 +32,21 @@ templ ServiceEditor(v ServiceFormView) {
 			if v.Error != "" {
 				<div role="alert" data-testid="service-editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
 			}
-			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="service-form">
+			@localeTabStrip(v.LocaleTabs)
+			<form
+				method="post"
+				action={ templ.SafeURL(v.ActionURL) }
+				class="mt-6 space-y-5"
+				data-testid="service-form"
+				if len(v.LocaleTabs) > 0 {
+					role="tabpanel"
+					aria-label={ "Content in " + v.ActiveLocale }
+				}
+			>
 				@csrfField(v.CSRFToken)
+				if len(v.LocaleTabs) > 0 {
+					<input type="hidden" name="locale" value={ v.ActiveLocale } data-testid="service-editor-active-locale"/>
+				}
 				<div>
 					<label for="title" class="block text-small font-medium text-text">Title</label>
 					<input
@@ -45,14 +58,16 @@ templ ServiceEditor(v ServiceFormView) {
 						<p class="mt-1 text-caption text-error" data-testid="service-error-title">{ msg }</p>
 					}
 				</div>
-				<div>
-					<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
-					<input
-						id="slug" name="slug" type="text" value={ v.Slug }
-						data-testid="service-field-slug"
-						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					/>
-				</div>
+				if v.editStructural() {
+					<div>
+						<label for="slug" class="block text-small font-medium text-text">Slug <span class="text-subtle">(optional)</span></label>
+						<input
+							id="slug" name="slug" type="text" value={ v.Slug }
+							data-testid="service-field-slug"
+							class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						/>
+					</div>
+				}
 				<div>
 					<label for="summary" class="block text-small font-medium text-text">Summary</label>
 					<textarea
@@ -63,27 +78,33 @@ templ ServiceEditor(v ServiceFormView) {
 					>{ v.Summary }</textarea>
 				</div>
 				@richTextField(v.Body)
-				<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-					<div>
-						<label for="status" class="block text-small font-medium text-text">Status</label>
-						<select id="status" name="status" data-testid="service-field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-							<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
-							<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
-						</select>
+				if v.editStructural() {
+					<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+						<div>
+							<label for="status" class="block text-small font-medium text-text">Status</label>
+							<select id="status" name="status" data-testid="service-field-status" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+								<option value="DRAFT" selected?={ v.Status != PostStatusPublished }>Draft</option>
+								<option value="PUBLISHED" selected?={ v.Status == PostStatusPublished }>Published</option>
+							</select>
+						</div>
+						<div>
+							<label for="price" class="block text-small font-medium text-text">Price</label>
+							<input id="price" name="price" type="text" value={ v.Price } data-testid="service-field-price" placeholder="From $499" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
+						</div>
+						<div>
+							<label for="area_served" class="block text-small font-medium text-text">Area served</label>
+							<input id="area_served" name="area_served" type="text" value={ v.AreaServed } data-testid="service-field-area" placeholder="Berlin and surrounding areas" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
+						</div>
 					</div>
-					<div>
-						<label for="price" class="block text-small font-medium text-text">Price</label>
-						<input id="price" name="price" type="text" value={ v.Price } data-testid="service-field-price" placeholder="From $499" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
-					</div>
-					<div>
-						<label for="area_served" class="block text-small font-medium text-text">Area served</label>
-						<input id="area_served" name="area_served" type="text" value={ v.AreaServed } data-testid="service-field-area" placeholder="Berlin and surrounding areas" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
-					</div>
-				</div>
-				@faqEditor(v.FAQs)
+					@faqEditor(v.FAQs)
+				} else {
+					<p class="text-caption text-muted" data-testid="service-translation-note">Editing the { v.ActiveLocale } translation. Slug, status, price, area served and FAQs are shared across languages and edited on the English tab.</p>
+				}
 				<div class="flex items-center gap-3 border-t border-border pt-5">
 					<button type="submit" name="action" value="save" data-testid="service-action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
-					<button type="submit" name="action" value="publish" data-testid="service-action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
+					if v.editStructural() {
+						<button type="submit" name="action" value="publish" data-testid="service-action-publish" class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Publish</button>
+					}
 					if !v.IsNew && v.RevisionsURL != "" {
 						<a href={ templ.SafeURL(v.RevisionsURL) } data-testid="service-revisions-link" class="ml-auto text-small text-muted hover:text-text">Revision history</a>
 					}

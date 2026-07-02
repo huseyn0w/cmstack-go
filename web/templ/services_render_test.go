@@ -1,6 +1,7 @@
 package templ_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -89,6 +90,49 @@ func TestServiceEditor_RepeatableFAQSection(t *testing.T) {
 		`data-testid="service-action-publish"`,
 		"How long does it take?", // seeded row reaches the Alpine initializer
 	)
+}
+
+// TestServiceEditor_LocaleTabStrip asserts the service editor's per-locale tab
+// strip renders with tablist/tab a11y, an active marker, a has-translation dot,
+// a hidden active-locale field, and (on a de tab) the shared structural/citable
+// fields + FAQ are hidden and the translation note shown (M7b-2).
+func TestServiceEditor_LocaleTabStrip(t *testing.T) {
+	v := webtempl.ServiceFormView{
+		ID:           "s1",
+		Title:        "SEO Pruefung",
+		Body:         "<p>DE</p>",
+		Status:       webtempl.PostStatusPublished,
+		ActionURL:    "/admin/services/s1",
+		CSRFToken:    "tok",
+		FieldErrors:  map[string]string{},
+		BackURL:      "/admin/services",
+		ActiveLocale: "de",
+		LocaleTabs: []webtempl.LocaleTab{
+			{Label: "English", Code: "en", Href: "/admin/services/s1/edit", Active: false},
+			{Label: "Deutsch", Code: "de", Href: "/admin/services/s1/edit?language=de", Active: true, HasTranslation: true},
+			{Label: "Русский", Code: "ru", Href: "/admin/services/s1/edit?language=ru", Active: false},
+		},
+		IsDefaultLocale: false,
+	}
+	html := renderStr(t, webtempl.ServiceEditor(v))
+	mustContain(
+		t, html,
+		`data-testid="locale-tabs"`,
+		`role="tablist"`,
+		`data-testid="locale-tab-en"`,
+		`data-testid="locale-tab-de"`,
+		`data-testid="locale-tab-ru"`,
+		`aria-selected="true"`,
+		`data-testid="locale-dot-de"`,
+		`role="tabpanel"`,
+		`name="locale"`,
+		`data-testid="service-translation-note"`,
+	)
+	for _, absent := range []string{`data-testid="service-field-price"`, `data-testid="service-field-status"`, `data-testid="faq-editor"`, `data-testid="service-action-publish"`} {
+		if strings.Contains(html, absent) {
+			t.Errorf("de translation tab should hide %q", absent)
+		}
+	}
 }
 
 func TestPublicServiceDetail_FactsAndAccessibleFAQ(t *testing.T) {

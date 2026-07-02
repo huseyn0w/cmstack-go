@@ -11,6 +11,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -27,6 +28,14 @@ type ServiceAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (services.Service, error)
+
+	// Per-locale content overlay (M7b-2). GetInLocale loads the editor's content
+	// overlaid by the active tab's locale (base fallback); TranslatedLocales marks
+	// which tabs already have a translation; SaveTranslation upserts a de/ru tab's
+	// content. The default locale (en) still edits the base row via Update.
+	GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (services.Service, error)
+	TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error)
+	SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in services.TranslationInput) error
 
 	// Bulk list actions (M2c). The concrete *services.Manager satisfies these; the
 	// set also makes the manager a bulkActor.
@@ -132,7 +141,10 @@ func (h *ServiceAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	svc, err := h.svc.Get(r.Context(), u.ID, id)
+	// The active editor tab is chosen by ?language=xx (django-parler parity); it
+	// defaults to en (the base row). Content is loaded overlaid by that locale.
+	locale := editorLocale(r)
+	svc, err := h.svc.GetInLocale(r.Context(), u.ID, id, locale)
 	if errors.Is(err, services.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -145,7 +157,7 @@ func (h *ServiceAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	h.render(w, r, webtempl.ServiceEditor(h.formView(r, svc)))
+	h.render(w, r, webtempl.ServiceEditor(h.formView(r, svc, locale)))
 }
 
 // Update handles the edit POST (save/publish via the action button).
@@ -157,6 +169,35 @@ func (h *ServiceAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := h.decodeForm(r)
+
+	// Per-locale save (M7b-2): a non-default `locale` field means the editor is on
+	// a de/ru translation tab, so the translatable content is upserted to the
+	// overlay rather than the base row. en (default/empty) takes the base Update
+	// path below.
+	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
+		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, services.TranslationInput{
+			Title:   in.title,
+			Summary: in.summary,
+			Body:    in.body,
+		})
+		if errors.Is(err, services.ErrForbidden) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, services.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			svc, _ := h.svc.GetInLocale(r.Context(), u.ID, id, loc)
+			view := h.formView(r, svc, loc)
+			view.Error = serviceHumanError(err)
+			h.render(w, r, webtempl.ServiceEditor(view))
+			return
+		}
+		http.Redirect(w, r, "/admin/services/"+id.String()+"/edit?language="+loc.String(), http.StatusSeeOther)
+		return
+	}
 
 	upd := services.UpdateInput{
 		Title:      &in.title,
@@ -185,7 +226,7 @@ func (h *ServiceAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		svc, _ := h.svc.Get(r.Context(), u.ID, id)
-		view := h.formView(r, svc)
+		view := h.formView(r, svc, i18n.Default())
 		view.Error = serviceHumanError(err)
 		h.render(w, r, webtempl.ServiceEditor(view))
 		return
@@ -386,29 +427,66 @@ func (h *ServiceAdminHandler) mutate(w http.ResponseWriter, r *http.Request, fn 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
-func (h *ServiceAdminHandler) formView(r *http.Request, s services.Service) webtempl.ServiceFormView {
+func (h *ServiceAdminHandler) formView(r *http.Request, s services.Service, locale i18n.Locale) webtempl.ServiceFormView {
 	faqs := make([]webtempl.ServiceFAQField, 0, len(s.FAQs))
 	for _, f := range s.FAQs {
 		faqs = append(faqs, webtempl.ServiceFAQField{Question: f.Question, Answer: f.Answer})
 	}
 	return webtempl.ServiceFormView{
-		Shell:        h.shell.buildShell(r, "Edit service"),
-		IsNew:        false,
-		ID:           s.ID.String(),
-		Title:        s.Title,
-		Slug:         s.Slug,
-		Summary:      s.Summary,
-		Body:         s.Body,
-		Price:        s.Price,
-		AreaServed:   s.AreaServed,
-		Status:       statusView(s.Status),
-		FAQs:         faqs,
-		ActionURL:    "/admin/services/" + s.ID.String(),
-		CSRFToken:    h.csrf(r),
-		FieldErrors:  map[string]string{},
-		RevisionsURL: "/admin/services/" + s.ID.String() + "/revisions",
-		BackURL:      "/admin/services",
+		Shell:           h.shell.buildShell(r, "Edit service"),
+		IsNew:           false,
+		ID:              s.ID.String(),
+		Title:           s.Title,
+		Slug:            s.Slug,
+		Summary:         s.Summary,
+		Body:            s.Body,
+		Price:           s.Price,
+		AreaServed:      s.AreaServed,
+		Status:          statusView(s.Status),
+		FAQs:            faqs,
+		ActionURL:       "/admin/services/" + s.ID.String(),
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		RevisionsURL:    "/admin/services/" + s.ID.String() + "/revisions",
+		BackURL:         "/admin/services",
+		LocaleTabs:      h.localeTabs(r, s.ID, locale),
+		ActiveLocale:    locale.String(),
+		IsDefaultLocale: locale.IsDefault(),
 	}
+}
+
+// localeTabs builds the service editor's per-locale tab strip: one tab per
+// supported locale, the active one selected, de/ru tabs marked when a
+// translation row already exists. Best-effort: a read error yields no dots. Each
+// tab links to the editor with ?language=xx.
+func (h *ServiceAdminHandler) localeTabs(r *http.Request, serviceID uuid.UUID, active i18n.Locale) []webtempl.LocaleTab {
+	u, _ := UserFromContext(r.Context())
+	has := map[i18n.Locale]bool{}
+	if locs, err := h.svc.TranslatedLocales(r.Context(), u.ID, serviceID); err == nil {
+		for _, l := range locs {
+			has[l] = true
+		}
+	}
+	base := "/admin/services/" + serviceID.String() + "/edit"
+	tabs := make([]webtempl.LocaleTab, 0, len(i18n.All()))
+	for _, loc := range i18n.All() {
+		href := base
+		if !loc.IsDefault() {
+			href += "?language=" + loc.String()
+		}
+		label := localeDisplayNames[loc]
+		if label == "" {
+			label = loc.String()
+		}
+		tabs = append(tabs, webtempl.LocaleTab{
+			Label:          label,
+			Code:           loc.String(),
+			Href:           href,
+			Active:         loc == active,
+			HasTranslation: has[loc],
+		})
+	}
+	return tabs
 }
 
 func (h *ServiceAdminHandler) rows(items []services.Service) []webtempl.ServiceRow {

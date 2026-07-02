@@ -85,6 +85,27 @@ type Repository interface {
 	// ReplaceFAQsTx atomically deletes the service's existing FAQs and inserts
 	// the supplied list in order (the simple, race-free reorder/upsert strategy).
 	ReplaceFAQsTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, faqs []FAQData) error
+
+	// --- per-locale content overlay (M7b-2) ---------------------------------
+
+	// UpsertTranslationTx inserts or updates the translation row for a NON-default
+	// locale within tx (en content lives on the base services row). Body/summary
+	// are sanitized by the service before they reach here.
+	UpsertTranslationTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, t Translation) error
+	// GetTranslation returns one locale's translation row, or ErrNotFound.
+	GetTranslation(ctx context.Context, serviceID uuid.UUID, locale string) (Translation, error)
+	// ListTranslations returns every translation row for a service (all locales).
+	ListTranslations(ctx context.Context, serviceID uuid.UUID) ([]Translation, error)
+	// TranslatedLocales returns the set of locales that already have a translation
+	// row for the service (drives the editor's "has translation" tab markers).
+	TranslatedLocales(ctx context.Context, serviceID uuid.UUID) ([]string, error)
+	// DeleteTranslationTx removes a locale's translation row within tx.
+	DeleteTranslationTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, locale string) error
+	// GetActiveInLocaleByID loads an active service by id with title/summary/body
+	// overlaid by locale's translation (empty/absent field -> base fallback).
+	GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Service, error)
+	// GetPublishedInLocaleBySlug loads a published service by slug overlaid by locale.
+	GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Service, error)
 }
 
 // Authorizer answers (action, subject) permission questions for a user.

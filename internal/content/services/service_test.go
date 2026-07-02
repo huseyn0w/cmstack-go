@@ -25,13 +25,101 @@ type fakeBeginner struct{}
 func (fakeBeginner) Begin(context.Context) (pgx.Tx, error) { return fakeTx{}, nil }
 
 type memRepo struct {
-	mu       sync.Mutex
-	services map[uuid.UUID]Service
-	faqs     map[uuid.UUID][]FAQ
+	mu           sync.Mutex
+	services     map[uuid.UUID]Service
+	faqs         map[uuid.UUID][]FAQ
+	translations map[uuid.UUID]map[string]Translation
 }
 
 func newMemRepo() *memRepo {
-	return &memRepo{services: map[uuid.UUID]Service{}, faqs: map[uuid.UUID][]FAQ{}}
+	return &memRepo{
+		services:     map[uuid.UUID]Service{},
+		faqs:         map[uuid.UUID][]FAQ{},
+		translations: map[uuid.UUID]map[string]Translation{},
+	}
+}
+
+// --- per-locale translation overlay (M7b-2) fakes ---------------------------
+
+func (m *memRepo) UpsertTranslationTx(_ context.Context, _ pgx.Tx, serviceID uuid.UUID, t Translation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.translations[serviceID] == nil {
+		m.translations[serviceID] = map[string]Translation{}
+	}
+	m.translations[serviceID][t.Locale] = t
+	return nil
+}
+
+func (m *memRepo) GetTranslation(_ context.Context, serviceID uuid.UUID, locale string) (Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.translations[serviceID][locale]; ok {
+		return t, nil
+	}
+	return Translation{}, ErrNotFound
+}
+
+func (m *memRepo) ListTranslations(_ context.Context, serviceID uuid.UUID) ([]Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Translation, 0, len(m.translations[serviceID]))
+	for _, t := range m.translations[serviceID] {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (m *memRepo) TranslatedLocales(_ context.Context, serviceID uuid.UUID) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.translations[serviceID]))
+	for loc := range m.translations[serviceID] {
+		out = append(out, loc)
+	}
+	return out, nil
+}
+
+func (m *memRepo) DeleteTranslationTx(_ context.Context, _ pgx.Tx, serviceID uuid.UUID, locale string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.translations[serviceID], locale)
+	return nil
+}
+
+func (m *memRepo) GetActiveInLocaleByID(_ context.Context, id uuid.UUID, locale string) (Service, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.services[id]
+	if !ok || s.DeletedAt != nil {
+		return Service{}, ErrNotFound
+	}
+	return overlayService(s, m.translations[id][locale]), nil
+}
+
+func (m *memRepo) GetPublishedInLocaleBySlug(_ context.Context, slug, locale string) (Service, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.services {
+		if s.Slug == slug && s.Published() {
+			return overlayService(s, m.translations[s.ID][locale]), nil
+		}
+	}
+	return Service{}, ErrNotFound
+}
+
+// overlayService applies a translation's non-empty fields onto a base service.
+func overlayService(base Service, t Translation) Service {
+	if t.Title != "" {
+		base.Title = t.Title
+	}
+	if t.Summary != "" {
+		base.Summary = t.Summary
+	}
+	if t.Body != "" {
+		base.Body = t.Body
+	}
+	return base
 }
 
 func (m *memRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreateServiceData) (Service, error) {

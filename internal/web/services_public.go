@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -19,6 +20,9 @@ const servicePublicPageSize = 12
 // calls.
 type ServicePublicService interface {
 	PublicBySlug(ctx context.Context, slug string) (services.Service, error)
+	// PublicBySlugLocale overlays the active-locale translation with base (en)
+	// fallback (M7b-2); the default locale resolves to the base row.
+	PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (services.Service, error)
 	PublicList(ctx context.Context, limit, offset int) ([]services.Service, int, error)
 }
 
@@ -68,7 +72,8 @@ func (h *ServicePublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 // Show renders a single published service by slug.
 func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	svc, err := h.svc.PublicBySlug(r.Context(), slug)
+	locale := LocaleFromContext(r.Context())
+	svc, err := h.svc.PublicBySlugLocale(r.Context(), slug, locale)
 	if errors.Is(err, services.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -88,7 +93,7 @@ func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 	view := webtempl.PublicServiceView{
 		SiteName:     h.siteName,
-		HomeURL:      "/",
+		HomeURL:      i18n.LocalizePath(locale, "/"),
 		Title:        svc.Title,
 		Slug:         svc.Slug,
 		Summary:      svc.Summary,
@@ -98,7 +103,7 @@ func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		FAQs:         faqs,
 		PublishedAt:  publishedAt,
 		ReadingTime:  svc.ReadingTime,
-		CanonicalURL: h.baseURL + "/services/" + svc.Slug,
+		CanonicalURL: h.baseURL + i18n.LocalizePath(locale, "/services/"+svc.Slug),
 	}
 	// TODO(M8): emit Service + FAQPage JSON-LD from svc.JSONLD(view.CanonicalURL).
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicServiceDetail(view)); err != nil {

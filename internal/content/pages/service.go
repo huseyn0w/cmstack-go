@@ -14,6 +14,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // Domain errors carried to the handler's error summary.
@@ -29,6 +30,13 @@ var (
 	ErrParentCycle = errors.New("pages: parent would create a cycle")
 	// ErrParentNotFound is returned when the chosen parent id does not exist.
 	ErrParentNotFound = errors.New("pages: parent not found")
+	// ErrDefaultLocaleTranslation is returned when a translation write targets the
+	// default locale (en). The default locale's content lives on the base page row
+	// and is edited via Create/Update, not the translation overlay (M7b-2).
+	ErrDefaultLocaleTranslation = errors.New("pages: cannot store a translation for the default locale")
+	// ErrUnsupportedLocale is returned when a translation write/read targets a
+	// locale outside the supported set.
+	ErrUnsupportedLocale = errors.New("pages: unsupported locale")
 )
 
 // Service holds ALL page logic. It accesses data only through the repositories,
@@ -363,9 +371,22 @@ func (s *Service) RestoreRevision(ctx context.Context, actorID, id, revisionID u
 
 // --- public reads (no auth; published only) ---------------------------------
 
-// PublicBySlug returns a published, non-trashed page for the public detail page.
+// PublicBySlug returns a published, non-trashed page for the public detail page
+// in the DEFAULT locale (en). Unchanged from M2 — the locale-aware path is
+// PublicBySlugLocale.
 func (s *Service) PublicBySlug(ctx context.Context, slug string) (Page, error) {
 	return s.repo.GetPublishedBySlug(ctx, slug)
+}
+
+// PublicBySlugLocale returns a published page by slug with its content overlaid
+// by the active locale, falling back to the base (en) row for any missing
+// translation field. When locale is the default (en) or unsupported it resolves
+// to the base row (identical to PublicBySlug), so nothing breaks (M7b-2).
+func (s *Service) PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (Page, error) {
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetPublishedBySlug(ctx, slug)
+	}
+	return s.repo.GetPublishedInLocaleBySlug(ctx, slug, locale.String())
 }
 
 // Ancestors returns a page's ancestor chain from the root down to (but excluding)
@@ -438,6 +459,82 @@ func (s *Service) Get(ctx context.Context, actorID, id uuid.UUID) (Page, error) 
 		return Page{}, ErrForbidden
 	}
 	return s.repo.GetByID(ctx, id)
+}
+
+// --- per-locale content overlay (M7b-2) --------------------------------------
+
+// TranslationInput is the editor's per-locale content save for a NON-default
+// locale. The body is sanitized (same kernel sanitizer as the base body);
+// structural fields are NOT part of it (they are shared on the base row and
+// edited via Update).
+type TranslationInput struct {
+	Title string
+	Body  string
+}
+
+// SaveTranslation upserts a NON-default locale's content overlay for a page.
+// It requires update:page (like Update; pages have no per-author ownership). The
+// default locale is rejected (its content lives on the base row — callers edit it
+// via Update). No revision snapshot is taken and no event is emitted: the
+// translation overlay is content, not a publish-state change.
+func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in TranslationInput) error {
+	if !i18n.IsSupported(locale) {
+		return ErrUnsupportedLocale
+	}
+	if locale.IsDefault() {
+		return ErrDefaultLocaleTranslation
+	}
+	if !s.authz.Can(ctx, actorID, accounts.ActionUpdate, accounts.SubjectPage) {
+		return ErrForbidden
+	}
+	if _, err := s.repo.GetActiveByID(ctx, id); err != nil {
+		return err
+	}
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		return ErrTitleRequired
+	}
+	t := Translation{
+		Locale: locale.String(),
+		Title:  title,
+		Body:   kernel.SanitizeRichText(in.Body),
+	}
+	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.UpsertTranslationTx(ctx, tx, id, t)
+	})
+}
+
+// GetInLocale loads a page for the editor with its content overlaid by locale
+// (base fallback per field). The default locale resolves to the base row.
+// Requires read:page. Used to populate the editor's per-locale tab.
+func (s *Service) GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (Page, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectPage) {
+		return Page{}, ErrForbidden
+	}
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetByID(ctx, id)
+	}
+	return s.repo.GetActiveInLocaleByID(ctx, id, locale.String())
+}
+
+// TranslatedLocales returns the NON-default locales that already have a
+// translation row for the page (drives the editor's per-tab "has translation"
+// markers). Requires read:page.
+func (s *Service) TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectPage) {
+		return nil, ErrForbidden
+	}
+	raw, err := s.repo.TranslatedLocales(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]i18n.Locale, 0, len(raw))
+	for _, r := range raw {
+		if l, ok := i18n.Parse(r); ok && !l.IsDefault() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
 }
 
 // --- helpers -----------------------------------------------------------------

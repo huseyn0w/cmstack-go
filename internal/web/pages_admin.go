@@ -11,6 +11,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -28,6 +29,14 @@ type PageAdminService interface {
 	PermanentDelete(ctx context.Context, actorID, id uuid.UUID) error
 	Revisions(ctx context.Context, actorID, id uuid.UUID) ([]kernel.Revision, error)
 	RestoreRevision(ctx context.Context, actorID, id, revisionID uuid.UUID) (pages.Page, error)
+
+	// Per-locale content overlay (M7b-2). GetInLocale loads the editor's content
+	// overlaid by the active tab's locale (base fallback); TranslatedLocales marks
+	// which tabs already have a translation; SaveTranslation upserts a de/ru tab's
+	// content. The default locale (en) still edits the base row via Update.
+	GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (pages.Page, error)
+	TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error)
+	SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in pages.TranslationInput) error
 
 	// Bulk list actions (M2c). The concrete *pages.Service satisfies these; the
 	// set also makes the service a bulkActor.
@@ -134,7 +143,10 @@ func (h *PageAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	p, err := h.svc.Get(r.Context(), u.ID, id)
+	// The active editor tab is chosen by ?language=xx (django-parler parity); it
+	// defaults to en (the base row). Content is loaded overlaid by that locale.
+	locale := editorLocale(r)
+	p, err := h.svc.GetInLocale(r.Context(), u.ID, id, locale)
 	if errors.Is(err, pages.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -147,7 +159,7 @@ func (h *PageAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	h.render(w, r, webtempl.PageEditor(h.formView(r, p)))
+	h.render(w, r, webtempl.PageEditor(h.formView(r, p, locale)))
 }
 
 // Update handles the edit POST (save/publish via the action button).
@@ -159,6 +171,34 @@ func (h *PageAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := h.decodeForm(r)
+
+	// Per-locale save (M7b-2): a non-default `locale` field means the editor is on
+	// a de/ru translation tab, so the translatable content is upserted to the
+	// overlay rather than the base row. en (default/empty) takes the base Update
+	// path below.
+	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
+		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, pages.TranslationInput{
+			Title: in.title,
+			Body:  in.body,
+		})
+		if errors.Is(err, pages.ErrForbidden) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, pages.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			p, _ := h.svc.GetInLocale(r.Context(), u.ID, id, loc)
+			view := h.formView(r, p, loc)
+			view.Error = pageHumanError(err)
+			h.render(w, r, webtempl.PageEditor(view))
+			return
+		}
+		http.Redirect(w, r, "/admin/pages/"+id.String()+"/edit?language="+loc.String(), http.StatusSeeOther)
+		return
+	}
 
 	upd := pages.UpdateInput{
 		Title:     &in.title,
@@ -185,7 +225,7 @@ func (h *PageAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		p, _ := h.svc.Get(r.Context(), u.ID, id)
-		view := h.formView(r, p)
+		view := h.formView(r, p, i18n.Default())
 		view.Error = pageHumanError(err)
 		h.render(w, r, webtempl.PageEditor(view))
 		return
@@ -379,30 +419,67 @@ func (h *PageAdminHandler) mutate(w http.ResponseWriter, r *http.Request, fn fun
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
-func (h *PageAdminHandler) formView(r *http.Request, p pages.Page) webtempl.PageFormView {
+func (h *PageAdminHandler) formView(r *http.Request, p pages.Page, locale i18n.Locale) webtempl.PageFormView {
 	parents, _ := h.parentOptions(r.Context(), p.ID)
 	parentID := ""
 	if p.ParentID != nil {
 		parentID = p.ParentID.String()
 	}
 	return webtempl.PageFormView{
-		Shell:        h.shell.buildShell(r, "Edit page"),
-		IsNew:        false,
-		ID:           p.ID.String(),
-		Title:        p.Title,
-		Slug:         p.Slug,
-		Body:         p.Body,
-		Status:       statusView(p.Status),
-		ParentID:     parentID,
-		Template:     p.Template,
-		Parents:      parents,
-		TemplateOpts: templateOptions(),
-		ActionURL:    "/admin/pages/" + p.ID.String(),
-		CSRFToken:    h.csrf(r),
-		FieldErrors:  map[string]string{},
-		RevisionsURL: "/admin/pages/" + p.ID.String() + "/revisions",
-		BackURL:      "/admin/pages",
+		Shell:           h.shell.buildShell(r, "Edit page"),
+		IsNew:           false,
+		ID:              p.ID.String(),
+		Title:           p.Title,
+		Slug:            p.Slug,
+		Body:            p.Body,
+		Status:          statusView(p.Status),
+		ParentID:        parentID,
+		Template:        p.Template,
+		Parents:         parents,
+		TemplateOpts:    templateOptions(),
+		ActionURL:       "/admin/pages/" + p.ID.String(),
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		RevisionsURL:    "/admin/pages/" + p.ID.String() + "/revisions",
+		BackURL:         "/admin/pages",
+		LocaleTabs:      h.localeTabs(r, p.ID, locale),
+		ActiveLocale:    locale.String(),
+		IsDefaultLocale: locale.IsDefault(),
 	}
+}
+
+// localeTabs builds the page editor's per-locale tab strip: one tab per supported
+// locale, the active one selected, de/ru tabs marked when a translation row
+// already exists. Best-effort: a translated-locales read error yields no dots.
+// Each tab links to the editor with ?language=xx.
+func (h *PageAdminHandler) localeTabs(r *http.Request, pageID uuid.UUID, active i18n.Locale) []webtempl.LocaleTab {
+	u, _ := UserFromContext(r.Context())
+	has := map[i18n.Locale]bool{}
+	if locs, err := h.svc.TranslatedLocales(r.Context(), u.ID, pageID); err == nil {
+		for _, l := range locs {
+			has[l] = true
+		}
+	}
+	base := "/admin/pages/" + pageID.String() + "/edit"
+	tabs := make([]webtempl.LocaleTab, 0, len(i18n.All()))
+	for _, loc := range i18n.All() {
+		href := base
+		if !loc.IsDefault() {
+			href += "?language=" + loc.String()
+		}
+		label := localeDisplayNames[loc]
+		if label == "" {
+			label = loc.String()
+		}
+		tabs = append(tabs, webtempl.LocaleTab{
+			Label:          label,
+			Code:           loc.String(),
+			Href:           href,
+			Active:         loc == active,
+			HasTranslation: has[loc],
+		})
+	}
+	return tabs
 }
 
 func (h *PageAdminHandler) rows(items []pages.Page) []webtempl.PageRow {

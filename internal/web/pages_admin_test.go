@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
@@ -17,6 +18,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 )
@@ -29,6 +31,46 @@ type stubPageAdmin struct {
 	get       pages.Page
 	getErr    error
 	createErr error
+
+	// M7b-2 per-locale fields.
+	byLocale   map[i18n.Locale]pages.Page
+	translated []i18n.Locale
+	saved      *savedPageTranslation // capture for SaveTranslation
+	saveErr    error
+}
+
+// savedPageTranslation captures a SaveTranslation call so a value-receiver stub
+// can record persistence for assertions.
+type savedPageTranslation struct {
+	locale i18n.Locale
+	input  pages.TranslationInput
+	called bool
+}
+
+func (s stubPageAdmin) GetInLocale(_ context.Context, _, _ uuid.UUID, locale i18n.Locale) (pages.Page, error) {
+	if s.getErr != nil {
+		return pages.Page{}, s.getErr
+	}
+	if p, ok := s.byLocale[locale]; ok {
+		return p, nil
+	}
+	return s.get, nil // base (en) fallback
+}
+
+func (s stubPageAdmin) TranslatedLocales(context.Context, uuid.UUID, uuid.UUID) ([]i18n.Locale, error) {
+	return s.translated, nil
+}
+
+func (s stubPageAdmin) SaveTranslation(_ context.Context, _, _ uuid.UUID, locale i18n.Locale, in pages.TranslationInput) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	if s.saved != nil {
+		s.saved.locale = locale
+		s.saved.input = in
+		s.saved.called = true
+	}
+	return nil
 }
 
 func (s stubPageAdmin) AdminList(context.Context, pages.ListFilter) ([]pages.Page, int, error) {
@@ -182,6 +224,96 @@ func TestPagesAdmin_CreateValidationError(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Title is required") {
 		t.Errorf("expected title error in re-rendered editor")
+	}
+}
+
+// TestPagesAdmin_EditRendersLocaleTabs asserts the editor for an existing page
+// renders the per-locale tab strip (M7b-2).
+func TestPagesAdmin_EditRendersLocaleTabs(t *testing.T) {
+	id := uuid.New()
+	page := pages.Page{ID: id, Title: "About", Slug: "about", Body: "<p>en</p>", Status: kernel.StatusPublished, Template: "default"}
+	svc := stubPageAdmin{get: page, translated: []i18n.Locale{i18n.LocaleDE}}
+	r, sess, mw, user := buildPagesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/pages/"+id.String()+"/edit", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-testid="locale-tabs"`,
+		`role="tablist"`,
+		`data-testid="locale-tab-en"`,
+		`data-testid="locale-tab-de"`,
+		`data-testid="locale-dot-de"`, // de has a translation
+		`data-testid="page-field-status"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("edit editor missing %q", want)
+		}
+	}
+}
+
+// TestPagesAdmin_EditDeTabHidesStructural asserts the de tab hides structural
+// fields and shows the translation note.
+func TestPagesAdmin_EditDeTabHidesStructural(t *testing.T) {
+	id := uuid.New()
+	en := pages.Page{ID: id, Title: "About", Slug: "about", Body: "<p>en</p>", Status: kernel.StatusPublished, Template: "default"}
+	de := en
+	de.Title = "Ueber uns"
+	de.Body = "<p>de</p>"
+	svc := stubPageAdmin{get: en, byLocale: map[i18n.Locale]pages.Page{i18n.LocaleDE: de}, translated: []i18n.Locale{i18n.LocaleDE}}
+	r, sess, mw, user := buildPagesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/pages/"+id.String()+"/edit?language=de", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit de = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Ueber uns") {
+		t.Errorf("de tab did not render de title")
+	}
+	if !strings.Contains(body, `data-testid="page-translation-note"`) {
+		t.Errorf("de tab missing translation note")
+	}
+	for _, absent := range []string{`data-testid="page-field-status"`, `data-testid="page-field-slug"`, `data-testid="page-action-publish"`} {
+		if strings.Contains(body, absent) {
+			t.Errorf("de translation tab should hide %q", absent)
+		}
+	}
+}
+
+// TestPagesAdmin_UpdateDePersistsTranslation asserts posting with locale=de
+// dispatches to SaveTranslation rather than the base Update.
+func TestPagesAdmin_UpdateDePersistsTranslation(t *testing.T) {
+	id := uuid.New()
+	saved := &savedPageTranslation{}
+	svc := stubPageAdmin{get: pages.Page{ID: id, Title: "About", Slug: "about"}, saved: saved}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewPageAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{"title": {"Ueber uns"}, "body": {"<p>de body</p>"}, "locale": {"de"}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/pages/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id.String())
+	req = req.WithContext(withUser(context.WithValue(req.Context(), chi.RouteCtxKey, rctx), accounts.User{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("de update = %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if !saved.called {
+		t.Fatal("SaveTranslation was not called for a de update")
+	}
+	if saved.locale != i18n.LocaleDE || saved.input.Title != "Ueber uns" || saved.input.Body != "<p>de body</p>" {
+		t.Errorf("SaveTranslation got %+v / %+v", saved.locale, saved.input)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -15,6 +16,9 @@ import (
 // PagePublicService is the subset of *pages.Service the public handler calls.
 type PagePublicService interface {
 	PublicBySlug(ctx context.Context, slug string) (pages.Page, error)
+	// PublicBySlugLocale overlays the active-locale translation with base (en)
+	// fallback (M7b-2); the default locale resolves to the base row.
+	PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (pages.Page, error)
 	Ancestors(ctx context.Context, p pages.Page) ([]pages.Page, error)
 }
 
@@ -38,7 +42,8 @@ func NewPagePublicHandler(svc PagePublicService, siteName, baseURL string) *Page
 // Show renders a single published page by slug.
 func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	p, err := h.svc.PublicBySlug(r.Context(), slug)
+	locale := LocaleFromContext(r.Context())
+	p, err := h.svc.PublicBySlugLocale(r.Context(), slug, locale)
 	if errors.Is(err, pages.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -48,14 +53,14 @@ func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	crumbs := h.breadcrumbs(r.Context(), p)
+	crumbs := h.breadcrumbs(r.Context(), p, locale)
 	publishedAt := p.UpdatedAt
 	if p.PublishedAt != nil {
 		publishedAt = *p.PublishedAt
 	}
 	view := webtempl.PublicPageView{
 		SiteName:     h.siteName,
-		HomeURL:      "/",
+		HomeURL:      i18n.LocalizePath(locale, "/"),
 		Title:        p.Title,
 		Slug:         p.Slug,
 		BodyHTML:     p.Body,
@@ -63,14 +68,14 @@ func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Breadcrumbs:  crumbs,
 		PublishedAt:  publishedAt,
 		ReadingTime:  p.ReadingTime,
-		CanonicalURL: h.baseURL + "/p/" + p.Slug,
+		CanonicalURL: h.baseURL + i18n.LocalizePath(locale, "/p/"+p.Slug),
 	}
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicPage(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}
 }
 
-func (h *PagePublicHandler) breadcrumbs(ctx context.Context, p pages.Page) []webtempl.PageBreadcrumb {
+func (h *PagePublicHandler) breadcrumbs(ctx context.Context, p pages.Page, locale i18n.Locale) []webtempl.PageBreadcrumb {
 	ancestors, err := h.svc.Ancestors(ctx, p)
 	if err != nil {
 		return nil
@@ -81,7 +86,7 @@ func (h *PagePublicHandler) breadcrumbs(ctx context.Context, p pages.Page) []web
 		if !a.Published() {
 			continue
 		}
-		crumbs = append(crumbs, webtempl.PageBreadcrumb{Title: a.Title, URL: "/p/" + a.Slug})
+		crumbs = append(crumbs, webtempl.PageBreadcrumb{Title: a.Title, URL: i18n.LocalizePath(locale, "/p/"+a.Slug)})
 	}
 	return crumbs
 }

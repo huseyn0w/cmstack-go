@@ -61,6 +61,25 @@ type PageFormView struct {
 	Error        string
 	RevisionsURL string
 	BackURL      string
+
+	// Per-locale translation (M7b-2). LocaleTabs is the one-tab-per-language strip
+	// on the editor (django-parler ?language=xx parity); ActiveLocale is the tag of
+	// the tab being edited (en = base row, de/ru = translation overlay).
+	// IsDefaultLocale is true on the en tab, where the structural fields (slug/
+	// parent/template/status) render and are editable; on de/ru only the
+	// translatable title/body show. Empty LocaleTabs means the strip is not shown
+	// (e.g. the new-page form, which has no id yet to translate against).
+	LocaleTabs      []LocaleTab
+	ActiveLocale    string
+	IsDefaultLocale bool
+}
+
+// editStructural reports whether the page editor should render the SHARED
+// structural fields (slug/parent/template/status + publish action). They show
+// only when editing the default-locale base row (or when the locale strip is not
+// present at all, e.g. the new-page form), never on a de/ru translation tab.
+func (v PageFormView) editStructural() bool {
+	return len(v.LocaleTabs) == 0 || v.IsDefaultLocale
 }
 
 // PageRevisionsView is the page revision history page.

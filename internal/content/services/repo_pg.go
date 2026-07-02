@@ -190,6 +190,98 @@ func (r *RepoPG) ReplaceFAQsTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UU
 	return nil
 }
 
+// --- per-locale content overlay (M7b-2) -------------------------------------
+
+// UpsertTranslationTx inserts or updates a service's translation row for a
+// non-default locale within tx.
+func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, t Translation) error {
+	_, err := r.q.WithTx(tx).UpsertServiceTranslation(ctx, sqlcgen.UpsertServiceTranslationParams{
+		ServiceID: toPgUUID(serviceID),
+		Locale:    t.Locale,
+		Title:     t.Title,
+		Summary:   t.Summary,
+		Body:      t.Body,
+	})
+	return mapErr(err)
+}
+
+// GetTranslation returns one locale's translation row, or ErrNotFound.
+func (r *RepoPG) GetTranslation(ctx context.Context, serviceID uuid.UUID, locale string) (Translation, error) {
+	row, err := r.q.GetServiceTranslation(ctx, sqlcgen.GetServiceTranslationParams{
+		ServiceID: toPgUUID(serviceID),
+		Locale:    locale,
+	})
+	if err != nil {
+		return Translation{}, mapErr(err)
+	}
+	return serviceTranslationFromRow(row), nil
+}
+
+// ListTranslations returns every translation row for a service.
+func (r *RepoPG) ListTranslations(ctx context.Context, serviceID uuid.UUID) ([]Translation, error) {
+	rows, err := r.q.ListServiceTranslations(ctx, toPgUUID(serviceID))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, serviceTranslationFromRow(row))
+	}
+	return out, nil
+}
+
+// TranslatedLocales returns the locales that already have a translation row for
+// the service.
+func (r *RepoPG) TranslatedLocales(ctx context.Context, serviceID uuid.UUID) ([]string, error) {
+	locales, err := r.q.ListServiceTranslationLocales(ctx, toPgUUID(serviceID))
+	return locales, mapErr(err)
+}
+
+// DeleteTranslationTx removes a locale's translation row within tx.
+func (r *RepoPG) DeleteTranslationTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, locale string) error {
+	return mapErr(r.q.WithTx(tx).DeleteServiceTranslation(ctx, sqlcgen.DeleteServiceTranslationParams{
+		ServiceID: toPgUUID(serviceID),
+		Locale:    locale,
+	}))
+}
+
+// GetActiveInLocaleByID loads an active service overlaid by locale (per-field
+// base fallback).
+func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Service, error) {
+	row, err := r.q.GetActiveServiceInLocaleByID(ctx, sqlcgen.GetActiveServiceInLocaleByIDParams{
+		ID:     toPgUUID(id),
+		Locale: locale,
+	})
+	if err != nil {
+		return Service{}, mapErr(err)
+	}
+	return Service{
+		ID: fromPgUUID(row.ID), Title: row.Title, Slug: row.Slug, Summary: row.Summary,
+		Body: row.Body, Price: row.Price, AreaServed: row.AreaServed,
+		Status:      kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt), ReadingTime: int(row.ReadingTime),
+		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+	}, nil
+}
+
+// GetPublishedInLocaleBySlug loads a published service by slug overlaid by locale.
+func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Service, error) {
+	row, err := r.q.GetPublishedServiceInLocaleBySlug(ctx, sqlcgen.GetPublishedServiceInLocaleBySlugParams{
+		Slug:   slug,
+		Locale: locale,
+	})
+	if err != nil {
+		return Service{}, mapErr(err)
+	}
+	return Service{
+		ID: fromPgUUID(row.ID), Title: row.Title, Slug: row.Slug, Summary: row.Summary,
+		Body: row.Body, Price: row.Price, AreaServed: row.AreaServed,
+		Status:      kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt), ReadingTime: int(row.ReadingTime),
+		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+	}, nil
+}
+
 // RevisionRepoPG is the sqlc-backed kernel.RevisionRepository for services
 // (entity_type='service').
 type RevisionRepoPG struct{ q *sqlcgen.Queries }
@@ -323,6 +415,15 @@ func servicesFromRows(rows []sqlcgen.Service) []Service {
 		out = append(out, serviceFromRow(row))
 	}
 	return out
+}
+
+func serviceTranslationFromRow(t sqlcgen.ServiceTranslation) Translation {
+	return Translation{
+		Locale:  t.Locale,
+		Title:   t.Title,
+		Summary: t.Summary,
+		Body:    t.Body,
+	}
 }
 
 func faqFromRow(f sqlcgen.ServiceFaq) FAQ {

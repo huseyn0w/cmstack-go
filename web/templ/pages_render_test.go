@@ -1,6 +1,7 @@
 package templ_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,50 @@ func TestPageEditor_ParentPickerAndTemplateSelector(t *testing.T) {
 		`data-testid="page-action-save"`,
 		`data-testid="page-action-publish"`,
 	)
+}
+
+// TestPageEditor_LocaleTabStrip asserts the page editor's per-locale tab strip
+// renders with tablist/tab a11y, an active marker, a has-translation dot, a
+// hidden active-locale field, and (on a de tab) the shared structural fields are
+// hidden and the translation note shown (M7b-2).
+func TestPageEditor_LocaleTabStrip(t *testing.T) {
+	v := webtempl.PageFormView{
+		ID:           "pg1",
+		Title:        "Ueber uns",
+		Body:         "<p>DE</p>",
+		Status:       webtempl.PostStatusPublished,
+		Template:     "default",
+		ActionURL:    "/admin/pages/pg1",
+		CSRFToken:    "tok",
+		FieldErrors:  map[string]string{},
+		BackURL:      "/admin/pages",
+		ActiveLocale: "de",
+		LocaleTabs: []webtempl.LocaleTab{
+			{Label: "English", Code: "en", Href: "/admin/pages/pg1/edit", Active: false},
+			{Label: "Deutsch", Code: "de", Href: "/admin/pages/pg1/edit?language=de", Active: true, HasTranslation: true},
+			{Label: "Русский", Code: "ru", Href: "/admin/pages/pg1/edit?language=ru", Active: false},
+		},
+		IsDefaultLocale: false,
+	}
+	html := renderStr(t, webtempl.PageEditor(v))
+	mustContain(
+		t, html,
+		`data-testid="locale-tabs"`,
+		`role="tablist"`,
+		`data-testid="locale-tab-en"`,
+		`data-testid="locale-tab-de"`,
+		`data-testid="locale-tab-ru"`,
+		`aria-selected="true"`,
+		`data-testid="locale-dot-de"`,
+		`role="tabpanel"`,
+		`name="locale"`,
+		`data-testid="page-translation-note"`,
+	)
+	for _, absent := range []string{`data-testid="page-field-status"`, `data-testid="page-field-slug"`, `data-testid="page-action-publish"`} {
+		if strings.Contains(html, absent) {
+			t.Errorf("de translation tab should hide %q", absent)
+		}
+	}
 }
 
 func TestPublicPage_TemplateAndBreadcrumbs(t *testing.T) {

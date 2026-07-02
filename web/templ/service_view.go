@@ -50,6 +50,25 @@ type ServiceFormView struct {
 	Error        string
 	RevisionsURL string
 	BackURL      string
+
+	// Per-locale translation (M7b-2). LocaleTabs is the one-tab-per-language strip
+	// on the editor (django-parler ?language=xx parity); ActiveLocale is the tag of
+	// the tab being edited (en = base row, de/ru = translation overlay).
+	// IsDefaultLocale is true on the en tab, where the structural/citable fields
+	// (slug/status/price/area-served + FAQ block) render and are editable; on de/ru
+	// only the translatable title/summary/body show. Empty LocaleTabs means the
+	// strip is not shown (e.g. the new-service form).
+	LocaleTabs      []LocaleTab
+	ActiveLocale    string
+	IsDefaultLocale bool
+}
+
+// editStructural reports whether the service editor should render the SHARED
+// structural/citable fields (slug/status/price/area-served + FAQ + publish
+// action). They show only when editing the default-locale base row (or when the
+// locale strip is absent, e.g. the new-service form), never on a de/ru tab.
+func (v ServiceFormView) editStructural() bool {
+	return len(v.LocaleTabs) == 0 || v.IsDefaultLocale
 }
 
 // ServiceRevisionsView is the service revision history page.

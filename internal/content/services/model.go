@@ -40,6 +40,19 @@ type Service struct {
 	// TODO(M8 SEO fields): MetaTitle, MetaDescription, CanonicalURL, NoIndex.
 }
 
+// Translation is the per-locale CONTENT overlay for a service (M7b-2). It carries
+// only the translatable text fields for a NON-default locale; the base service
+// row holds the default-locale (en) content plus every structural/citable field
+// (slug, status, price, area_served, schedule), which are shared across locales.
+//
+// TODO(M8): MetaTitle/MetaDescription join here when SEO fields translate.
+type Translation struct {
+	Locale  string
+	Title   string
+	Summary string
+	Body    string // sanitized HTML (kernel.SanitizeRichText on every save)
+}
+
 // FAQ is one ordered question/answer pair belonging to a service.
 type FAQ struct {
 	ID        uuid.UUID

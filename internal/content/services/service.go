@@ -14,6 +14,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // Domain errors carried to the handler's error summary.
@@ -24,6 +25,13 @@ var (
 	ErrTitleRequired = errors.New("services: title is required")
 	// ErrRevisionMismatch is returned when a revision does not belong to the service.
 	ErrRevisionMismatch = errors.New("services: revision does not belong to this service")
+	// ErrDefaultLocaleTranslation is returned when a translation write targets the
+	// default locale (en). The default locale's content lives on the base service
+	// row and is edited via Create/Update, not the translation overlay (M7b-2).
+	ErrDefaultLocaleTranslation = errors.New("services: cannot store a translation for the default locale")
+	// ErrUnsupportedLocale is returned when a translation write/read targets a
+	// locale outside the supported set.
+	ErrUnsupportedLocale = errors.New("services: unsupported locale")
 )
 
 // Manager holds ALL service-page logic. It is named Manager (not Service) so it
@@ -381,9 +389,36 @@ func (m *Manager) RestoreRevision(ctx context.Context, actorID, id, revisionID u
 
 // --- public reads (no auth; published only) ---------------------------------
 
-// PublicBySlug returns a published, non-trashed service (with FAQs) by slug.
+// PublicBySlug returns a published, non-trashed service (with FAQs) by slug in
+// the DEFAULT locale (en). Unchanged from M2 — the locale-aware path is
+// PublicBySlugLocale.
 func (m *Manager) PublicBySlug(ctx context.Context, slug string) (Service, error) {
 	svc, err := m.repo.GetPublishedBySlug(ctx, slug)
+	if err != nil {
+		return Service{}, err
+	}
+	svc.FAQs, err = m.repo.ListFAQs(ctx, svc.ID)
+	if err != nil {
+		return Service{}, err
+	}
+	return svc, nil
+}
+
+// PublicBySlugLocale returns a published service by slug with its content
+// overlaid by the active locale, falling back to the base (en) row for any
+// missing translation field. When locale is the default (en) or unsupported it
+// resolves to the base row (identical to PublicBySlug). FAQs are read from the
+// base rows (FAQ localization is deferred — see the M7b note in service.go).
+func (m *Manager) PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (Service, error) {
+	var (
+		svc Service
+		err error
+	)
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		svc, err = m.repo.GetPublishedBySlug(ctx, slug)
+	} else {
+		svc, err = m.repo.GetPublishedInLocaleBySlug(ctx, slug, locale.String())
+	}
 	if err != nil {
 		return Service{}, err
 	}
@@ -449,6 +484,103 @@ func (m *Manager) Get(ctx context.Context, actorID, id uuid.UUID) (Service, erro
 		return Service{}, err
 	}
 	return svc, nil
+}
+
+// --- per-locale content overlay (M7b-2) --------------------------------------
+
+// TranslationInput is the editor's per-locale content save for a NON-default
+// locale. Summary is stripped to plain text and body is sanitized (same kernel
+// paths as the base row); structural/citable fields are NOT part of it (they are
+// shared on the base row and edited via Update). FAQ localization is deferred —
+// see the M7b note below.
+type TranslationInput struct {
+	Title   string
+	Summary string
+	Body    string
+}
+
+// SaveTranslation upserts a NON-default locale's content overlay for a service.
+// It requires update:service (like Update; services have no per-author
+// ownership). The default locale is rejected (its content lives on the base row
+// — callers edit it via Update). No revision snapshot is taken and no event is
+// emitted: the translation overlay is content, not a publish-state change.
+//
+// TODO(M7b): per-locale FAQ question/answer overlays (service_faq_translations)
+// are wired in sqlc but the editor block + persistence are deferred; base FAQs
+// serve every locale for now.
+func (m *Manager) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in TranslationInput) error {
+	if !i18n.IsSupported(locale) {
+		return ErrUnsupportedLocale
+	}
+	if locale.IsDefault() {
+		return ErrDefaultLocaleTranslation
+	}
+	if !m.authz.Can(ctx, actorID, accounts.ActionUpdate, accounts.SubjectService) {
+		return ErrForbidden
+	}
+	if _, err := m.repo.GetActiveByID(ctx, id); err != nil {
+		return err
+	}
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		return ErrTitleRequired
+	}
+	t := Translation{
+		Locale:  locale.String(),
+		Title:   title,
+		Summary: sanitizePlain(in.Summary),
+		Body:    kernel.SanitizeRichText(in.Body),
+	}
+	return db.RunInTx(ctx, m.pool, func(ctx context.Context, tx pgx.Tx) error {
+		return m.repo.UpsertTranslationTx(ctx, tx, id, t)
+	})
+}
+
+// GetInLocale loads a service (with FAQs) for the editor with its content
+// overlaid by locale (base fallback per field). The default locale resolves to
+// the base row. Requires read:service. Used to populate the editor's per-locale
+// tab.
+func (m *Manager) GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (Service, error) {
+	if !m.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectService) {
+		return Service{}, ErrForbidden
+	}
+	var (
+		svc Service
+		err error
+	)
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		svc, err = m.repo.GetByID(ctx, id)
+	} else {
+		svc, err = m.repo.GetActiveInLocaleByID(ctx, id, locale.String())
+	}
+	if err != nil {
+		return Service{}, err
+	}
+	svc.FAQs, err = m.repo.ListFAQs(ctx, svc.ID)
+	if err != nil {
+		return Service{}, err
+	}
+	return svc, nil
+}
+
+// TranslatedLocales returns the NON-default locales that already have a
+// translation row for the service (drives the editor's per-tab "has translation"
+// markers). Requires read:service.
+func (m *Manager) TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error) {
+	if !m.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectService) {
+		return nil, ErrForbidden
+	}
+	raw, err := m.repo.TranslatedLocales(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]i18n.Locale, 0, len(raw))
+	for _, r := range raw {
+		if l, ok := i18n.Parse(r); ok && !l.IsDefault() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
 }
 
 // --- helpers -----------------------------------------------------------------

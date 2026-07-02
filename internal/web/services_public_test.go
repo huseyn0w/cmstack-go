@@ -10,8 +10,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
+	"github.com/huseyn0w/cmstack-go/internal/health"
+	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 )
 
 type stubServicePublic struct {
@@ -19,14 +25,45 @@ type stubServicePublic struct {
 	svcErr error
 	list   []services.Service
 	total  int
+	// byLocale returns per-locale services from PublicBySlugLocale so a handler
+	// test can assert the active locale reached the read (M7b-2); absent locales
+	// fall back to svc.
+	byLocale map[i18n.Locale]services.Service
 }
 
 func (s stubServicePublic) PublicBySlug(context.Context, string) (services.Service, error) {
 	return s.svc, s.svcErr
 }
 
+func (s stubServicePublic) PublicBySlugLocale(_ context.Context, _ string, loc i18n.Locale) (services.Service, error) {
+	if s.svcErr != nil {
+		return services.Service{}, s.svcErr
+	}
+	if v, ok := s.byLocale[loc]; ok {
+		return v, nil
+	}
+	return s.svc, nil // base (en) fallback
+}
+
 func (s stubServicePublic) PublicList(context.Context, int, int) ([]services.Service, int, error) {
 	return s.list, s.total, nil
+}
+
+// buildServicesPublicEnv wires a full router so /de/services/{slug} resolves.
+func buildServicesPublicEnv(t *testing.T, svc ServicePublicService) http.Handler {
+	t.Helper()
+	sess := session.NewManager(false)
+	cat, _ := i18n.LoadCatalog()
+	return Router(Deps{
+		Config:           config.Config{AppEnv: "test", BaseURL: "https://site.test"},
+		Health:           health.NewHandler(health.NewService(nil)),
+		Session:          sess,
+		AuthMW:           NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
+		CSRFFunc:         security.Token,
+		ServicePublicSvc: svc,
+		SiteName:         "CMStack",
+		Locale:           NewLocaleResolver(cat),
+	})
 }
 
 func TestServicePublic_IndexRendersCardsAndEmpty(t *testing.T) {
@@ -79,6 +116,44 @@ func TestServicePublic_DetailRendersFAQAccordion(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("detail missing %q", want)
 		}
+	}
+}
+
+// TestServicePublic_DeDetailRendersTranslation asserts /de/services/{slug}
+// renders the de-overlaid content (M7b-2).
+func TestServicePublic_DeDetailRendersTranslation(t *testing.T) {
+	en := services.Service{ID: uuid.New(), Title: "SEO Audit", Slug: "seo-audit", Summary: "We audit.", Body: "<p>English</p>", Price: "$499", Status: kernel.StatusPublished}
+	de := en
+	de.Title = "SEO Pruefung"
+	de.Body = "<p>Deutscher Text</p>"
+	svc := stubServicePublic{svc: en, byLocale: map[i18n.Locale]services.Service{i18n.LocaleDE: de}}
+	r := buildServicesPublicEnv(t, svc)
+	req := httptest.NewRequest(http.MethodGet, "/de/services/seo-audit", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/de/services/seo-audit = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "SEO Pruefung") || !strings.Contains(body, "<p>Deutscher Text</p>") {
+		t.Errorf("de service did not render de translation:\n%s", body)
+	}
+}
+
+// TestServicePublic_DeDetailFallsBackToEn asserts a de request for a service
+// WITHOUT a de translation falls back to the base (en) content.
+func TestServicePublic_DeDetailFallsBackToEn(t *testing.T) {
+	en := services.Service{ID: uuid.New(), Title: "OnlyEnglish", Slug: "seo-audit", Body: "<p>English</p>", Status: kernel.StatusPublished}
+	svc := stubServicePublic{svc: en} // no byLocale -> fallback
+	r := buildServicesPublicEnv(t, svc)
+	req := httptest.NewRequest(http.MethodGet, "/de/services/seo-audit", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/de/services/seo-audit = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "OnlyEnglish") {
+		t.Error("de request without a translation did not fall back to en content")
 	}
 }
 
