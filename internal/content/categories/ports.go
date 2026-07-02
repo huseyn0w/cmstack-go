@@ -65,6 +65,27 @@ type Repository interface {
 	// paginated, plus the total.
 	ListPublishedPostIDsInCategory(ctx context.Context, categoryID uuid.UUID, limit, offset int) ([]uuid.UUID, error)
 	CountPublishedPostsInCategory(ctx context.Context, categoryID uuid.UUID) (int, error)
+
+	// --- per-locale content overlay (M7b-3) ---------------------------------
+
+	// UpsertTranslationTx inserts or updates the translation row for a NON-default
+	// locale within tx (en content lives on the base category row). Description is
+	// sanitized by the service before it reaches here.
+	UpsertTranslationTx(ctx context.Context, tx pgx.Tx, categoryID uuid.UUID, t Translation) error
+	// GetTranslation returns one locale's translation row, or ErrNotFound.
+	GetTranslation(ctx context.Context, categoryID uuid.UUID, locale string) (Translation, error)
+	// ListTranslations returns every translation row for a category (all locales).
+	ListTranslations(ctx context.Context, categoryID uuid.UUID) ([]Translation, error)
+	// TranslatedLocales returns the set of locales that already have a translation
+	// row for the category (drives the editor's "has translation" tab markers).
+	TranslatedLocales(ctx context.Context, categoryID uuid.UUID) ([]string, error)
+	// DeleteTranslationTx removes a locale's translation row within tx.
+	DeleteTranslationTx(ctx context.Context, tx pgx.Tx, categoryID uuid.UUID, locale string) error
+	// GetInLocaleByID loads a category by id with name/description overlaid by
+	// locale's translation (empty/absent field -> base fallback).
+	GetInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Category, error)
+	// GetPublishedInLocaleBySlug loads a category by slug overlaid by locale.
+	GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Category, error)
 }
 
 // Authorizer answers (action, subject) permission questions for a user.

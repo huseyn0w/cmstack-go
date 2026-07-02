@@ -13,10 +13,8 @@ import (
 )
 
 // Category is the domain representation of a taxonomy category. ParentID is nil
-// for a root category. Name/Description are single-locale now; per-locale
-// variants are an M7 seam (see migration 00007).
-//
-// TODO(M7 i18n): per-locale Name/Description via category_translations.
+// for a root category. Name/Description hold the DEFAULT-locale (en) content;
+// per-locale variants live in the Translation overlay (M7b-3).
 type Category struct {
 	ID          uuid.UUID
 	Name        string
@@ -25,6 +23,16 @@ type Category struct {
 	ParentID    *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// Translation is the per-locale CONTENT overlay for a category (M7b-3). It
+// carries only the translatable text fields for a NON-default locale; the base
+// category row holds the default-locale (en) content plus every structural field
+// (slug, parent), which are shared across locales.
+type Translation struct {
+	Locale      string
+	Name        string
+	Description string // sanitized rich text (kernel.SanitizeRichText on every save)
 }
 
 // TreeNode is a category plus its rendered hierarchy depth, used by the admin

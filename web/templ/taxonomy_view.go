@@ -48,6 +48,22 @@ type CategoryFormView struct {
 	FieldErrors   map[string]string
 	Error         string
 	BackURL       string
+
+	// Per-locale translation (M7b-3). LocaleTabs is the one-tab-per-language strip
+	// on the editor (django-parler ?language=xx parity); ActiveLocale is the tag of
+	// the tab being edited; IsDefaultLocale is true on the en tab, where the
+	// structural fields (slug/parent) are editable — on a de/ru tab only the
+	// translatable name/description show. Empty LocaleTabs means the strip is not
+	// shown (the new-category form, before an id exists).
+	LocaleTabs      []LocaleTab
+	ActiveLocale    string
+	IsDefaultLocale bool
+}
+
+// editStructural reports whether the structural (shared, non-translatable) fields
+// should render: true on the default-locale tab or when no locale strip is shown.
+func (v CategoryFormView) editStructural() bool {
+	return len(v.LocaleTabs) == 0 || v.IsDefaultLocale
 }
 
 // --- tags (admin) ------------------------------------------------------------
@@ -84,6 +100,18 @@ type TagFormView struct {
 	FieldErrors map[string]string
 	Error       string
 	BackURL     string
+
+	// Per-locale translation (M7b-3): see CategoryFormView. Tags translate only
+	// name; the slug is the sole structural field gated to the default tab.
+	LocaleTabs      []LocaleTab
+	ActiveLocale    string
+	IsDefaultLocale bool
+}
+
+// editStructural reports whether the structural (shared) fields should render:
+// true on the default-locale tab or when no locale strip is shown.
+func (v TagFormView) editStructural() bool {
+	return len(v.LocaleTabs) == 0 || v.IsDefaultLocale
 }
 
 // --- public archives ---------------------------------------------------------

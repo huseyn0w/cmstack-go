@@ -165,6 +165,76 @@ func (r *RepoPG) CountPublishedPostsInCategory(ctx context.Context, categoryID u
 	return int(n), mapErr(err)
 }
 
+// --- per-locale content overlay (M7b-3) -------------------------------------
+
+// UpsertTranslationTx inserts or updates a NON-default locale's translation row.
+func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, categoryID uuid.UUID, t Translation) error {
+	_, err := r.q.WithTx(tx).UpsertCategoryTranslation(ctx, sqlcgen.UpsertCategoryTranslationParams{
+		CategoryID:  toPgUUID(categoryID),
+		Locale:      t.Locale,
+		Name:        t.Name,
+		Description: t.Description,
+	})
+	return mapErr(err)
+}
+
+// GetTranslation returns one locale's translation row.
+func (r *RepoPG) GetTranslation(ctx context.Context, categoryID uuid.UUID, locale string) (Translation, error) {
+	row, err := r.q.GetCategoryTranslation(ctx, sqlcgen.GetCategoryTranslationParams{
+		CategoryID: toPgUUID(categoryID),
+		Locale:     locale,
+	})
+	if err != nil {
+		return Translation{}, mapErr(err)
+	}
+	return categoryTranslationFromRow(row), nil
+}
+
+// ListTranslations returns every translation row for a category.
+func (r *RepoPG) ListTranslations(ctx context.Context, categoryID uuid.UUID) ([]Translation, error) {
+	rows, err := r.q.ListCategoryTranslations(ctx, toPgUUID(categoryID))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, categoryTranslationFromRow(row))
+	}
+	return out, nil
+}
+
+// TranslatedLocales returns the locales that already have a translation row.
+func (r *RepoPG) TranslatedLocales(ctx context.Context, categoryID uuid.UUID) ([]string, error) {
+	locales, err := r.q.ListCategoryTranslationLocales(ctx, toPgUUID(categoryID))
+	return locales, mapErr(err)
+}
+
+// DeleteTranslationTx removes a locale's translation row within tx.
+func (r *RepoPG) DeleteTranslationTx(ctx context.Context, tx pgx.Tx, categoryID uuid.UUID, locale string) error {
+	return mapErr(r.q.WithTx(tx).DeleteCategoryTranslation(ctx, sqlcgen.DeleteCategoryTranslationParams{
+		CategoryID: toPgUUID(categoryID),
+		Locale:     locale,
+	}))
+}
+
+// GetInLocaleByID loads a category overlaid by locale (base fallback per field).
+func (r *RepoPG) GetInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Category, error) {
+	row, err := r.q.GetCategoryInLocaleByID(ctx, sqlcgen.GetCategoryInLocaleByIDParams{
+		ID:     toPgUUID(id),
+		Locale: locale,
+	})
+	return categoryFromRow(row), mapErr(err)
+}
+
+// GetPublishedInLocaleBySlug loads a category by slug overlaid by locale.
+func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Category, error) {
+	row, err := r.q.GetPublishedCategoryInLocaleBySlug(ctx, sqlcgen.GetPublishedCategoryInLocaleBySlugParams{
+		Slug:   slug,
+		Locale: locale,
+	})
+	return categoryFromRow(row), mapErr(err)
+}
+
 // --- conversions -------------------------------------------------------------
 
 func mapErr(err error) error {
@@ -222,6 +292,14 @@ func categoryFromRow(c sqlcgen.Category) Category {
 		ParentID:    fromPgUUIDPtr(c.ParentID),
 		CreatedAt:   c.CreatedAt.Time,
 		UpdatedAt:   c.UpdatedAt.Time,
+	}
+}
+
+func categoryTranslationFromRow(t sqlcgen.CategoryTranslation) Translation {
+	return Translation{
+		Locale:      t.Locale,
+		Name:        t.Name,
+		Description: t.Description,
 	}
 }
 

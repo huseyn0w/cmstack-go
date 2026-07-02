@@ -11,6 +11,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -23,6 +24,14 @@ type TagAdminService interface {
 	Update(ctx context.Context, actorID, id uuid.UUID, in tags.UpdateInput) (tags.Tag, error)
 	Delete(ctx context.Context, actorID, id uuid.UUID) error
 	BulkDelete(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+
+	// Per-locale content overlay (M7b-3): GetInLocale loads the editor content
+	// overlaid by the active tab's locale (base fallback); TranslatedLocales marks
+	// which tabs already have a translation; SaveTranslation upserts a de/ru tab's
+	// name without touching the shared slug.
+	GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (tags.Tag, error)
+	TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error)
+	SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in tags.TranslationInput) error
 }
 
 // TagAdminHandler is the thin HTTP boundary for the admin tags area.
@@ -111,7 +120,10 @@ func (h *TagAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	tag, err := h.svc.Get(r.Context(), u.ID, id)
+	// The active editor tab is chosen by ?language=xx (django-parler parity); it
+	// defaults to en (the base row). Content is loaded overlaid by that locale.
+	locale := editorLocale(r)
+	tag, err := h.svc.GetInLocale(r.Context(), u.ID, id, locale)
 	if errors.Is(err, tags.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -124,7 +136,7 @@ func (h *TagAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	h.render(w, r, webtempl.TagEditor(h.formView(r, tag)))
+	h.render(w, r, webtempl.TagEditor(h.formView(r, tag, locale)))
 }
 
 // Update handles the edit POST.
@@ -138,6 +150,35 @@ func (h *TagAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	name := r.PostFormValue("name")
 	slug := r.PostFormValue("slug")
+
+	// Per-locale save (M7b-3): a non-default `locale` field means the editor is on
+	// a de/ru translation tab, so the translatable name is upserted to the overlay
+	// rather than the base row. en (default/empty) takes the base Update path below.
+	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
+		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, tags.TranslationInput{Name: name})
+		if errors.Is(err, tags.ErrForbidden) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, tags.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			tag, _ := h.svc.GetInLocale(r.Context(), u.ID, id, loc)
+			view := h.formView(r, tag, loc)
+			view.Name = name
+			view.Error = taxonomyHumanError(err)
+			if errors.Is(err, tags.ErrNameRequired) {
+				view.FieldErrors["name"] = "Name is required."
+			}
+			h.render(w, r, webtempl.TagEditor(view))
+			return
+		}
+		http.Redirect(w, r, "/admin/tags/"+id.String()+"/edit?language="+loc.String(), http.StatusSeeOther)
+		return
+	}
+
 	_, err = h.svc.Update(r.Context(), u.ID, id, tags.UpdateInput{Name: &name, Slug: &slug})
 	if errors.Is(err, tags.ErrForbidden) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -196,18 +237,34 @@ func (h *TagAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 
 // --- helpers -----------------------------------------------------------------
 
-func (h *TagAdminHandler) formView(r *http.Request, t tags.Tag) webtempl.TagFormView {
+func (h *TagAdminHandler) formView(r *http.Request, t tags.Tag, locale i18n.Locale) webtempl.TagFormView {
 	return webtempl.TagFormView{
-		Shell:       h.shell.buildShell(r, "Edit tag"),
-		IsNew:       false,
-		ID:          t.ID.String(),
-		Name:        t.Name,
-		Slug:        t.Slug,
-		ActionURL:   "/admin/tags/" + t.ID.String(),
-		CSRFToken:   h.csrf(r),
-		FieldErrors: map[string]string{},
-		BackURL:     "/admin/tags",
+		Shell:           h.shell.buildShell(r, "Edit tag"),
+		IsNew:           false,
+		ID:              t.ID.String(),
+		Name:            t.Name,
+		Slug:            t.Slug,
+		ActionURL:       "/admin/tags/" + t.ID.String(),
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		BackURL:         "/admin/tags",
+		LocaleTabs:      h.localeTabs(r, t.ID, locale),
+		ActiveLocale:    locale.String(),
+		IsDefaultLocale: locale.IsDefault(),
 	}
+}
+
+// localeTabs builds the tag editor's per-locale tab strip (see the categories
+// editor for the shared shape). Best-effort translated-locale dots.
+func (h *TagAdminHandler) localeTabs(r *http.Request, tagID uuid.UUID, active i18n.Locale) []webtempl.LocaleTab {
+	u, _ := UserFromContext(r.Context())
+	has := map[i18n.Locale]bool{}
+	if locs, err := h.svc.TranslatedLocales(r.Context(), u.ID, tagID); err == nil {
+		for _, l := range locs {
+			has[l] = true
+		}
+	}
+	return buildLocaleTabs("/admin/tags/"+tagID.String()+"/edit", active, has)
 }
 
 func (h *TagAdminHandler) renderFormError(w http.ResponseWriter, r *http.Request, view webtempl.TagFormView, err error) {

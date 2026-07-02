@@ -18,6 +18,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/health"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 )
@@ -25,10 +26,12 @@ import (
 // --- category stub -----------------------------------------------------------
 
 type stubCategoryAdmin struct {
-	tree      []categories.TreeNode
-	get       categories.Category
-	getErr    error
-	createErr error
+	tree       []categories.TreeNode
+	get        categories.Category
+	getErr     error
+	createErr  error
+	translated []i18n.Locale
+	saveErr    error
 }
 
 func (s stubCategoryAdmin) Tree(context.Context) ([]categories.TreeNode, error) { return s.tree, nil }
@@ -49,14 +52,28 @@ func (s stubCategoryAdmin) BulkDelete(context.Context, uuid.UUID, []uuid.UUID) (
 	return kernel.BulkResult{}, nil
 }
 
+func (s stubCategoryAdmin) GetInLocale(context.Context, uuid.UUID, uuid.UUID, i18n.Locale) (categories.Category, error) {
+	return s.get, s.getErr
+}
+
+func (s stubCategoryAdmin) TranslatedLocales(context.Context, uuid.UUID, uuid.UUID) ([]i18n.Locale, error) {
+	return s.translated, nil
+}
+
+func (s stubCategoryAdmin) SaveTranslation(context.Context, uuid.UUID, uuid.UUID, i18n.Locale, categories.TranslationInput) error {
+	return s.saveErr
+}
+
 // --- tag stub ----------------------------------------------------------------
 
 type stubTagAdmin struct {
-	list      []tags.Tag
-	total     int
-	get       tags.Tag
-	getErr    error
-	createErr error
+	list       []tags.Tag
+	total      int
+	get        tags.Tag
+	getErr     error
+	createErr  error
+	translated []i18n.Locale
+	saveErr    error
 }
 
 func (s stubTagAdmin) AdminList(context.Context, int, int) ([]tags.Tag, int, error) {
@@ -77,6 +94,18 @@ func (s stubTagAdmin) Update(context.Context, uuid.UUID, uuid.UUID, tags.UpdateI
 func (s stubTagAdmin) Delete(context.Context, uuid.UUID, uuid.UUID) error { return nil }
 func (s stubTagAdmin) BulkDelete(context.Context, uuid.UUID, []uuid.UUID) (kernel.BulkResult, error) {
 	return kernel.BulkResult{}, nil
+}
+
+func (s stubTagAdmin) GetInLocale(context.Context, uuid.UUID, uuid.UUID, i18n.Locale) (tags.Tag, error) {
+	return s.get, s.getErr
+}
+
+func (s stubTagAdmin) TranslatedLocales(context.Context, uuid.UUID, uuid.UUID) ([]i18n.Locale, error) {
+	return s.translated, nil
+}
+
+func (s stubTagAdmin) SaveTranslation(context.Context, uuid.UUID, uuid.UUID, i18n.Locale, tags.TranslationInput) error {
+	return s.saveErr
 }
 
 // --- env ---------------------------------------------------------------------
@@ -234,6 +263,98 @@ func TestCategoriesAdmin_BulkDeleteGatedByRoute(t *testing.T) {
 	// the unprivileged caller cannot delete. Assert it is NOT a successful 303.
 	if rec.Code == http.StatusSeeOther {
 		t.Fatalf("denied bulk delete unexpectedly succeeded (303)")
+	}
+}
+
+// TestCategoriesAdmin_EditRendersLocaleTabs asserts the category editor renders
+// the per-locale tab strip and, on a non-default (?language=de) tab, marks the
+// active locale and hides the shared structural fields (slug/parent) in favour of
+// the translation note (M7b-3).
+func TestCategoriesAdmin_EditRendersLocaleTabs(t *testing.T) {
+	id := uuid.New()
+	cat := stubCategoryAdmin{
+		get:        categories.Category{ID: id, Name: "Guides", Slug: "guides"},
+		translated: []i18n.Locale{i18n.Locale("de")},
+	}
+	r, sess, mw, user := buildTaxonomyAdminEnv(t, cat, stubTagAdmin{}, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+
+	// Default (en) tab: structural fields visible, no translation note.
+	reqEN := httptest.NewRequest(http.MethodGet, "/admin/categories/"+id.String()+"/edit", nil)
+	reqEN.AddCookie(cookie)
+	recEN := httptest.NewRecorder()
+	r.ServeHTTP(recEN, reqEN)
+	bodyEN := recEN.Body.String()
+	if !strings.Contains(bodyEN, "locale-tabs") {
+		t.Fatalf("en tab: locale strip not rendered")
+	}
+	if !strings.Contains(bodyEN, `data-testid="field-parent"`) {
+		t.Fatalf("en tab: structural parent field should be visible")
+	}
+	if strings.Contains(bodyEN, "category-translation-note") {
+		t.Fatalf("en tab: translation note should NOT show on default locale")
+	}
+
+	// de tab: structural fields hidden, active-locale hidden field + note present.
+	reqDE := httptest.NewRequest(http.MethodGet, "/admin/categories/"+id.String()+"/edit?language=de", nil)
+	reqDE.AddCookie(cookie)
+	recDE := httptest.NewRecorder()
+	r.ServeHTTP(recDE, reqDE)
+	bodyDE := recDE.Body.String()
+	if !strings.Contains(bodyDE, `name="locale" value="de" data-testid="category-editor-active-locale"`) {
+		t.Fatalf("de tab: active-locale hidden field missing")
+	}
+	if strings.Contains(bodyDE, `data-testid="field-parent"`) {
+		t.Fatalf("de tab: structural parent field must be hidden on a translation tab")
+	}
+	if !strings.Contains(bodyDE, "category-translation-note") {
+		t.Fatalf("de tab: translation note missing")
+	}
+}
+
+// TestCategoriesAdmin_UpdateNonDefaultLocaleSavesTranslation asserts a POST with a
+// non-default locale field routes to SaveTranslation and redirects back to that
+// language tab, rather than taking the base Update path (M7b-3).
+func TestCategoriesAdmin_UpdateNonDefaultLocaleSavesTranslation(t *testing.T) {
+	id := uuid.New()
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewCategoryAdminHandler(stubCategoryAdmin{get: categories.Category{ID: id}}, shell, security.Token)
+
+	form := url.Values{"name": {"Anleitungen"}, "description": {"Deutsch"}, "locale": {"de"}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/categories/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(withUser(req.Context(), accounts.User{ID: uuid.New()}))
+	req = withChiParam(req, "id", id.String())
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("translation save = %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasSuffix(loc, "/edit?language=de") {
+		t.Fatalf("redirect = %q, want the de language tab", loc)
+	}
+}
+
+// TestTagsAdmin_UpdateNonDefaultLocaleSavesTranslation is the tag-side mirror.
+func TestTagsAdmin_UpdateNonDefaultLocaleSavesTranslation(t *testing.T) {
+	id := uuid.New()
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewTagAdminHandler(stubTagAdmin{get: tags.Tag{ID: id}}, shell, security.Token)
+
+	form := url.Values{"name": {"Los"}, "locale": {"de"}}
+	req := httptest.NewRequest(http.MethodPost, "/admin/tags/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(withUser(req.Context(), accounts.User{ID: uuid.New()}))
+	req = withChiParam(req, "id", id.String())
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("tag translation save = %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasSuffix(loc, "/edit?language=de") {
+		t.Fatalf("redirect = %q, want the de language tab", loc)
 	}
 }
 

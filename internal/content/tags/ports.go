@@ -49,6 +49,26 @@ type Repository interface {
 	IDsForPost(ctx context.Context, postID uuid.UUID) ([]uuid.UUID, error)
 	ListPublishedPostIDsInTag(ctx context.Context, tagID uuid.UUID, limit, offset int) ([]uuid.UUID, error)
 	CountPublishedPostsInTag(ctx context.Context, tagID uuid.UUID) (int, error)
+
+	// --- per-locale content overlay (M7b-3) ---------------------------------
+
+	// UpsertTranslationTx inserts or updates the translation row for a NON-default
+	// locale within tx (en content lives on the base tag row).
+	UpsertTranslationTx(ctx context.Context, tx pgx.Tx, tagID uuid.UUID, t Translation) error
+	// GetTranslation returns one locale's translation row, or ErrNotFound.
+	GetTranslation(ctx context.Context, tagID uuid.UUID, locale string) (Translation, error)
+	// ListTranslations returns every translation row for a tag (all locales).
+	ListTranslations(ctx context.Context, tagID uuid.UUID) ([]Translation, error)
+	// TranslatedLocales returns the set of locales that already have a translation
+	// row for the tag (drives the editor's "has translation" tab markers).
+	TranslatedLocales(ctx context.Context, tagID uuid.UUID) ([]string, error)
+	// DeleteTranslationTx removes a locale's translation row within tx.
+	DeleteTranslationTx(ctx context.Context, tx pgx.Tx, tagID uuid.UUID, locale string) error
+	// GetInLocaleByID loads a tag by id with name overlaid by locale's translation
+	// (empty/absent name -> base fallback).
+	GetInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Tag, error)
+	// GetPublishedInLocaleBySlug loads a tag by slug overlaid by locale.
+	GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Tag, error)
 }
 
 // Authorizer answers (action, subject) permission questions for a user.

@@ -57,6 +57,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
+	DeleteCategoryTranslation(ctx context.Context, arg DeleteCategoryTranslationParams) error
 	DeleteComment(ctx context.Context, id pgtype.UUID) error
 	DeleteMedia(ctx context.Context, id pgtype.UUID) error
 	DeletePageTranslation(ctx context.Context, arg DeletePageTranslationParams) error
@@ -68,6 +69,7 @@ type Querier interface {
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
 	DeleteServiceTranslation(ctx context.Context, arg DeleteServiceTranslationParams) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
+	DeleteTagTranslation(ctx context.Context, arg DeleteTagTranslationParams) error
 	DetachAllPostCategories(ctx context.Context, postID pgtype.UUID) error
 	DetachAllPostTags(ctx context.Context, postID pgtype.UUID) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
@@ -98,6 +100,14 @@ type Querier interface {
 	GetApprovedCommentByID(ctx context.Context, arg GetApprovedCommentByIDParams) (Comment, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
 	GetCategoryBySlug(ctx context.Context, slug string) (Category, error)
+	// Load a category by id with its name/description OVERLAID by the given locale's
+	// translation where present, falling back to the base row for any empty/absent
+	// translation field. NULLIF('') makes an empty translation field fall through to
+	// COALESCE's base value. Structural columns come straight from the base row. The
+	// projected row matches the categories column shape so the repo maps it with the
+	// existing categoryFromRow.
+	GetCategoryInLocaleByID(ctx context.Context, arg GetCategoryInLocaleByIDParams) (Category, error)
+	GetCategoryTranslation(ctx context.Context, arg GetCategoryTranslationParams) (CategoryTranslation, error)
 	GetCommentByID(ctx context.Context, id pgtype.UUID) (Comment, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetMediaByID(ctx context.Context, id pgtype.UUID) (Medium, error)
@@ -107,6 +117,10 @@ type Querier interface {
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	GetPostTranslation(ctx context.Context, arg GetPostTranslationParams) (PostTranslation, error)
+	// Public archive read: a category by slug with its content overlaid by the given
+	// locale (base fallback per field). Slug is shared so it is the same across
+	// locales.
+	GetPublishedCategoryInLocaleBySlug(ctx context.Context, arg GetPublishedCategoryInLocaleBySlugParams) (Category, error)
 	GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error)
 	// Public detail read: a published, non-trashed page by slug with its content
 	// overlaid by the given locale (base fallback per field). Slug/status are shared
@@ -125,6 +139,9 @@ type Querier interface {
 	// Public detail read: a published, non-trashed service by slug with its content
 	// overlaid by the given locale (base fallback per field).
 	GetPublishedServiceInLocaleBySlug(ctx context.Context, arg GetPublishedServiceInLocaleBySlugParams) (GetPublishedServiceInLocaleBySlugRow, error)
+	// Public archive read: a tag by slug with its name overlaid by the given locale
+	// (base fallback). Slug is shared so it is the same across locales.
+	GetPublishedTagInLocaleBySlug(ctx context.Context, arg GetPublishedTagInLocaleBySlugParams) (Tag, error)
 	GetRevision(ctx context.Context, id pgtype.UUID) (Revision, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
@@ -133,6 +150,13 @@ type Querier interface {
 	GetServiceTranslation(ctx context.Context, arg GetServiceTranslationParams) (ServiceTranslation, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
 	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
+	// Load a tag by id with its name OVERLAID by the given locale's translation where
+	// present, falling back to the base row for an empty/absent name. NULLIF('')
+	// makes an empty translation name fall through to COALESCE's base value.
+	// Structural columns come straight from the base row. The projected row matches
+	// the tags column shape so the repo maps it with the existing tagFromRow.
+	GetTagInLocaleByID(ctx context.Context, arg GetTagInLocaleByIDParams) (Tag, error)
+	GetTagTranslation(ctx context.Context, arg GetTagTranslationParams) (TagTranslation, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username *string) (User, error)
@@ -145,6 +169,11 @@ type Querier interface {
 	ListApprovedCommentsForPost(ctx context.Context, postID pgtype.UUID) ([]Comment, error)
 	ListCategories(ctx context.Context, arg ListCategoriesParams) ([]Category, error)
 	ListCategoriesForPost(ctx context.Context, postID pgtype.UUID) ([]Category, error)
+	// The set of locales that already have a translation row for a category — used to
+	// mark "has translation" indicators on the editor's locale tabs.
+	ListCategoryTranslationLocales(ctx context.Context, categoryID pgtype.UUID) ([]string, error)
+	// All translation rows for a category (every non-default locale that has one).
+	ListCategoryTranslations(ctx context.Context, categoryID pgtype.UUID) ([]CategoryTranslation, error)
 	ListChildCategories(ctx context.Context, parentID pgtype.UUID) ([]Category, error)
 	ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]Page, error)
 	ListCommentsForModeration(ctx context.Context, arg ListCommentsForModerationParams) ([]Comment, error)
@@ -194,6 +223,11 @@ type Querier interface {
 	ListServiceTranslationLocales(ctx context.Context, serviceID pgtype.UUID) ([]string, error)
 	ListServiceTranslations(ctx context.Context, serviceID pgtype.UUID) ([]ServiceTranslation, error)
 	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
+	// The set of locales that already have a translation row for a tag — used to mark
+	// "has translation" indicators on the editor's locale tabs.
+	ListTagTranslationLocales(ctx context.Context, tagID pgtype.UUID) ([]string, error)
+	// All translation rows for a tag (every non-default locale that has one).
+	ListTagTranslations(ctx context.Context, tagID pgtype.UUID) ([]TagTranslation, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsForPost(ctx context.Context, postID pgtype.UUID) ([]Tag, error)
 	ListThumbnailsForMedia(ctx context.Context, mediaID pgtype.UUID) ([]MediaThumbnail, error)
@@ -243,6 +277,10 @@ type Querier interface {
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
+	// Insert or update the translation row for (category_id, locale). Callers pass a
+	// NON-default locale (en content lives on the base categories row). Description
+	// is sanitized by the service before it reaches here.
+	UpsertCategoryTranslation(ctx context.Context, arg UpsertCategoryTranslationParams) (CategoryTranslation, error)
 	// Insert or update the translation row for (page_id, locale). Callers pass a
 	// NON-default locale (en content lives on the base pages row). Body is sanitized
 	// by the service before it reaches here.
@@ -259,6 +297,9 @@ type Querier interface {
 	// NON-default locale (en content lives on the base services row). Body is
 	// sanitized by the service before it reaches here.
 	UpsertServiceTranslation(ctx context.Context, arg UpsertServiceTranslationParams) (ServiceTranslation, error)
+	// Insert or update the translation row for (tag_id, locale). Callers pass a
+	// NON-default locale (en content lives on the base tags row).
+	UpsertTagTranslation(ctx context.Context, arg UpsertTagTranslationParams) (TagTranslation, error)
 }
 
 var _ Querier = (*Queries)(nil)

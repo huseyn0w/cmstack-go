@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 type fakeTx struct{ pgx.Tx }
@@ -19,13 +21,18 @@ type fakeBeginner struct{}
 func (fakeBeginner) Begin(context.Context) (pgx.Tx, error) { return fakeTx{}, nil }
 
 type memRepo struct {
-	mu    sync.Mutex
-	tags  map[uuid.UUID]Tag
-	links map[uuid.UUID][]uuid.UUID
+	mu           sync.Mutex
+	tags         map[uuid.UUID]Tag
+	links        map[uuid.UUID][]uuid.UUID
+	translations map[uuid.UUID]map[string]Translation
 }
 
 func newMemRepo() *memRepo {
-	return &memRepo{tags: map[uuid.UUID]Tag{}, links: map[uuid.UUID][]uuid.UUID{}}
+	return &memRepo{
+		tags:         map[uuid.UUID]Tag{},
+		links:        map[uuid.UUID][]uuid.UUID{},
+		translations: map[uuid.UUID]map[string]Translation{},
+	}
 }
 
 func (m *memRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreateTagData) (Tag, error) {
@@ -142,6 +149,83 @@ func (m *memRepo) CountPublishedPostsInTag(_ context.Context, _ uuid.UUID) (int,
 	return 0, nil
 }
 
+// --- per-locale translation overlay (M7b-3) fakes ---------------------------
+
+func (m *memRepo) UpsertTranslationTx(_ context.Context, _ pgx.Tx, tagID uuid.UUID, t Translation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.translations[tagID] == nil {
+		m.translations[tagID] = map[string]Translation{}
+	}
+	m.translations[tagID][t.Locale] = t
+	return nil
+}
+
+func (m *memRepo) GetTranslation(_ context.Context, tagID uuid.UUID, locale string) (Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.translations[tagID][locale]; ok {
+		return t, nil
+	}
+	return Translation{}, ErrNotFound
+}
+
+func (m *memRepo) ListTranslations(_ context.Context, tagID uuid.UUID) ([]Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Translation, 0, len(m.translations[tagID]))
+	for _, t := range m.translations[tagID] {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (m *memRepo) TranslatedLocales(_ context.Context, tagID uuid.UUID) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.translations[tagID]))
+	for loc := range m.translations[tagID] {
+		out = append(out, loc)
+	}
+	return out, nil
+}
+
+func (m *memRepo) DeleteTranslationTx(_ context.Context, _ pgx.Tx, tagID uuid.UUID, locale string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.translations[tagID], locale)
+	return nil
+}
+
+func (m *memRepo) GetInLocaleByID(_ context.Context, id uuid.UUID, locale string) (Tag, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	tg, ok := m.tags[id]
+	if !ok {
+		return Tag{}, ErrNotFound
+	}
+	return overlayTag(tg, m.translations[id][locale]), nil
+}
+
+func (m *memRepo) GetPublishedInLocaleBySlug(_ context.Context, slug, locale string) (Tag, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, tg := range m.tags {
+		if tg.Slug == slug {
+			return overlayTag(tg, m.translations[tg.ID][locale]), nil
+		}
+	}
+	return Tag{}, ErrNotFound
+}
+
+// overlayTag applies a translation's non-empty name onto a base tag.
+func overlayTag(base Tag, t Translation) Tag {
+	if t.Name != "" {
+		base.Name = t.Name
+	}
+	return base
+}
+
 type allowAuthorizer struct{}
 
 func (allowAuthorizer) Can(context.Context, uuid.UUID, string, string) bool { return true }
@@ -206,5 +290,129 @@ func TestAssignTx_ReplacesSet(t *testing.T) {
 	}
 	if ids, _ := repo.IDsForPost(ctx, post); len(ids) != 0 {
 		t.Fatalf("after clear len = %d, want 0", len(ids))
+	}
+}
+
+// --- per-locale content overlay (M7b-3) tests --------------------------------
+
+func TestSaveTranslation(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name    string
+		authz   Authorizer
+		locale  string
+		in      TranslationInput
+		wantErr error
+	}{
+		{name: "happy", authz: allowAuthorizer{}, locale: "de", in: TranslationInput{Name: "Etikett"}},
+		{name: "default locale rejected", authz: allowAuthorizer{}, locale: "en", in: TranslationInput{Name: "X"}, wantErr: ErrDefaultLocaleTranslation},
+		{name: "unsupported rejected", authz: allowAuthorizer{}, locale: "xx", in: TranslationInput{Name: "X"}, wantErr: ErrUnsupportedLocale},
+		{name: "empty name rejected", authz: allowAuthorizer{}, locale: "de", in: TranslationInput{Name: "   "}, wantErr: ErrNameRequired},
+		{name: "forbidden", authz: denyAuthorizer{}, locale: "de", in: TranslationInput{Name: "X"}, wantErr: ErrForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newMemRepo()
+			base, _ := newSvc(repo, allowAuthorizer{}).Create(ctx, uuid.New(), CreateInput{Name: "Tag"})
+			svc := newSvc(repo, tc.authz)
+			err := svc.SaveTranslation(ctx, uuid.New(), base.ID, i18n.Locale(tc.locale), tc.in)
+			if err != tc.wantErr {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr == nil {
+				if _, ok := repo.translations[base.ID][tc.locale]; !ok {
+					t.Fatalf("translation not stored for %s", tc.locale)
+				}
+			}
+		})
+	}
+}
+
+func TestGetInLocale(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemRepo()
+	svc := newSvc(repo, allowAuthorizer{})
+	base, _ := svc.Create(ctx, uuid.New(), CreateInput{Name: "Tag"})
+	if err := svc.SaveTranslation(ctx, uuid.New(), base.ID, i18n.LocaleDE, TranslationInput{Name: "Etikett"}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	// Overlay: translated name wins.
+	de, err := svc.GetInLocale(ctx, uuid.New(), base.ID, i18n.LocaleDE)
+	if err != nil {
+		t.Fatalf("get de: %v", err)
+	}
+	if de.Name != "Etikett" {
+		t.Fatalf("de name = %q, want Etikett", de.Name)
+	}
+
+	// Missing translation (ru) falls back to base name.
+	ru, err := svc.GetInLocale(ctx, uuid.New(), base.ID, i18n.LocaleRU)
+	if err != nil {
+		t.Fatalf("get ru: %v", err)
+	}
+	if ru.Name != "Tag" {
+		t.Fatalf("ru name = %q, want Tag (base fallback)", ru.Name)
+	}
+
+	// Default locale returns the base row.
+	en, err := svc.GetInLocale(ctx, uuid.New(), base.ID, i18n.LocaleEN)
+	if err != nil {
+		t.Fatalf("get en: %v", err)
+	}
+	if en.Name != "Tag" {
+		t.Fatalf("en name = %q, want Tag", en.Name)
+	}
+
+	// Forbidden read.
+	if _, err := newSvc(repo, denyAuthorizer{}).GetInLocale(ctx, uuid.New(), base.ID, i18n.LocaleDE); err != ErrForbidden {
+		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+}
+
+func TestTranslatedLocales(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemRepo()
+	svc := newSvc(repo, allowAuthorizer{})
+	base, _ := svc.Create(ctx, uuid.New(), CreateInput{Name: "Tag"})
+	_ = svc.SaveTranslation(ctx, uuid.New(), base.ID, i18n.LocaleDE, TranslationInput{Name: "Etikett"})
+	_ = svc.SaveTranslation(ctx, uuid.New(), base.ID, i18n.LocaleRU, TranslationInput{Name: "Метка"})
+
+	locs, err := svc.TranslatedLocales(ctx, uuid.New(), base.ID)
+	if err != nil {
+		t.Fatalf("locales: %v", err)
+	}
+	if len(locs) != 2 {
+		t.Fatalf("locales = %v, want 2 (de, ru; en excluded)", locs)
+	}
+	for _, l := range locs {
+		if l.IsDefault() {
+			t.Fatalf("default locale must be excluded, got %v", locs)
+		}
+	}
+}
+
+func TestPublicBySlugLocale(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemRepo()
+	svc := newSvc(repo, allowAuthorizer{})
+	base, _ := svc.Create(ctx, uuid.New(), CreateInput{Name: "Tag"})
+	_ = svc.SaveTranslation(ctx, uuid.New(), base.ID, i18n.LocaleDE, TranslationInput{Name: "Etikett"})
+
+	de, err := svc.PublicBySlugLocale(ctx, base.Slug, i18n.LocaleDE)
+	if err != nil {
+		t.Fatalf("de: %v", err)
+	}
+	if de.Name != "Etikett" {
+		t.Fatalf("de name = %q, want Etikett", de.Name)
+	}
+
+	// Default locale resolves to the base row.
+	en, err := svc.PublicBySlugLocale(ctx, base.Slug, i18n.LocaleEN)
+	if err != nil {
+		t.Fatalf("en: %v", err)
+	}
+	if en.Name != "Tag" {
+		t.Fatalf("en name = %q, want Tag", en.Name)
 	}
 }

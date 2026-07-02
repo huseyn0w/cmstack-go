@@ -12,6 +12,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // Domain errors carried to the handler's error summary.
@@ -25,6 +26,12 @@ var (
 	ErrParentCycle = errors.New("categories: parent would create a cycle")
 	// ErrParentNotFound is returned when the chosen parent id does not exist.
 	ErrParentNotFound = errors.New("categories: parent not found")
+	// ErrDefaultLocaleTranslation is returned when a translation write targets the
+	// default locale, whose content lives on the base row (edited via Update).
+	ErrDefaultLocaleTranslation = errors.New("categories: cannot store a translation for the default locale")
+	// ErrUnsupportedLocale is returned when a translation write/read targets a
+	// locale outside the supported set.
+	ErrUnsupportedLocale = errors.New("categories: unsupported locale")
 )
 
 // Service holds ALL category logic. It accesses data only through the
@@ -246,6 +253,17 @@ func (s *Service) PublicBySlug(ctx context.Context, slug string) (Category, erro
 	return s.repo.GetBySlug(ctx, slug)
 }
 
+// PublicBySlugLocale returns a category by slug with its content overlaid by the
+// active locale, falling back to the base (en) row for any missing translation
+// field. When locale is the default (en) or unsupported it resolves to the base
+// row (identical to PublicBySlug), so nothing breaks (M7b-3).
+func (s *Service) PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (Category, error) {
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetBySlug(ctx, slug)
+	}
+	return s.repo.GetPublishedInLocaleBySlug(ctx, slug, locale.String())
+}
+
 // PublishedPostIDs returns published post ids in a category, paginated, plus the
 // total — the data behind the public category archive.
 func (s *Service) PublishedPostIDs(ctx context.Context, categoryID uuid.UUID, limit, offset int) ([]uuid.UUID, int, error) {
@@ -258,6 +276,81 @@ func (s *Service) PublishedPostIDs(ctx context.Context, categoryID uuid.UUID, li
 		return nil, 0, err
 	}
 	return ids, total, nil
+}
+
+// --- per-locale content overlay (M7b-3) --------------------------------------
+
+// TranslationInput is the editor's per-locale content save for a NON-default
+// locale. The description is sanitized (same kernel sanitizer as the base
+// description); structural fields (slug, parent) are NOT part of it (they are
+// shared on the base row and edited via Update).
+type TranslationInput struct {
+	Name        string
+	Description string
+}
+
+// SaveTranslation upserts a NON-default locale's content overlay for a category.
+// It requires update:category (like Update; the taxonomy has no per-author
+// ownership). The default locale is rejected (its content lives on the base row —
+// callers edit it via Update).
+func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in TranslationInput) error {
+	if !i18n.IsSupported(locale) {
+		return ErrUnsupportedLocale
+	}
+	if locale.IsDefault() {
+		return ErrDefaultLocaleTranslation
+	}
+	if !s.authz.Can(ctx, actorID, accounts.ActionUpdate, accounts.SubjectCategory) {
+		return ErrForbidden
+	}
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return ErrNameRequired
+	}
+	t := Translation{
+		Locale:      locale.String(),
+		Name:        name,
+		Description: kernel.SanitizeRichText(in.Description),
+	}
+	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.UpsertTranslationTx(ctx, tx, id, t)
+	})
+}
+
+// GetInLocale loads a category for the editor with its content overlaid by locale
+// (base fallback per field). The default locale resolves to the base row.
+// Requires read:category. Used to populate the editor's per-locale tab.
+func (s *Service) GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (Category, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectCategory) {
+		return Category{}, ErrForbidden
+	}
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetByID(ctx, id)
+	}
+	return s.repo.GetInLocaleByID(ctx, id, locale.String())
+}
+
+// TranslatedLocales returns the NON-default locales that already have a
+// translation row for the category (drives the editor's per-tab "has
+// translation" markers). Requires read:category.
+func (s *Service) TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectCategory) {
+		return nil, ErrForbidden
+	}
+	raw, err := s.repo.TranslatedLocales(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]i18n.Locale, 0, len(raw))
+	for _, r := range raw {
+		if l, ok := i18n.Parse(r); ok && !l.IsDefault() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
 }
 
 // --- helpers -----------------------------------------------------------------

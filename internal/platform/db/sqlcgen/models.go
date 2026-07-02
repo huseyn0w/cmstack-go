@@ -18,6 +18,16 @@ type Category struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type CategoryTranslation struct {
+	ID          pgtype.UUID        `json:"id"`
+	CategoryID  pgtype.UUID        `json:"category_id"`
+	Locale      string             `json:"locale"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Comment struct {
 	ID           pgtype.UUID        `json:"id"`
 	PostID       pgtype.UUID        `json:"post_id"`
@@ -256,6 +266,15 @@ type Tag struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
 	Slug      string             `json:"slug"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TagTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	TagID     pgtype.UUID        `json:"tag_id"`
+	Locale    string             `json:"locale"`
+	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

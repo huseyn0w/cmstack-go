@@ -12,6 +12,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // Domain errors carried to the handler's error summary.
@@ -20,6 +21,12 @@ var (
 	ErrForbidden = errors.New("tags: forbidden")
 	// ErrNameRequired is returned when a create/update has no usable name.
 	ErrNameRequired = errors.New("tags: name is required")
+	// ErrDefaultLocaleTranslation is returned when a translation write targets the
+	// default locale, whose content lives on the base row (edited via Update).
+	ErrDefaultLocaleTranslation = errors.New("tags: cannot store a translation for the default locale")
+	// ErrUnsupportedLocale is returned when a translation write/read targets a
+	// locale outside the supported set.
+	ErrUnsupportedLocale = errors.New("tags: unsupported locale")
 )
 
 // Service holds ALL tag logic. It accesses data only through the repository,
@@ -204,6 +211,17 @@ func (s *Service) PublicBySlug(ctx context.Context, slug string) (Tag, error) {
 	return s.repo.GetBySlug(ctx, slug)
 }
 
+// PublicBySlugLocale returns a tag by slug with its name overlaid by the active
+// locale, falling back to the base (en) row for a missing translation. When
+// locale is the default (en) or unsupported it resolves to the base row
+// (identical to PublicBySlug), so nothing breaks (M7b-3).
+func (s *Service) PublicBySlugLocale(ctx context.Context, slug string, locale i18n.Locale) (Tag, error) {
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetBySlug(ctx, slug)
+	}
+	return s.repo.GetPublishedInLocaleBySlug(ctx, slug, locale.String())
+}
+
 // PublishedPostIDs returns published post ids in a tag, paginated, plus total.
 func (s *Service) PublishedPostIDs(ctx context.Context, tagID uuid.UUID, limit, offset int) ([]uuid.UUID, int, error) {
 	ids, err := s.repo.ListPublishedPostIDsInTag(ctx, tagID, limit, offset)
@@ -215,6 +233,74 @@ func (s *Service) PublishedPostIDs(ctx context.Context, tagID uuid.UUID, limit, 
 		return nil, 0, err
 	}
 	return ids, total, nil
+}
+
+// --- per-locale content overlay (M7b-3) --------------------------------------
+
+// TranslationInput is the editor's per-locale content save for a NON-default
+// locale. Only the name is translatable; the slug is shared on the base row.
+type TranslationInput struct {
+	Name string
+}
+
+// SaveTranslation upserts a NON-default locale's name overlay for a tag. It
+// requires update:tag (like Update; tags have no per-author ownership). The
+// default locale is rejected (its name lives on the base row — callers edit it
+// via Update).
+func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in TranslationInput) error {
+	if !i18n.IsSupported(locale) {
+		return ErrUnsupportedLocale
+	}
+	if locale.IsDefault() {
+		return ErrDefaultLocaleTranslation
+	}
+	if !s.authz.Can(ctx, actorID, accounts.ActionUpdate, accounts.SubjectTag) {
+		return ErrForbidden
+	}
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return ErrNameRequired
+	}
+	t := Translation{Locale: locale.String(), Name: name}
+	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.UpsertTranslationTx(ctx, tx, id, t)
+	})
+}
+
+// GetInLocale loads a tag for the editor with its name overlaid by locale (base
+// fallback). The default locale resolves to the base row. Requires read:tag.
+// Used to populate the editor's per-locale tab.
+func (s *Service) GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (Tag, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectTag) {
+		return Tag{}, ErrForbidden
+	}
+	if locale.IsDefault() || !i18n.IsSupported(locale) {
+		return s.repo.GetByID(ctx, id)
+	}
+	return s.repo.GetInLocaleByID(ctx, id, locale.String())
+}
+
+// TranslatedLocales returns the NON-default locales that already have a
+// translation row for the tag (drives the editor's per-tab "has translation"
+// markers). Requires read:tag.
+func (s *Service) TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error) {
+	if !s.authz.Can(ctx, actorID, accounts.ActionRead, accounts.SubjectTag) {
+		return nil, ErrForbidden
+	}
+	raw, err := s.repo.TranslatedLocales(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]i18n.Locale, 0, len(raw))
+	for _, r := range raw {
+		if l, ok := i18n.Parse(r); ok && !l.IsDefault() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
 }
 
 // --- helpers -----------------------------------------------------------------

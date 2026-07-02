@@ -151,6 +151,75 @@ func (r *RepoPG) CountPublishedPostsInTag(ctx context.Context, tagID uuid.UUID) 
 	return int(n), mapErr(err)
 }
 
+// --- per-locale content overlay (M7b-3) -------------------------------------
+
+// UpsertTranslationTx inserts or updates a NON-default locale's translation row.
+func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, tagID uuid.UUID, t Translation) error {
+	_, err := r.q.WithTx(tx).UpsertTagTranslation(ctx, sqlcgen.UpsertTagTranslationParams{
+		TagID:  toPgUUID(tagID),
+		Locale: t.Locale,
+		Name:   t.Name,
+	})
+	return mapErr(err)
+}
+
+// GetTranslation returns one locale's translation row.
+func (r *RepoPG) GetTranslation(ctx context.Context, tagID uuid.UUID, locale string) (Translation, error) {
+	row, err := r.q.GetTagTranslation(ctx, sqlcgen.GetTagTranslationParams{
+		TagID:  toPgUUID(tagID),
+		Locale: locale,
+	})
+	if err != nil {
+		return Translation{}, mapErr(err)
+	}
+	return tagTranslationFromRow(row), nil
+}
+
+// ListTranslations returns every translation row for a tag.
+func (r *RepoPG) ListTranslations(ctx context.Context, tagID uuid.UUID) ([]Translation, error) {
+	rows, err := r.q.ListTagTranslations(ctx, toPgUUID(tagID))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, tagTranslationFromRow(row))
+	}
+	return out, nil
+}
+
+// TranslatedLocales returns the locales that already have a translation row.
+func (r *RepoPG) TranslatedLocales(ctx context.Context, tagID uuid.UUID) ([]string, error) {
+	locales, err := r.q.ListTagTranslationLocales(ctx, toPgUUID(tagID))
+	return locales, mapErr(err)
+}
+
+// DeleteTranslationTx removes a locale's translation row within tx.
+func (r *RepoPG) DeleteTranslationTx(ctx context.Context, tx pgx.Tx, tagID uuid.UUID, locale string) error {
+	return mapErr(r.q.WithTx(tx).DeleteTagTranslation(ctx, sqlcgen.DeleteTagTranslationParams{
+		TagID:  toPgUUID(tagID),
+		Locale: locale,
+	}))
+}
+
+// GetInLocaleByID loads a tag overlaid by locale (base fallback for name).
+func (r *RepoPG) GetInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Tag, error) {
+	row, err := r.q.GetTagInLocaleByID(ctx, sqlcgen.GetTagInLocaleByIDParams{
+		ID:     toPgUUID(id),
+		Locale: locale,
+	})
+	return tagFromRow(row), mapErr(err)
+}
+
+// GetPublishedInLocaleBySlug loads a tag by slug overlaid by locale.
+func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Tag, error) {
+	row, err := r.q.GetPublishedTagInLocaleBySlug(ctx, sqlcgen.GetPublishedTagInLocaleBySlugParams{
+		Slug:   slug,
+		Locale: locale,
+	})
+	return tagFromRow(row), mapErr(err)
+}
+
 // --- conversions -------------------------------------------------------------
 
 func mapErr(err error) error {
@@ -191,6 +260,13 @@ func tagFromRow(t sqlcgen.Tag) Tag {
 		Slug:      t.Slug,
 		CreatedAt: t.CreatedAt.Time,
 		UpdatedAt: t.UpdatedAt.Time,
+	}
+}
+
+func tagTranslationFromRow(t sqlcgen.TagTranslation) Translation {
+	return Translation{
+		Locale: t.Locale,
+		Name:   t.Name,
 	}
 }
 

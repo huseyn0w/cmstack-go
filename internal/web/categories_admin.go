@@ -10,6 +10,7 @@ import (
 
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -23,6 +24,14 @@ type CategoryAdminService interface {
 	Update(ctx context.Context, actorID, id uuid.UUID, in categories.UpdateInput) (categories.Category, error)
 	Delete(ctx context.Context, actorID, id uuid.UUID) error
 	BulkDelete(ctx context.Context, actorID uuid.UUID, ids []uuid.UUID) (kernel.BulkResult, error)
+
+	// Per-locale content overlay (M7b-3): GetInLocale loads the editor content
+	// overlaid by the active tab's locale (base fallback); TranslatedLocales marks
+	// which tabs already have a translation; SaveTranslation upserts a de/ru tab's
+	// name/description without touching the shared structural fields.
+	GetInLocale(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale) (categories.Category, error)
+	TranslatedLocales(ctx context.Context, actorID, id uuid.UUID) ([]i18n.Locale, error)
+	SaveTranslation(ctx context.Context, actorID, id uuid.UUID, locale i18n.Locale, in categories.TranslationInput) error
 }
 
 // CategoryAdminHandler is the thin HTTP boundary for the admin categories area.
@@ -122,7 +131,10 @@ func (h *CategoryAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	cat, err := h.svc.Get(r.Context(), u.ID, id)
+	// The active editor tab is chosen by ?language=xx (django-parler parity); it
+	// defaults to en (the base row). Content is loaded overlaid by that locale.
+	locale := editorLocale(r)
+	cat, err := h.svc.GetInLocale(r.Context(), u.ID, id, locale)
 	if errors.Is(err, categories.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -135,7 +147,7 @@ func (h *CategoryAdminHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	h.render(w, r, webtempl.CategoryEditor(h.formView(r, cat)))
+	h.render(w, r, webtempl.CategoryEditor(h.formView(r, cat, locale)))
 }
 
 // Update handles the edit POST.
@@ -150,6 +162,40 @@ func (h *CategoryAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	name := r.PostFormValue("name")
 	slug := r.PostFormValue("slug")
 	desc := r.PostFormValue("description")
+
+	// Per-locale save (M7b-3): a non-default `locale` field means the editor is on
+	// a de/ru translation tab, so the translatable name/description are upserted to
+	// the overlay rather than the base row. en (default/empty) takes the base
+	// Update path below.
+	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
+		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, categories.TranslationInput{
+			Name:        name,
+			Description: desc,
+		})
+		if errors.Is(err, categories.ErrForbidden) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, categories.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			cat, _ := h.svc.GetInLocale(r.Context(), u.ID, id, loc)
+			view := h.formView(r, cat, loc)
+			view.Name = name
+			view.Description = desc
+			view.Error = taxonomyHumanError(err)
+			if errors.Is(err, categories.ErrNameRequired) {
+				view.FieldErrors["name"] = "Name is required."
+			}
+			h.render(w, r, webtempl.CategoryEditor(view))
+			return
+		}
+		http.Redirect(w, r, "/admin/categories/"+id.String()+"/edit?language="+loc.String(), http.StatusSeeOther)
+		return
+	}
+
 	parent := parseParentID(r.PostFormValue("parent_id"))
 	in := categories.UpdateInput{
 		Name:        &name,
@@ -169,7 +215,7 @@ func (h *CategoryAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		cat, _ := h.svc.Get(r.Context(), u.ID, id)
-		view := h.formView(r, cat)
+		view := h.formView(r, cat, i18n.Default())
 		view.Name = name
 		view.Slug = slug
 		view.Description = desc
@@ -214,26 +260,45 @@ func (h *CategoryAdminHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 
 // --- helpers -----------------------------------------------------------------
 
-func (h *CategoryAdminHandler) formView(r *http.Request, c categories.Category) webtempl.CategoryFormView {
+func (h *CategoryAdminHandler) formView(r *http.Request, c categories.Category, locale i18n.Locale) webtempl.CategoryFormView {
 	parentID := ""
 	if c.ParentID != nil {
 		parentID = c.ParentID.String()
 	}
 	choices, _ := h.parentChoices(r.Context(), c.ID, parentID)
 	return webtempl.CategoryFormView{
-		Shell:         h.shell.buildShell(r, "Edit category"),
-		IsNew:         false,
-		ID:            c.ID.String(),
-		Name:          c.Name,
-		Slug:          c.Slug,
-		Description:   c.Description,
-		ParentID:      parentID,
-		ParentChoices: choices,
-		ActionURL:     "/admin/categories/" + c.ID.String(),
-		CSRFToken:     h.csrf(r),
-		FieldErrors:   map[string]string{},
-		BackURL:       "/admin/categories",
+		Shell:           h.shell.buildShell(r, "Edit category"),
+		IsNew:           false,
+		ID:              c.ID.String(),
+		Name:            c.Name,
+		Slug:            c.Slug,
+		Description:     c.Description,
+		ParentID:        parentID,
+		ParentChoices:   choices,
+		ActionURL:       "/admin/categories/" + c.ID.String(),
+		CSRFToken:       h.csrf(r),
+		FieldErrors:     map[string]string{},
+		BackURL:         "/admin/categories",
+		LocaleTabs:      h.localeTabs(r, c.ID, locale),
+		ActiveLocale:    locale.String(),
+		IsDefaultLocale: locale.IsDefault(),
 	}
+}
+
+// localeTabs builds the category editor's per-locale tab strip: one tab per
+// supported locale, the active one selected, de/ru tabs marked when a translation
+// row already exists. Best-effort: a translated-locales read error yields no
+// dots. Each tab links to the editor with ?language=xx.
+func (h *CategoryAdminHandler) localeTabs(r *http.Request, categoryID uuid.UUID, active i18n.Locale) []webtempl.LocaleTab {
+	u, _ := UserFromContext(r.Context())
+	has := map[i18n.Locale]bool{}
+	if locs, err := h.svc.TranslatedLocales(r.Context(), u.ID, categoryID); err == nil {
+		for _, l := range locs {
+			has[l] = true
+		}
+	}
+	base := "/admin/categories/" + categoryID.String() + "/edit"
+	return buildLocaleTabs(base, active, has)
 }
 
 // parentChoices builds the indented parent-picker options. selfID and its
@@ -313,6 +378,32 @@ func indentLabel(depth int) string {
 		out += "— " // em dash + en space
 	}
 	return out
+}
+
+// buildLocaleTabs assembles the editor's per-locale tab strip from a base editor
+// URL, the active locale, and the set of locales that already have a translation
+// row. The default (en) tab links to the bare base URL; de/ru tabs append
+// ?language=xx. Shared by the categories and tags editors (M7b-3).
+func buildLocaleTabs(base string, active i18n.Locale, has map[i18n.Locale]bool) []webtempl.LocaleTab {
+	tabs := make([]webtempl.LocaleTab, 0, len(i18n.All()))
+	for _, loc := range i18n.All() {
+		href := base
+		if !loc.IsDefault() {
+			href += "?language=" + loc.String()
+		}
+		label := localeDisplayNames[loc]
+		if label == "" {
+			label = loc.String()
+		}
+		tabs = append(tabs, webtempl.LocaleTab{
+			Label:          label,
+			Code:           loc.String(),
+			Href:           href,
+			Active:         loc == active,
+			HasTranslation: has[loc],
+		})
+	}
+	return tabs
 }
 
 func parseParentID(raw string) *uuid.UUID {

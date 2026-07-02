@@ -11,14 +11,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// Tag is the domain representation of a taxonomy tag. Name is single-locale now;
-// a per-locale variant is an M7 seam (see migration 00007).
-//
-// TODO(M7 i18n): per-locale Name via tag_translations.
+// Tag is the domain representation of a taxonomy tag. Name holds the
+// DEFAULT-locale (en) content; per-locale variants live in the Translation
+// overlay (M7b-3).
 type Tag struct {
 	ID        uuid.UUID
 	Name      string
 	Slug      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// Translation is the per-locale CONTENT overlay for a tag (M7b-3). It carries
+// only the translatable name for a NON-default locale; the base tag row holds the
+// default-locale (en) name and the shared slug.
+type Translation struct {
+	Locale string
+	Name   string
 }
