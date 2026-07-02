@@ -59,14 +59,27 @@ type Querier interface {
 	DeleteCategory(ctx context.Context, id pgtype.UUID) error
 	DeleteComment(ctx context.Context, id pgtype.UUID) error
 	DeleteMedia(ctx context.Context, id pgtype.UUID) error
+	DeletePageTranslation(ctx context.Context, arg DeletePageTranslationParams) error
 	DeletePostTranslation(ctx context.Context, arg DeletePostTranslationParams) error
+	// Remove every FAQ translation row for a service's FAQs in one locale — used when
+	// the editor replaces a locale's FAQ overlay block (the whole set is rewritten,
+	// mirroring the base ReplaceFAQs strategy).
+	DeleteServiceFAQTranslationsForService(ctx context.Context, arg DeleteServiceFAQTranslationsForServiceParams) error
 	DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) error
+	DeleteServiceTranslation(ctx context.Context, arg DeleteServiceTranslationParams) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachAllPostCategories(ctx context.Context, postID pgtype.UUID) error
 	DetachAllPostTags(ctx context.Context, postID pgtype.UUID) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
 	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
+	// Load an ACTIVE (non-trashed) page by id with its title/body OVERLAID by the
+	// given locale's translation where present, falling back to the base row for any
+	// empty/absent translation field. NULLIF('') makes an empty translation field
+	// fall through to COALESCE's base value. Structural columns come straight from
+	// the base row. The projected row matches the pages column shape so the repo maps
+	// it with the existing pageFromRow.
+	GetActivePageInLocaleByID(ctx context.Context, arg GetActivePageInLocaleByIDParams) (GetActivePageInLocaleByIDRow, error)
 	GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	// Load an ACTIVE (non-trashed) post by id with its title/excerpt/body OVERLAID
 	// by the given locale's translation where present, falling back to the base row
@@ -76,6 +89,12 @@ type Querier interface {
 	// repo maps it with the existing postFromRow.
 	GetActivePostInLocaleByID(ctx context.Context, arg GetActivePostInLocaleByIDParams) (GetActivePostInLocaleByIDRow, error)
 	GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
+	// Load an ACTIVE (non-trashed) service by id with title/summary/body OVERLAID by
+	// the given locale's translation where present, falling back to the base row for
+	// any empty/absent translation field. Structural/citable columns come straight
+	// from the base row. The projected row matches the services column shape so the
+	// repo maps it with the existing serviceFromRow.
+	GetActiveServiceInLocaleByID(ctx context.Context, arg GetActiveServiceInLocaleByIDParams) (GetActiveServiceInLocaleByIDRow, error)
 	GetApprovedCommentByID(ctx context.Context, arg GetApprovedCommentByIDParams) (Comment, error)
 	GetCategoryByID(ctx context.Context, id pgtype.UUID) (Category, error)
 	GetCategoryBySlug(ctx context.Context, slug string) (Category, error)
@@ -84,10 +103,15 @@ type Querier interface {
 	GetMediaByID(ctx context.Context, id pgtype.UUID) (Medium, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
 	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
+	GetPageTranslation(ctx context.Context, arg GetPageTranslationParams) (PageTranslation, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 	GetPostTranslation(ctx context.Context, arg GetPostTranslationParams) (PostTranslation, error)
 	GetPublishedPageBySlug(ctx context.Context, slug string) (Page, error)
+	// Public detail read: a published, non-trashed page by slug with its content
+	// overlaid by the given locale (base fallback per field). Slug/status are shared
+	// so the slug is the same across locales.
+	GetPublishedPageInLocaleBySlug(ctx context.Context, arg GetPublishedPageInLocaleBySlugParams) (GetPublishedPageInLocaleBySlugRow, error)
 	GetPublishedPostBySlug(ctx context.Context, slug string) (Post, error)
 	// Public detail read: a published, non-trashed post by slug with its content
 	// overlaid by the given locale (base fallback per field). Slug/status are shared
@@ -98,10 +122,15 @@ type Querier interface {
 	// is re-applied in Go to preserve the archive's ranking.
 	GetPublishedPostsByIDs(ctx context.Context, ids []pgtype.UUID) ([]Post, error)
 	GetPublishedServiceBySlug(ctx context.Context, slug string) (Service, error)
+	// Public detail read: a published, non-trashed service by slug with its content
+	// overlaid by the given locale (base fallback per field).
+	GetPublishedServiceInLocaleBySlug(ctx context.Context, arg GetPublishedServiceInLocaleBySlugParams) (GetPublishedServiceInLocaleBySlugRow, error)
 	GetRevision(ctx context.Context, id pgtype.UUID) (Revision, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (Role, error)
 	GetRoleByKey(ctx context.Context, key string) (Role, error)
 	GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetServiceFAQTranslation(ctx context.Context, arg GetServiceFAQTranslationParams) (ServiceFaqTranslation, error)
+	GetServiceTranslation(ctx context.Context, arg GetServiceTranslationParams) (ServiceTranslation, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
 	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -121,6 +150,11 @@ type Querier interface {
 	ListCommentsForModeration(ctx context.Context, arg ListCommentsForModerationParams) ([]Comment, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
+	// The set of locales that already have a translation row for a page — used to
+	// mark "has translation" indicators on the editor's locale tabs.
+	ListPageTranslationLocales(ctx context.Context, pageID pgtype.UUID) ([]string, error)
+	// All translation rows for a page (every non-default locale that has one).
+	ListPageTranslations(ctx context.Context, pageID pgtype.UUID) ([]PageTranslation, error)
 	ListPages(ctx context.Context, arg ListPagesParams) ([]Page, error)
 	ListPermissionsForRole(ctx context.Context, roleID pgtype.UUID) ([]ListPermissionsForRoleRow, error)
 	// The set of locales that already have a translation row for a post — used to
@@ -151,6 +185,14 @@ type Querier interface {
 	ListRolePermissions(ctx context.Context) ([]ListRolePermissionsRow, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListServiceFAQs(ctx context.Context, serviceID pgtype.UUID) ([]ServiceFaq, error)
+	// A service's FAQs (ordered by position) with question/answer OVERLAID by the
+	// given locale's translation, base fallback per field. Structural order comes
+	// from the base service_faqs rows.
+	ListServiceFAQsInLocale(ctx context.Context, arg ListServiceFAQsInLocaleParams) ([]ListServiceFAQsInLocaleRow, error)
+	// The set of locales that already have a translation row for a service — used to
+	// mark "has translation" indicators on the editor's locale tabs.
+	ListServiceTranslationLocales(ctx context.Context, serviceID pgtype.UUID) ([]string, error)
+	ListServiceTranslations(ctx context.Context, serviceID pgtype.UUID) ([]ServiceTranslation, error)
 	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsForPost(ctx context.Context, postID pgtype.UUID) ([]Tag, error)
@@ -201,12 +243,22 @@ type Querier interface {
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
+	// Insert or update the translation row for (page_id, locale). Callers pass a
+	// NON-default locale (en content lives on the base pages row). Body is sanitized
+	// by the service before it reaches here.
+	UpsertPageTranslation(ctx context.Context, arg UpsertPageTranslationParams) (PageTranslation, error)
 	UpsertPermission(ctx context.Context, arg UpsertPermissionParams) (Permission, error)
 	// Insert or update the translation row for (post_id, locale). Callers pass a
 	// NON-default locale (en content lives on the base posts row). Body is sanitized
 	// by the service before it reaches here.
 	UpsertPostTranslation(ctx context.Context, arg UpsertPostTranslationParams) (PostTranslation, error)
 	UpsertRole(ctx context.Context, arg UpsertRoleParams) (Role, error)
+	// Insert or update the per-locale question/answer overlay for one base FAQ row.
+	UpsertServiceFAQTranslation(ctx context.Context, arg UpsertServiceFAQTranslationParams) (ServiceFaqTranslation, error)
+	// Insert or update the translation row for (service_id, locale). Callers pass a
+	// NON-default locale (en content lives on the base services row). Body is
+	// sanitized by the service before it reaches here.
+	UpsertServiceTranslation(ctx context.Context, arg UpsertServiceTranslationParams) (ServiceTranslation, error)
 }
 
 var _ Querier = (*Queries)(nil)

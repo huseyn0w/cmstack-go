@@ -103,6 +103,16 @@ type Page struct {
 	SearchVector interface{}        `json:"search_vector"`
 }
 
+type PageTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	PageID    pgtype.UUID        `json:"page_id"`
+	Locale    string             `json:"locale"`
+	Title     string             `json:"title"`
+	Body      string             `json:"body"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PasswordResetToken struct {
 	ID         pgtype.UUID        `json:"id"`
 	UserID     pgtype.UUID        `json:"user_id"`
@@ -217,6 +227,27 @@ type ServiceFaq struct {
 	Question  string             `json:"question"`
 	Answer    string             `json:"answer"`
 	Position  int32              `json:"position"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ServiceFaqTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	FaqID     pgtype.UUID        `json:"faq_id"`
+	Locale    string             `json:"locale"`
+	Question  string             `json:"question"`
+	Answer    string             `json:"answer"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ServiceTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	ServiceID pgtype.UUID        `json:"service_id"`
+	Locale    string             `json:"locale"`
+	Title     string             `json:"title"`
+	Summary   string             `json:"summary"`
+	Body      string             `json:"body"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

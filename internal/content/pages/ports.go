@@ -78,6 +78,27 @@ type Repository interface {
 	TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	RestoreTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	PermanentDeleteTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
+
+	// --- per-locale content overlay (M7b-2) ---------------------------------
+
+	// UpsertTranslationTx inserts or updates the translation row for a NON-default
+	// locale within tx (en content lives on the base page row). Body is sanitized
+	// by the service before it reaches here.
+	UpsertTranslationTx(ctx context.Context, tx pgx.Tx, pageID uuid.UUID, t Translation) error
+	// GetTranslation returns one locale's translation row, or ErrNotFound.
+	GetTranslation(ctx context.Context, pageID uuid.UUID, locale string) (Translation, error)
+	// ListTranslations returns every translation row for a page (all locales).
+	ListTranslations(ctx context.Context, pageID uuid.UUID) ([]Translation, error)
+	// TranslatedLocales returns the set of locales that already have a translation
+	// row for the page (drives the editor's "has translation" tab markers).
+	TranslatedLocales(ctx context.Context, pageID uuid.UUID) ([]string, error)
+	// DeleteTranslationTx removes a locale's translation row within tx.
+	DeleteTranslationTx(ctx context.Context, tx pgx.Tx, pageID uuid.UUID, locale string) error
+	// GetActiveInLocaleByID loads an active page by id with title/body overlaid by
+	// locale's translation (empty/absent field -> base fallback).
+	GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Page, error)
+	// GetPublishedInLocaleBySlug loads a published page by slug overlaid by locale.
+	GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Page, error)
 }
 
 // Authorizer answers (action, subject) permission questions for a user.

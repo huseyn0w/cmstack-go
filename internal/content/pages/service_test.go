@@ -26,11 +26,97 @@ type fakeBeginner struct{}
 func (fakeBeginner) Begin(context.Context) (pgx.Tx, error) { return fakeTx{}, nil }
 
 type memRepo struct {
-	mu    sync.Mutex
-	pages map[uuid.UUID]Page
+	mu           sync.Mutex
+	pages        map[uuid.UUID]Page
+	translations map[uuid.UUID]map[string]Translation
 }
 
-func newMemRepo() *memRepo { return &memRepo{pages: map[uuid.UUID]Page{}} }
+func newMemRepo() *memRepo {
+	return &memRepo{
+		pages:        map[uuid.UUID]Page{},
+		translations: map[uuid.UUID]map[string]Translation{},
+	}
+}
+
+// --- per-locale translation overlay (M7b-2) fakes ---------------------------
+
+func (m *memRepo) UpsertTranslationTx(_ context.Context, _ pgx.Tx, pageID uuid.UUID, t Translation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.translations[pageID] == nil {
+		m.translations[pageID] = map[string]Translation{}
+	}
+	m.translations[pageID][t.Locale] = t
+	return nil
+}
+
+func (m *memRepo) GetTranslation(_ context.Context, pageID uuid.UUID, locale string) (Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.translations[pageID][locale]; ok {
+		return t, nil
+	}
+	return Translation{}, ErrNotFound
+}
+
+func (m *memRepo) ListTranslations(_ context.Context, pageID uuid.UUID) ([]Translation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Translation, 0, len(m.translations[pageID]))
+	for _, t := range m.translations[pageID] {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (m *memRepo) TranslatedLocales(_ context.Context, pageID uuid.UUID) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.translations[pageID]))
+	for loc := range m.translations[pageID] {
+		out = append(out, loc)
+	}
+	return out, nil
+}
+
+func (m *memRepo) DeleteTranslationTx(_ context.Context, _ pgx.Tx, pageID uuid.UUID, locale string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.translations[pageID], locale)
+	return nil
+}
+
+func (m *memRepo) GetActiveInLocaleByID(_ context.Context, id uuid.UUID, locale string) (Page, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.pages[id]
+	if !ok || p.DeletedAt != nil {
+		return Page{}, ErrNotFound
+	}
+	return overlayPage(p, m.translations[id][locale]), nil
+}
+
+func (m *memRepo) GetPublishedInLocaleBySlug(_ context.Context, slug, locale string) (Page, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range m.pages {
+		if p.Slug == slug && p.Status == kernel.StatusPublished && p.DeletedAt == nil {
+			return overlayPage(p, m.translations[p.ID][locale]), nil
+		}
+	}
+	return Page{}, ErrNotFound
+}
+
+// overlayPage applies a translation's non-empty fields onto a base page.
+func overlayPage(base Page, t Translation) Page {
+	if t.Title != "" {
+		base.Title = t.Title
+	}
+	if t.Body != "" {
+		base.Body = t.Body
+	}
+	return base
+}
 
 func (m *memRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreatePageData) (Page, error) {
 	m.mu.Lock()

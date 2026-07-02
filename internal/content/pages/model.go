@@ -37,6 +37,18 @@ type Page struct {
 	// TODO(M8 SEO fields): MetaTitle, MetaDescription, CanonicalURL, NoIndex.
 }
 
+// Translation is the per-locale CONTENT overlay for a page (M7b-2). It carries
+// only the translatable text fields for a NON-default locale; the base page row
+// holds the default-locale (en) content plus every structural field (slug,
+// status, parent, template, schedule), which are shared across locales.
+//
+// TODO(M8): MetaTitle/MetaDescription join here when SEO fields translate.
+type Translation struct {
+	Locale string
+	Title  string
+	Body   string // sanitized HTML (kernel.SanitizeRichText on every save)
+}
+
 // Published reports whether the page is visible on the public site.
 func (p Page) Published() bool {
 	return p.Status == kernel.StatusPublished && p.DeletedAt == nil

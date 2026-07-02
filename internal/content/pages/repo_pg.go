@@ -289,6 +289,116 @@ func fromTimestamptz(ts pgtype.Timestamptz) *time.Time {
 	return &t
 }
 
+// --- per-locale content overlay (M7b-2) -------------------------------------
+
+// UpsertTranslationTx inserts or updates a page's translation row for a non-default locale.
+func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, pageID uuid.UUID, t Translation) error {
+	_, err := r.q.WithTx(tx).UpsertPageTranslation(ctx, sqlcgen.UpsertPageTranslationParams{
+		PageID: toPgUUID(pageID),
+		Locale: t.Locale,
+		Title:  t.Title,
+		Body:   t.Body,
+	})
+	return mapErr(err)
+}
+
+// GetTranslation returns one locale's translation row, or ErrNotFound.
+func (r *RepoPG) GetTranslation(ctx context.Context, pageID uuid.UUID, locale string) (Translation, error) {
+	row, err := r.q.GetPageTranslation(ctx, sqlcgen.GetPageTranslationParams{
+		PageID: toPgUUID(pageID),
+		Locale: locale,
+	})
+	if err != nil {
+		return Translation{}, mapErr(err)
+	}
+	return pageTranslationFromRow(row), nil
+}
+
+// ListTranslations returns every translation row for a page.
+func (r *RepoPG) ListTranslations(ctx context.Context, pageID uuid.UUID) ([]Translation, error) {
+	rows, err := r.q.ListPageTranslations(ctx, toPgUUID(pageID))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, pageTranslationFromRow(row))
+	}
+	return out, nil
+}
+
+// TranslatedLocales returns the locales that already have a translation row for the page.
+func (r *RepoPG) TranslatedLocales(ctx context.Context, pageID uuid.UUID) ([]string, error) {
+	locales, err := r.q.ListPageTranslationLocales(ctx, toPgUUID(pageID))
+	return locales, mapErr(err)
+}
+
+// DeleteTranslationTx removes a locale's translation row within tx.
+func (r *RepoPG) DeleteTranslationTx(ctx context.Context, tx pgx.Tx, pageID uuid.UUID, locale string) error {
+	return mapErr(r.q.WithTx(tx).DeletePageTranslation(ctx, sqlcgen.DeletePageTranslationParams{
+		PageID: toPgUUID(pageID),
+		Locale: locale,
+	}))
+}
+
+// GetActiveInLocaleByID loads an active page overlaid by locale (per-field base fallback).
+func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale string) (Page, error) {
+	row, err := r.q.GetActivePageInLocaleByID(ctx, sqlcgen.GetActivePageInLocaleByIDParams{
+		ID:     toPgUUID(id),
+		Locale: locale,
+	})
+	if err != nil {
+		return Page{}, mapErr(err)
+	}
+	return Page{
+		ID:          fromPgUUID(row.ID),
+		Title:       row.Title,
+		Slug:        row.Slug,
+		Body:        row.Body,
+		Status:      kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt),
+		ParentID:    fromPgUUIDPtr(row.ParentID),
+		Template:    row.Template,
+		ReadingTime: int(row.ReadingTime),
+		DeletedAt:   fromTimestamptz(row.DeletedAt),
+		CreatedAt:   row.CreatedAt.Time,
+		UpdatedAt:   row.UpdatedAt.Time,
+	}, nil
+}
+
+// GetPublishedInLocaleBySlug loads a published page by slug overlaid by locale (base fallback).
+func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale string) (Page, error) {
+	row, err := r.q.GetPublishedPageInLocaleBySlug(ctx, sqlcgen.GetPublishedPageInLocaleBySlugParams{
+		Slug:   slug,
+		Locale: locale,
+	})
+	if err != nil {
+		return Page{}, mapErr(err)
+	}
+	return Page{
+		ID:          fromPgUUID(row.ID),
+		Title:       row.Title,
+		Slug:        row.Slug,
+		Body:        row.Body,
+		Status:      kernel.Status(row.Status),
+		PublishedAt: fromTimestamptz(row.PublishedAt),
+		ParentID:    fromPgUUIDPtr(row.ParentID),
+		Template:    row.Template,
+		ReadingTime: int(row.ReadingTime),
+		DeletedAt:   fromTimestamptz(row.DeletedAt),
+		CreatedAt:   row.CreatedAt.Time,
+		UpdatedAt:   row.UpdatedAt.Time,
+	}, nil
+}
+
+func pageTranslationFromRow(t sqlcgen.PageTranslation) Translation {
+	return Translation{
+		Locale: t.Locale,
+		Title:  t.Title,
+		Body:   t.Body,
+	}
+}
+
 func pageFromRow(p sqlcgen.Page) Page {
 	return Page{
 		ID:          fromPgUUID(p.ID),
