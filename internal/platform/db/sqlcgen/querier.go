@@ -148,6 +148,7 @@ type Querier interface {
 	GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetServiceFAQTranslation(ctx context.Context, arg GetServiceFAQTranslationParams) (ServiceFaqTranslation, error)
 	GetServiceTranslation(ctx context.Context, arg GetServiceTranslationParams) (ServiceTranslation, error)
+	GetSetting(ctx context.Context, key string) (string, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
 	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
 	// Load a tag by id with its name OVERLAID by the given locale's translation where
@@ -223,6 +224,7 @@ type Querier interface {
 	ListServiceTranslationLocales(ctx context.Context, serviceID pgtype.UUID) ([]string, error)
 	ListServiceTranslations(ctx context.Context, serviceID pgtype.UUID) ([]ServiceTranslation, error)
 	ListServices(ctx context.Context, arg ListServicesParams) ([]Service, error)
+	ListSettings(ctx context.Context) ([]ListSettingsRow, error)
 	// The set of locales that already have a translation row for a tag — used to mark
 	// "has translation" indicators on the editor's locale tabs.
 	ListTagTranslationLocales(ctx context.Context, tagID pgtype.UUID) ([]string, error)
@@ -303,6 +305,7 @@ type Querier interface {
 	// NON-default locale (en content lives on the base services row). Body is
 	// sanitized by the service before it reaches here.
 	UpsertServiceTranslation(ctx context.Context, arg UpsertServiceTranslationParams) (ServiceTranslation, error)
+	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 	// Insert or update the translation row for (tag_id, locale). Callers pass a
 	// NON-default locale (en content lives on the base tags row).
 	UpsertTagTranslation(ctx context.Context, arg UpsertTagTranslationParams) (TagTranslation, error)

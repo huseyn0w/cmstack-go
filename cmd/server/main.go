@@ -38,6 +38,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	sitesettings "github.com/huseyn0w/cmstack-go/internal/settings"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
@@ -232,6 +233,14 @@ func run() error {
 	// embedded catalog is a build-time programming error, so panic on load.
 	localeResolver := web.NewLocaleResolver(i18n.MustLoadCatalog())
 
+	// Site settings + public theme (M9-1): the DB-backed key/value settings store
+	// (cached for hot reads) backs the theme resolver, which the router mounts on
+	// the public group. It reads the active theme id, validates it against the
+	// in-code registry, and threads the resolved id to templ. Admin routes never
+	// run it, so they render on the base palette (theme isolation).
+	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
+	themeResolver := web.NewThemeResolver(settingsSvc)
+
 	handler := web.Router(web.Deps{
 		Config:        cfg,
 		Health:        healthHandler,
@@ -285,6 +294,9 @@ func run() error {
 
 		// i18n (M7a).
 		Locale: localeResolver,
+
+		// Public theme (M9-1).
+		Theme: themeResolver,
 
 		// SEO crawler routes (M8): sitemap.xml / llms.txt enumerators. The
 		// content services satisfy SitemapEnumerator via SitemapItems; taxonomy

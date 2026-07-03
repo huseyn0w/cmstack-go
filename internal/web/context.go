@@ -14,6 +14,7 @@ type ctxKey int
 const (
 	userCtxKey ctxKey = iota
 	localeCtxKey
+	themeCtxKey
 )
 
 // withUser returns a copy of ctx carrying the authenticated user.
@@ -69,6 +70,23 @@ func AlternatesFromContext(ctx context.Context) []i18n.Alternate {
 	return i18n.Alternates("/", "")
 }
 
+// withActiveTheme returns a copy of ctx carrying the resolved active-theme id.
+// The id is always a registered theme (the ThemeResolver validates via
+// theme.Resolve before storing it).
+func withActiveTheme(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, themeCtxKey, id)
+}
+
+// ActiveThemeFromContext returns the resolved active-theme id for the request,
+// or "" when the theme middleware has not run (admin routes, reduced-Deps
+// renders). An empty id makes the layout fall back to the base palette.
+func ActiveThemeFromContext(ctx context.Context) string {
+	if id, ok := ctx.Value(themeCtxKey).(string); ok {
+		return id
+	}
+	return ""
+}
+
 // localeViewSource adapts the web package's context accessors to the templ
 // package's localeViewSource interface, so the public layout can read the active
 // locale/translator/alternates without importing web (which would cycle).
@@ -83,6 +101,17 @@ func (localeViewSource) Alternates(ctx context.Context) []i18n.Alternate {
 	return AlternatesFromContext(ctx)
 }
 
+// themeViewSource adapts the web package's active-theme context accessor to the
+// templ package's themeSource interface, so the public layout can read the
+// resolved theme id without importing web (which would cycle). It mirrors
+// localeViewSource.
+type themeViewSource struct{}
+
+func (themeViewSource) ActiveTheme(ctx context.Context) string {
+	return ActiveThemeFromContext(ctx)
+}
+
 func init() {
 	webtempl.SetLocaleViewSource(localeViewSource{})
+	webtempl.SetThemeSource(themeViewSource{})
 }

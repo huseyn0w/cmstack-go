@@ -104,6 +104,107 @@
   --error-bg: #2A1513;
 }
 
+/* --- Public themes (M9-1) -----------------------------------------------------
+   Alternate palettes re-scope ONLY the color tokens under `.theme-<id>` (the
+   base spacing/radius/motion tokens are inherited untouched). The web layer sets
+   `class="h-full theme-<id>"` on <html> for a non-default active theme on public
+   pages; admin pages never carry the class, so they fall back to the base
+   :root/.dark palette. Each theme also ships a `.theme-<id>.dark` block so it
+   still works when the visitor has dark mode enabled (mirrors the base .dark
+   variable set). */
+
+/* Sepia — warm paper-and-ink editorial: aged cream surfaces, espresso ink,
+   muted brick + ochre accents. */
+.theme-sepia {
+  --bg: #F3EBDD;
+  --surface: #FBF5E9;
+  --surface-2: #EADFC8;
+  --text: #2E2418;
+  --text-muted: #6A5A44;
+  --text-subtle: #96866C;
+  --primary: #9A3B26;
+  --primary-hover: #83301E;
+  --primary-contrast: #FBF5E9;
+  --accent: #B4712C;
+  --border: #DCCEB2;
+  --border-strong: #C7B593;
+  --ring: #9A3B26;
+  --success: #4A6B3A;
+  --success-bg: #E8EEDB;
+  --warning: #8A6318;
+  --warning-bg: #F1E6CB;
+  --error: #A03026;
+  --error-bg: #F1DDD6;
+}
+
+.theme-sepia.dark {
+  --bg: #1C170F;
+  --surface: #241D13;
+  --surface-2: #2E2618;
+  --text: #F0E6D3;
+  --text-muted: #B7A585;
+  --text-subtle: #7E7056;
+  --primary: #D98A5E;
+  --primary-hover: #E59D71;
+  --primary-contrast: #1C170F;
+  --accent: #D9AC63;
+  --border: #38301F;
+  --border-strong: #4A3F29;
+  --success: #8FB06A;
+  --success-bg: #1E2614;
+  --warning: #D3A64F;
+  --warning-bg: #2A2110;
+  --error: #E28472;
+  --error-bg: #2C1712;
+}
+
+/* Noir — dark-first high-contrast ink: near-black surfaces, cool bone text, a
+   restrained cool-steel accent. Its light block is a crisp grayscale so a
+   light-mode visitor still gets a cohesive high-contrast reading surface. */
+.theme-noir {
+  --bg: #F5F5F4;
+  --surface: #FFFFFF;
+  --surface-2: #E9E9E7;
+  --text: #131315;
+  --text-muted: #55555A;
+  --text-subtle: #85858C;
+  --primary: #1F1F22;
+  --primary-hover: #333338;
+  --primary-contrast: #FFFFFF;
+  --accent: #5B6470;
+  --border: #DEDEDC;
+  --border-strong: #C6C6C3;
+  --ring: #1F1F22;
+  --success: #2C6E4B;
+  --success-bg: #E4EFE9;
+  --warning: #8A6516;
+  --warning-bg: #F2E9D4;
+  --error: #A32820;
+  --error-bg: #F4E2DF;
+}
+
+.theme-noir.dark {
+  --bg: #0A0A0B;
+  --surface: #121214;
+  --surface-2: #1B1B1E;
+  --text: #F2F1EC;
+  --text-muted: #9C9CA3;
+  --text-subtle: #67676E;
+  --primary: #F2F1EC;
+  --primary-hover: #FFFFFF;
+  --primary-contrast: #0A0A0B;
+  --accent: #8B96A6;
+  --border: #262629;
+  --border-strong: #38383D;
+  --ring: #8B96A6;
+  --success: #5FB98C;
+  --success-bg: #13241C;
+  --warning: #D6A24C;
+  --warning-bg: #241C10;
+  --error: #E8675C;
+  --error-bg: #261311;
+}
+
 /* Alpine: hide x-cloak elements until Alpine initializes (prevents a flash of
    the open dropdown / dark-mode icon before hydration). */
 [x-cloak] {

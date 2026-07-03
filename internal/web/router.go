@@ -130,6 +130,15 @@ type Deps struct {
 	// to templ. Admin routes are intentionally NOT localized (they stay en).
 	// Optional so reduced-Deps tests keep working (they then render as en).
 	Locale *LocaleResolver
+
+	// Theme is the public-theme resolver (M9-1). When wired, its middleware runs
+	// on the PUBLIC route group only: it reads the active theme id from the
+	// settings store, validates it against the in-code registry, and stores the
+	// resolved id in the request context so the layout re-scopes the color tokens
+	// via a `.theme-<id>` <html> class. Admin routes never run it, so they fall
+	// back to the base palette (theme isolation). Optional so reduced-Deps tests
+	// keep working (they then render on the default theme).
+	Theme *ThemeResolver
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -203,89 +212,101 @@ func Router(d Deps) http.Handler {
 			gr.Use(d.AuthMW.CurrentUser)
 		}
 
-		// TODO(M1-ext): replace this inline closure with a real home handler in
-		// its own package once the content domain exists.
-		gr.Get("/", func(w http.ResponseWriter, req *http.Request) {
-			seo := d.Site.BuildSEO(req, SEOInput{
-				Title:         d.Site.SiteName,
-				Description:   d.Site.SiteDescription,
-				CanonicalPath: "/",
-				OGType:        "website",
+		// Public-facing content routes (M9-1): wrapped in a nested group so the
+		// theme middleware runs ONLY here. It reads the active theme from settings,
+		// validates it against the registry, and stores the resolved id in context
+		// so the layout re-scopes the color tokens. Admin/auth routes are mounted
+		// on the OUTER group (mountAuthRoutes below), so they never run the theme
+		// middleware and fall back to the base palette (theme isolation).
+		gr.Group(func(pr chi.Router) {
+			if d.Theme != nil {
+				pr.Use(d.Theme.Middleware)
+			}
+
+			// TODO(M1-ext): replace this inline closure with a real home handler in
+			// its own package once the content domain exists.
+			pr.Get("/", func(w http.ResponseWriter, req *http.Request) {
+				seo := d.Site.BuildSEO(req, SEOInput{
+					Title:         d.Site.SiteName,
+					Description:   d.Site.SiteDescription,
+					CanonicalPath: "/",
+					OGType:        "website",
+				})
+				if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeStructured(seo, d.Site.homeJSONLD())); err != nil {
+					http.Error(w, "render error", http.StatusInternalServerError)
+				}
 			})
-			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeStructured(seo, d.Site.homeJSONLD())); err != nil {
-				http.Error(w, "render error", http.StatusInternalServerError)
+
+			// Public author profile page (no auth) — anyone may view it.
+			if d.Author != nil {
+				d.Author.WithSite(d.Site)
+				pr.Get("/authors/{id}", d.Author.Show)
+			}
+
+			// Public blog (no auth for read). Liking requires an authenticated user.
+			if d.PostPublicSvc != nil {
+				pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
+				pub.WithSite(d.Site)
+				if d.CategoryPostSvc != nil || d.TagPostSvc != nil {
+					pub.WithTaxonomy(d.CategoryPostSvc, d.TagPostSvc)
+				}
+				pr.Get("/blog", pub.Index)
+				pr.Get("/blog/{slug}", pub.Show)
+				if d.AuthMW != nil {
+					pr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
+					pr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
+				}
+			}
+
+			// Public comments (M5). The thread + top-level submit are open to guests
+			// (spam-checked + rate-limited inside the service); self-edit/delete are
+			// auth-gated (the handler additionally verifies ownership + window).
+			if d.CommentPublicSvc != nil {
+				ch := NewCommentsPublicHandler(d.CommentPublicSvc, d.CSRFFunc, d.Config.RecaptchaSiteKey)
+				pr.Get("/blog/{slug}/comments", ch.Thread)
+				pr.Post("/blog/{slug}/comments", ch.Submit)
+				if d.AuthMW != nil {
+					pr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/edit", ch.SelfEdit)
+					pr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/delete", ch.SelfDelete)
+				}
+			}
+
+			// Public taxonomy archives (no auth): /categories/{slug} + /tags/{slug}.
+			if d.PostHydrateSvc != nil && (d.CategoryPublicSvc != nil || d.TagPublicSvc != nil) {
+				tax := NewTaxonomyPublicHandler(d.CategoryPublicSvc, d.TagPublicSvc, d.PostHydrateSvc, d.Authors, d.SiteName)
+				tax.WithSite(d.Site)
+				if d.CategoryPublicSvc != nil {
+					pr.Get("/categories/{slug}", tax.ShowCategory)
+				}
+				if d.TagPublicSvc != nil {
+					pr.Get("/tags/{slug}", tax.ShowTag)
+				}
+			}
+
+			// Public pages (no auth). A published page renders at /p/{slug}; the
+			// hierarchy drives the breadcrumb trail.
+			if d.PagePublicSvc != nil {
+				pp := NewPagePublicHandler(d.PagePublicSvc, d.SiteName, d.Config.BaseURL)
+				pp.WithSite(d.Site)
+				pr.Get("/p/{slug}", pp.Show)
+			}
+
+			// Public services (no auth): /services index + /services/{slug} detail.
+			if d.ServicePublicSvc != nil {
+				sp := NewServicePublicHandler(d.ServicePublicSvc, d.SiteName, d.Config.BaseURL)
+				sp.WithSite(d.Site)
+				pr.Get("/services", sp.Index)
+				pr.Get("/services/{slug}", sp.Show)
+			}
+
+			// Public search (M6, no auth). GET /search renders the results page (FTS
+			// with an ILIKE fallback) across published posts/pages/services.
+			if d.SearchSvc != nil {
+				sh := NewSearchPublicHandler(d.SearchSvc, d.SiteName)
+				sh.WithSite(d.Site)
+				pr.Get("/search", sh.Search)
 			}
 		})
-
-		// Public author profile page (no auth) — anyone may view it.
-		if d.Author != nil {
-			d.Author.WithSite(d.Site)
-			gr.Get("/authors/{id}", d.Author.Show)
-		}
-
-		// Public blog (no auth for read). Liking requires an authenticated user.
-		if d.PostPublicSvc != nil {
-			pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
-			pub.WithSite(d.Site)
-			if d.CategoryPostSvc != nil || d.TagPostSvc != nil {
-				pub.WithTaxonomy(d.CategoryPostSvc, d.TagPostSvc)
-			}
-			gr.Get("/blog", pub.Index)
-			gr.Get("/blog/{slug}", pub.Show)
-			if d.AuthMW != nil {
-				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/like", pub.Like)
-				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/unlike", pub.Unlike)
-			}
-		}
-
-		// Public comments (M5). The thread + top-level submit are open to guests
-		// (spam-checked + rate-limited inside the service); self-edit/delete are
-		// auth-gated (the handler additionally verifies ownership + window).
-		if d.CommentPublicSvc != nil {
-			ch := NewCommentsPublicHandler(d.CommentPublicSvc, d.CSRFFunc, d.Config.RecaptchaSiteKey)
-			gr.Get("/blog/{slug}/comments", ch.Thread)
-			gr.Post("/blog/{slug}/comments", ch.Submit)
-			if d.AuthMW != nil {
-				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/edit", ch.SelfEdit)
-				gr.With(d.AuthMW.RequireAuth).Post("/blog/{slug}/comments/{id}/delete", ch.SelfDelete)
-			}
-		}
-
-		// Public taxonomy archives (no auth): /categories/{slug} + /tags/{slug}.
-		if d.PostHydrateSvc != nil && (d.CategoryPublicSvc != nil || d.TagPublicSvc != nil) {
-			tax := NewTaxonomyPublicHandler(d.CategoryPublicSvc, d.TagPublicSvc, d.PostHydrateSvc, d.Authors, d.SiteName)
-			tax.WithSite(d.Site)
-			if d.CategoryPublicSvc != nil {
-				gr.Get("/categories/{slug}", tax.ShowCategory)
-			}
-			if d.TagPublicSvc != nil {
-				gr.Get("/tags/{slug}", tax.ShowTag)
-			}
-		}
-
-		// Public pages (no auth). A published page renders at /p/{slug}; the
-		// hierarchy drives the breadcrumb trail.
-		if d.PagePublicSvc != nil {
-			pp := NewPagePublicHandler(d.PagePublicSvc, d.SiteName, d.Config.BaseURL)
-			pp.WithSite(d.Site)
-			gr.Get("/p/{slug}", pp.Show)
-		}
-
-		// Public services (no auth): /services index + /services/{slug} detail.
-		if d.ServicePublicSvc != nil {
-			sp := NewServicePublicHandler(d.ServicePublicSvc, d.SiteName, d.Config.BaseURL)
-			sp.WithSite(d.Site)
-			gr.Get("/services", sp.Index)
-			gr.Get("/services/{slug}", sp.Show)
-		}
-
-		// Public search (M6, no auth). GET /search renders the results page (FTS
-		// with an ILIKE fallback) across published posts/pages/services.
-		if d.SearchSvc != nil {
-			sh := NewSearchPublicHandler(d.SearchSvc, d.SiteName)
-			sh.WithSite(d.Site)
-			gr.Get("/search", sh.Search)
-		}
 
 		mountAuthRoutes(gr, d)
 	})

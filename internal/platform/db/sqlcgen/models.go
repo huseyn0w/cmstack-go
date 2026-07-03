@@ -280,6 +280,12 @@ type ServiceTranslation struct {
 	MetaDescription string             `json:"meta_description"`
 }
 
+type SiteSetting struct {
+	Key       string             `json:"key"`
+	Value     string             `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Tag struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`

@@ -17,7 +17,11 @@ type LayoutData struct {
 templ Base(data LayoutData) {
 	{{ loc := LocaleView(ctx) }}
 	<!DOCTYPE html>
-	<html lang={ loc.Active.String() } class="h-full">
+	// The <html> class carries the active public theme as `theme-<id>` (M9-1),
+	// re-scoping the color tokens. Admin routes never set the theme context value,
+	// so ActiveTheme(ctx) is "" there and the base :root/.dark palette applies
+	// (theme isolation). A "default" or empty id yields just "h-full".
+	<html lang={ loc.Active.String() } class={ htmlClass(ActiveTheme(ctx)) }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
