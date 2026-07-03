@@ -78,13 +78,14 @@ func (h *TaxonomyPublicHandler) ShowCategory(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+	cards := h.cards(r.Context(), ids)
 	view := webtempl.TaxonomyArchiveView{
 		SiteName:    h.siteName,
 		HomeURL:     "/",
 		Kind:        "Category",
 		Name:        cat.Name,
 		Description: cat.Description,
-		Cards:       h.cards(r.Context(), ids),
+		Cards:       cards,
 		Pager:       pager(page, publicPageSize, total, "/categories/"+slug, ""),
 	}
 	view.SEO = h.site.BuildSEO(r, SEOInput{
@@ -93,6 +94,16 @@ func (h *TaxonomyPublicHandler) ShowCategory(w http.ResponseWriter, r *http.Requ
 		CanonicalPath: "/categories/" + slug,
 		OGType:        "website",
 	})
+	archiveURL := h.site.absolute("/categories/" + slug)
+	crumbs := []webtempl.Breadcrumb{
+		{Name: h.siteName, URL: h.site.absolute("/")},
+		{Name: "Categories", URL: h.site.absolute("/categories")},
+		{Name: cat.Name, URL: archiveURL},
+	}
+	view.JSONLD = compact(
+		webtempl.BreadcrumbListJSONLD(crumbs),
+		webtempl.ItemListJSONLD(archiveURL, h.postCardItems(cards)),
+	)
 	h.render(w, r, webtempl.TaxonomyArchive(view))
 }
 
@@ -114,12 +125,13 @@ func (h *TaxonomyPublicHandler) ShowTag(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+	cards := h.cards(r.Context(), ids)
 	view := webtempl.TaxonomyArchiveView{
 		SiteName: h.siteName,
 		HomeURL:  "/",
 		Kind:     "Tag",
 		Name:     tag.Name,
-		Cards:    h.cards(r.Context(), ids),
+		Cards:    cards,
 		Pager:    pager(page, publicPageSize, total, "/tags/"+slug, ""),
 	}
 	view.SEO = h.site.BuildSEO(r, SEOInput{
@@ -128,6 +140,16 @@ func (h *TaxonomyPublicHandler) ShowTag(w http.ResponseWriter, r *http.Request) 
 		CanonicalPath: "/tags/" + slug,
 		OGType:        "website",
 	})
+	archiveURL := h.site.absolute("/tags/" + slug)
+	crumbs := []webtempl.Breadcrumb{
+		{Name: h.siteName, URL: h.site.absolute("/")},
+		{Name: "Tags", URL: h.site.absolute("/tags")},
+		{Name: tag.Name, URL: archiveURL},
+	}
+	view.JSONLD = compact(
+		webtempl.BreadcrumbListJSONLD(crumbs),
+		webtempl.ItemListJSONLD(archiveURL, h.postCardItems(cards)),
+	)
 	h.render(w, r, webtempl.TaxonomyArchive(view))
 }
 

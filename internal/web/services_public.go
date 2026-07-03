@@ -73,12 +73,14 @@ func (h *ServicePublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 		Cards:    cards,
 		Pager:    pager(page, servicePublicPageSize, total, "/services", ""),
 	}
+	servicesURL := h.site.absolute(i18n.LocalizePath(locale, "/services"))
 	view.SEO = h.site.BuildSEO(r, SEOInput{
 		Title:         "Services",
 		Description:   "Services offered by " + h.siteName,
 		CanonicalPath: i18n.LocalizePath(locale, "/services"),
 		OGType:        "website",
 	})
+	view.JSONLD = compact(webtempl.ItemListJSONLD(servicesURL, h.serviceCardItems(cards)))
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicServiceIndex(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}
@@ -139,7 +141,20 @@ func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		NoIndex:      svc.NoIndex,
 		OGType:       "website",
 	})
-	// TODO(M8): emit Service + FAQPage JSON-LD from svc.JSONLD(view.CanonicalURL).
+	// Structured data: BreadcrumbList + Service + FAQPage. The data-only seam
+	// services.Service.JSONLD collects the fields; the schema.org marshaling +
+	// script-safe escaping live in web/templ (the M8 owner of the vocabulary).
+	ld := svc.JSONLD(canonical)
+	crumbs := []webtempl.Breadcrumb{
+		{Name: h.siteName, URL: h.site.absolute(i18n.LocalizePath(locale, "/"))},
+		{Name: "Services", URL: h.site.absolute(i18n.LocalizePath(locale, "/services"))},
+		{Name: svc.Title, URL: canonical},
+	}
+	view.JSONLD = compact(
+		webtempl.BreadcrumbListJSONLD(crumbs),
+		webtempl.ServiceJSONLD(ld.Title, ld.Summary, ld.AreaServed, ld.CanonicalURL, h.site.Org),
+		webtempl.FAQPageJSONLD(serviceFAQItems(ld.FAQs)),
+	)
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicServiceDetail(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}

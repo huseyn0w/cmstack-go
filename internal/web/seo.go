@@ -20,6 +20,10 @@ type SiteConfig struct {
 	// Verifications are the search-engine verification meta tags emitted in the
 	// head (Google/Bing/Yandex/Pinterest, whichever are configured).
 	Verifications []webtempl.MetaTag
+	// Org is the site publisher's business identity, used to emit the
+	// Organization JSON-LD (home page) and as the `publisher` node in
+	// BlogPosting. Rooted logo paths are absolutized against BaseURL.
+	Org webtempl.OrgIdentity
 }
 
 // NewSiteConfig builds the SiteConfig from the loaded app config, assembling the
@@ -36,7 +40,7 @@ func NewSiteConfig(cfg config.Config) SiteConfig {
 	add("yandex-verification", cfg.YandexVerification)
 	add("p:domain_verify", cfg.PinterestVerification)
 
-	return SiteConfig{
+	s := SiteConfig{
 		BaseURL:         cfg.BaseURL,
 		SiteName:        cfg.SiteName,
 		SiteDescription: cfg.SiteDescription,
@@ -45,6 +49,54 @@ func NewSiteConfig(cfg config.Config) SiteConfig {
 		GlobalNoindex:   cfg.GlobalNoindex,
 		Verifications:   verifications,
 	}
+
+	orgName := cfg.OrgName
+	if orgName == "" {
+		orgName = cfg.SiteName
+	}
+	s.Org = webtempl.OrgIdentity{
+		Name:         orgName,
+		LegalName:    cfg.OrgLegalName,
+		LogoURL:      s.absolutizeIfRooted(cfg.OrgLogo),
+		Email:        cfg.OrgEmail,
+		Phone:        cfg.OrgPhone,
+		Street:       cfg.OrgStreet,
+		Locality:     cfg.OrgLocality,
+		Region:       cfg.OrgRegion,
+		PostalCode:   cfg.OrgPostalCode,
+		Country:      cfg.OrgCountry,
+		URL:          strings.TrimSuffix(cfg.BaseURL, "/"),
+		SameAs:       cfg.SameAs,
+		GeoStatement: cfg.GeoStatement,
+	}
+	return s
+}
+
+// OrganizationJSONLD returns the site publisher's Organization JSON-LD (empty
+// when no org name is configured — which cannot happen since Name falls back to
+// SiteName). Exposed so the home handler can emit it.
+func (s SiteConfig) OrganizationJSONLD() string {
+	if s.Org.Name == "" {
+		return ""
+	}
+	return webtempl.OrganizationJSONLD(s.Org)
+}
+
+// WebSiteJSONLD returns the WebSite JSON-LD for the home page, wiring the
+// Sitelinks SearchAction to the site's /search endpoint.
+func (s SiteConfig) WebSiteJSONLD() string {
+	home := strings.TrimSuffix(s.BaseURL, "/")
+	name := s.SiteName
+	if name == "" {
+		name = s.Org.Name
+	}
+	return webtempl.WebSiteJSONLD(name, home, home+"/search?q={search_term_string}")
+}
+
+// homeJSONLD returns the site-level JSON-LD blocks emitted on the home page:
+// Organization (publisher) + WebSite (with SearchAction).
+func (s SiteConfig) homeJSONLD() []string {
+	return []string{s.OrganizationJSONLD(), s.WebSiteJSONLD()}
 }
 
 // SEOInput is the per-page seed the caller passes to BuildSEO. Title/Description

@@ -92,6 +92,11 @@ func (h *AuthorHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if desc == "" {
 		desc = author.Name + " on " + h.siteName
 	}
+	crumbs := []webtempl.Breadcrumb{
+		{Name: h.siteName, URL: h.site.absolute("/")},
+		{Name: "Authors", URL: h.site.absolute("/authors")},
+		{Name: author.Name, URL: h.site.absolutizeIfRooted(profileView.ProfileURL)},
+	}
 	view := webtempl.AuthorPageView{
 		ProfilePageView: profileView,
 		Posts:           h.authorPosts(r.Context(), author),
@@ -101,6 +106,7 @@ func (h *AuthorHandler) Show(w http.ResponseWriter, r *http.Request) {
 			CanonicalURL: profileView.ProfileURL,
 			OGType:       "website",
 		}),
+		JSONLD: compact(webtempl.BreadcrumbListJSONLD(crumbs)),
 	}
 
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.AuthorPage(view)); err != nil {

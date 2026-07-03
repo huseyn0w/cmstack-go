@@ -134,4 +134,7 @@ type TaxonomyArchiveView struct {
 	Pager       Pagination
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (BreadcrumbList, ItemList),
+	// each already script-safe; rendered verbatim in a ld+json script.
+	JSONLD []string
 }

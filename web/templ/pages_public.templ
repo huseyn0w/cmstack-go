@@ -7,6 +7,7 @@ package templ
 // sanitized server-side and is rendered verbatim with prose typography (§3).
 templ PublicPage(v PublicPageView) {
 	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: pageDescription(v), SEO: v.SEO}) {
+		@jsonLDBlocks(v.JSONLD)
 		<nav aria-label="Breadcrumb" data-testid="page-breadcrumb">
 			<ol class="flex flex-wrap items-center gap-2 font-mono text-caption text-muted">
 				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>

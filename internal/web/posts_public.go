@@ -130,12 +130,14 @@ func (h *PostPublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 		Cards:    cards,
 		Pager:    pager(page, publicPageSize, total, i18n.LocalizePath(locale, "/blog"), blogFilterQuery(categorySlug, tagSlug)),
 	}
+	blogURL := h.site.absolute(i18n.LocalizePath(locale, "/blog"))
 	view.SEO = h.site.BuildSEO(r, SEOInput{
 		Title:         "Blog",
 		Description:   "Latest posts from " + h.siteName,
 		CanonicalPath: i18n.LocalizePath(locale, "/blog"),
 		OGType:        "website",
 	})
+	view.JSONLD = compact(webtempl.ItemListJSONLD(blogURL, h.cardItems(cards)))
 	h.render(w, r, webtempl.PublicPostIndex(view))
 }
 
@@ -233,6 +235,13 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 	if metaDesc == "" {
 		metaDesc = p.Excerpt
 	}
+	locale := LocaleFromContext(r.Context())
+	authorURL := "/authors/" + p.AuthorID.String()
+	crumbs := []webtempl.Breadcrumb{
+		{Name: h.siteName, URL: h.site.absolute(i18n.LocalizePath(locale, "/"))},
+		{Name: "Blog", URL: h.site.absolute(i18n.LocalizePath(locale, "/blog"))},
+		{Name: p.Title, URL: canonical},
+	}
 	return webtempl.PublicPostView{
 		SiteName:     h.siteName,
 		HomeURL:      "/",
@@ -242,7 +251,7 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 		Excerpt:      p.Excerpt,
 		AuthorID:     p.AuthorID.String(),
 		AuthorName:   h.authorName(r.Context(), p.AuthorID),
-		AuthorURL:    "/authors/" + p.AuthorID.String(),
+		AuthorURL:    authorURL,
 		PublishedAt:  publishedAt,
 		ReadingTime:  p.ReadingTime,
 		LikeCount:    p.LikeCount,
@@ -251,6 +260,10 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 		LikeURL:      "/blog/" + p.Slug + "/like",
 		CSRFToken:    h.csrf(r),
 		CanonicalURL: canonical,
+		UpdatedAt:    p.UpdatedAt,
+		ImageURL:     h.site.absolutizeIfRooted(h.site.DefaultOGImage),
+		InLanguage:   locale.String(),
+		Publisher:    h.site.Org,
 		SEO: h.site.BuildSEO(r, SEOInput{
 			Title:        metaTitle,
 			Description:  metaDesc,
@@ -258,6 +271,7 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 			NoIndex:      p.NoIndex,
 			OGType:       "article",
 		}),
+		JSONLD:     compact(webtempl.BreadcrumbListJSONLD(crumbs)),
 		Categories: h.categoryPills(r.Context(), p.ID),
 		Tags:       h.tagPills(r.Context(), p.ID),
 		Related:    h.relatedCards(r.Context(), p.ID),

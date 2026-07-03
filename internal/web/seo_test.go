@@ -254,3 +254,70 @@ func TestPublicPost_NoIndexHead(t *testing.T) {
 		t.Errorf("noindex post did not emit noindex robots:\n%s", rec.Body.String())
 	}
 }
+
+// TestNewSiteConfig_OrgIdentity asserts the config->SiteConfig.Org mapping,
+// including the Name fallback (OrgName||SiteName) and rooted-logo absolutization.
+func TestNewSiteConfig_OrgIdentity(t *testing.T) {
+	sc := NewSiteConfig(config.Config{
+		BaseURL:     "https://site.test/",
+		SiteName:    "CMStack",
+		OrgLogo:     "/static/logo.png",
+		OrgLocality: "Berlin",
+		SameAs:      []string{"https://github.com/acme"},
+	})
+	if sc.Org.Name != "CMStack" {
+		t.Errorf("Org.Name = %q, want fallback to SiteName", sc.Org.Name)
+	}
+	if sc.Org.URL != "https://site.test" {
+		t.Errorf("Org.URL = %q", sc.Org.URL)
+	}
+	if sc.Org.LogoURL != "https://site.test/static/logo.png" {
+		t.Errorf("Org.LogoURL not absolutized: %q", sc.Org.LogoURL)
+	}
+	if sc.Org.Locality != "Berlin" || len(sc.Org.SameAs) != 1 {
+		t.Errorf("Org address/sameAs not threaded: %+v", sc.Org)
+	}
+
+	// Explicit OrgName wins over SiteName.
+	sc2 := NewSiteConfig(config.Config{BaseURL: "https://site.test", SiteName: "CMStack", OrgName: "Acme GmbH"})
+	if sc2.Org.Name != "Acme GmbH" {
+		t.Errorf("explicit OrgName should win, got %q", sc2.Org.Name)
+	}
+}
+
+// TestHomeRoute_EmitsOrganizationAndWebSite asserts the home page emits both the
+// Organization and WebSite JSON-LD blocks with the SearchAction wired.
+func TestHomeRoute_EmitsOrganizationAndWebSite(t *testing.T) {
+	sess := session.NewManager(false)
+	cat, _ := i18n.LoadCatalog()
+	r := Router(Deps{
+		Config:   config.Config{AppEnv: "test", BaseURL: "https://site.test"},
+		Health:   health.NewHandler(health.NewService(nil)),
+		Session:  sess,
+		AuthMW:   NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
+		CSRFFunc: security.Token,
+		SiteName: "CMStack",
+		Site: NewSiteConfig(config.Config{
+			BaseURL:      "https://site.test",
+			SiteName:     "CMStack",
+			OrgName:      "Acme GmbH",
+			OrgLocality:  "Berlin",
+			GeoStatement: "Serving Berlin.",
+		}),
+		Locale: NewLocaleResolver(cat),
+	})
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/ = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if c := strings.Count(body, `application/ld+json`); c != 2 {
+		t.Errorf("home should emit 2 JSON-LD scripts, got %d", c)
+	}
+	for _, want := range []string{`"Organization"`, `"WebSite"`, `"SearchAction"`, `search?q=`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home JSON-LD missing %q", want)
+		}
+	}
+}

@@ -93,6 +93,12 @@ func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		NoIndex:      p.NoIndex,
 		OGType:       "website",
 	})
+	ldCrumbs := []webtempl.Breadcrumb{{Name: h.siteName, URL: h.site.absolute(i18n.LocalizePath(locale, "/"))}}
+	for _, c := range crumbs {
+		ldCrumbs = append(ldCrumbs, webtempl.Breadcrumb{Name: c.Title, URL: h.site.absolutizeIfRooted(c.URL)})
+	}
+	ldCrumbs = append(ldCrumbs, webtempl.Breadcrumb{Name: p.Title, URL: canonical})
+	view.JSONLD = compact(webtempl.BreadcrumbListJSONLD(ldCrumbs))
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicPage(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}

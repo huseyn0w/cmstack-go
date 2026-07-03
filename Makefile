@@ -5,20 +5,34 @@ export PATH := $(PATH):$(GOPATH_BIN)
 TAILWIND := ./bin/tailwindcss
 PG_CONTAINER := cmstack-go-db
 
+# Native HTTP port for `go run ./cmd/server` (matches HTTP_ADDR :8090 in .env.example).
+# `make kill` frees it from a server orphaned by a previous Ctrl-C (Postgres runs in
+# Docker, so 5434 is not touched here).
+DEV_PORTS := 8090
+
 # The Go config reads process env and does NOT auto-load .env, so the DB-facing
 # targets (run/worker/seed/migrate-*) source it here. Local dev only.
 LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
 
 .DEFAULT_GOAL := help
-.PHONY: help dev env db-up db-down tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
+.PHONY: help dev kill env db-up db-down tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
 
 help: ## List the common targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
 
-dev: env db-up migrate-up seed ## One command: .env + local Postgres + migrate + seed, then run
+dev: kill env db-up migrate-up seed ## One command: .env + local Postgres + migrate + seed, then run
 	@echo "server: http://localhost:8090"
 	@$(LOAD_ENV); go run ./cmd/server
+
+kill: ## Free the native HTTP port from any stale server process
+	@pids=$$(lsof -ti:$(DEV_PORTS) -sTCP:LISTEN 2>/dev/null); \
+	  if [ -n "$$pids" ]; then \
+	    echo "freeing stale server on $(DEV_PORTS): $$pids"; \
+	    kill $$pids 2>/dev/null || true; sleep 1; \
+	    pids=$$(lsof -ti:$(DEV_PORTS) -sTCP:LISTEN 2>/dev/null); \
+	    [ -n "$$pids" ] && kill -9 $$pids 2>/dev/null || true; \
+	  fi
 
 env: ## Create .env from .env.example if it does not exist yet
 	@[ -f .env ] || { cp .env.example .env; echo "created .env from .env.example"; }

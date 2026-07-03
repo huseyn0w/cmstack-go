@@ -8,6 +8,7 @@ import "fmt"
 templ PublicPostDetail(v PublicPostView) {
 	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt, SEO: v.SEO}) {
 		@templ.Raw(`<script type="application/ld+json">` + PostJSONLD(v) + `</script>`)
+		@jsonLDBlocks(v.JSONLD)
 		<nav aria-label="Breadcrumb" data-testid="post-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
 				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>
@@ -82,6 +83,7 @@ templ LikeIsland(v PublicPostView) {
 // empty state.
 templ PublicPostIndex(v PublicPostIndexView) {
 	@Base(LayoutData{Title: "Blog · " + v.SiteName, Description: "Latest posts from " + v.SiteName, SEO: v.SEO}) {
+		@jsonLDBlocks(v.JSONLD)
 		<header class="mb-8">
 			<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Blog</p>
 			<h1 class="mt-2 text-h1 text-text">Latest posts</h1>

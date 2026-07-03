@@ -116,6 +116,8 @@ type PublicServiceIndexView struct {
 	Pager    Pagination
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (ItemList), each script-safe.
+	JSONLD []string
 }
 
 // PublicServiceView is the public service detail page.
@@ -134,4 +136,7 @@ type PublicServiceView struct {
 	CanonicalURL string
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (BreadcrumbList, Service,
+	// FAQPage), each already script-safe; rendered verbatim in a ld+json script.
+	JSONLD []string
 }

@@ -125,4 +125,7 @@ type PublicPageView struct {
 	CanonicalURL string
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (BreadcrumbList), each already
+	// script-safe; rendered verbatim in a ld+json script.
+	JSONLD []string
 }

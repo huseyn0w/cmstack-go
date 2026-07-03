@@ -197,6 +197,8 @@ type PublicPostIndexView struct {
 	// SEO carries the resolved document-head view-model (M8); nil in reduced
 	// contexts (the head then falls back to the minimal title/description).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (ItemList), each script-safe.
+	JSONLD []string
 }
 
 // PublicPostView is the public post detail page.
@@ -220,6 +222,19 @@ type PublicPostView struct {
 	CanonicalURL string
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+
+	// JSON-LD enrichment (M8). UpdatedAt feeds dateModified; ImageURL is the
+	// post's absolute image (its OGImage or the site default); InLanguage is the
+	// active locale's BCP-47 tag; Publisher is the site Organization node reused
+	// as the BlogPosting publisher. All optional — empty fields are omitted.
+	UpdatedAt  time.Time
+	ImageURL   string
+	InLanguage string
+	Publisher  OrgIdentity
+
+	// JSONLD carries extra ready-to-emit JSON-LD blocks (e.g. BreadcrumbList),
+	// each already script-safe; rendered verbatim in a ld+json script.
+	JSONLD []string
 
 	// Taxonomy (M3): the post's categories + tags as archive-linking pills, and
 	// the related-posts block (posts sharing >=1 category/tag).

@@ -14,6 +14,9 @@ type AuthorPageView struct {
 	Posts []AuthorPostLink
 	// SEO carries the resolved document-head view-model (M8).
 	SEO *SEOView
+	// JSONLD carries ready-to-emit JSON-LD blocks (BreadcrumbList), each already
+	// script-safe; rendered verbatim in a ld+json script.
+	JSONLD []string
 }
 
 // AuthorPage renders the PUBLIC author profile using the public Base layout (not
@@ -22,6 +25,7 @@ type AuthorPageView struct {
 templ AuthorPage(v AuthorPageView) {
 	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: authorDescription(v), SEO: v.SEO}) {
 		@templ.Raw(`<script type="application/ld+json">` + ProfileJSONLD(v.ProfilePageView) + `</script>`)
+		@jsonLDBlocks(v.JSONLD)
 		<nav aria-label="Breadcrumb" data-testid="author-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
 				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>

@@ -185,7 +185,7 @@ func Router(d Deps) http.Handler {
 				CanonicalPath: "/",
 				OGType:        "website",
 			})
-			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeSEO(seo)); err != nil {
+			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeStructured(seo, d.Site.homeJSONLD())); err != nil {
 				http.Error(w, "render error", http.StatusInternalServerError)
 			}
 		})
