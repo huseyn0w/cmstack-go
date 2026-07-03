@@ -42,6 +42,14 @@ type TaxonomyPublicHandler struct {
 	posts      PostHydrator
 	authors    AuthorNamer
 	siteName   string
+	site       SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8). Returns the
+// receiver.
+func (h *TaxonomyPublicHandler) WithSite(s SiteConfig) *TaxonomyPublicHandler {
+	h.site = s
+	return h
 }
 
 // NewTaxonomyPublicHandler constructs the public taxonomy archive handler.
@@ -79,6 +87,12 @@ func (h *TaxonomyPublicHandler) ShowCategory(w http.ResponseWriter, r *http.Requ
 		Cards:       h.cards(r.Context(), ids),
 		Pager:       pager(page, publicPageSize, total, "/categories/"+slug, ""),
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:         cat.Name,
+		Description:   cat.Description,
+		CanonicalPath: "/categories/" + slug,
+		OGType:        "website",
+	})
 	h.render(w, r, webtempl.TaxonomyArchive(view))
 }
 
@@ -108,6 +122,12 @@ func (h *TaxonomyPublicHandler) ShowTag(w http.ResponseWriter, r *http.Request) 
 		Cards:    h.cards(r.Context(), ids),
 		Pager:    pager(page, publicPageSize, total, "/tags/"+slug, ""),
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:         tag.Name,
+		Description:   "Posts tagged " + tag.Name,
+		CanonicalPath: "/tags/" + slug,
+		OGType:        "website",
+	})
 	h.render(w, r, webtempl.TaxonomyArchive(view))
 }
 

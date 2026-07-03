@@ -263,7 +263,7 @@ func PublicSearch(v SearchView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(LayoutData{Title: searchTitle(v), Description: "Search " + v.SiteName}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(LayoutData{Title: searchTitle(v), Description: "Search " + v.SiteName, SEO: v.SEO}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

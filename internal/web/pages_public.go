@@ -29,6 +29,14 @@ type PagePublicHandler struct {
 	svc      PagePublicService
 	siteName string
 	baseURL  string
+	site     SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8). Returns the
+// receiver.
+func (h *PagePublicHandler) WithSite(s SiteConfig) *PagePublicHandler {
+	h.site = s
+	return h
 }
 
 // NewPagePublicHandler constructs the public pages handler.
@@ -58,6 +66,14 @@ func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if p.PublishedAt != nil {
 		publishedAt = *p.PublishedAt
 	}
+	canonical := p.CanonicalURL
+	if canonical == "" {
+		canonical = h.baseURL + i18n.LocalizePath(locale, "/p/"+p.Slug)
+	}
+	metaTitle := p.MetaTitle
+	if metaTitle == "" {
+		metaTitle = p.Title
+	}
 	view := webtempl.PublicPageView{
 		SiteName:     h.siteName,
 		HomeURL:      i18n.LocalizePath(locale, "/"),
@@ -68,8 +84,15 @@ func (h *PagePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Breadcrumbs:  crumbs,
 		PublishedAt:  publishedAt,
 		ReadingTime:  p.ReadingTime,
-		CanonicalURL: h.baseURL + i18n.LocalizePath(locale, "/p/"+p.Slug),
+		CanonicalURL: canonical,
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:        metaTitle,
+		Description:  p.MetaDescription,
+		CanonicalURL: canonical,
+		NoIndex:      p.NoIndex,
+		OGType:       "website",
+	})
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicPage(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}

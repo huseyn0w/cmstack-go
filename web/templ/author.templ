@@ -12,13 +12,15 @@ type AuthorPostLink struct {
 type AuthorPageView struct {
 	ProfilePageView
 	Posts []AuthorPostLink
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 }
 
 // AuthorPage renders the PUBLIC author profile using the public Base layout (not
 // the admin shell): §5 Avatar, bio prose, social links, Breadcrumbs, and the
 // ProfilePage/Person JSON-LD (escaped). Email is never rendered.
 templ AuthorPage(v AuthorPageView) {
-	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: authorDescription(v)}) {
+	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: authorDescription(v), SEO: v.SEO}) {
 		@templ.Raw(`<script type="application/ld+json">` + ProfileJSONLD(v.ProfilePageView) + `</script>`)
 		<nav aria-label="Breadcrumb" data-testid="author-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">

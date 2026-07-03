@@ -132,4 +132,6 @@ type TaxonomyArchiveView struct {
 	Description string // categories only; empty for tags
 	Cards       []PublicPostCard
 	Pager       Pagination
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 }

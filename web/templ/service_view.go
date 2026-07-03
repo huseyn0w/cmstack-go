@@ -114,6 +114,8 @@ type PublicServiceIndexView struct {
 	HomeURL  string
 	Cards    []PublicServiceCard
 	Pager    Pagination
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 }
 
 // PublicServiceView is the public service detail page.
@@ -130,4 +132,6 @@ type PublicServiceView struct {
 	PublishedAt  time.Time
 	ReadingTime  int
 	CanonicalURL string
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 }

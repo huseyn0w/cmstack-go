@@ -31,6 +31,14 @@ type ServicePublicHandler struct {
 	svc      ServicePublicService
 	siteName string
 	baseURL  string
+	site     SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8). Returns the
+// receiver.
+func (h *ServicePublicHandler) WithSite(s SiteConfig) *ServicePublicHandler {
+	h.site = s
+	return h
 }
 
 // NewServicePublicHandler constructs the public services handler.
@@ -58,12 +66,19 @@ func (h *ServicePublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 			Price:   s.Price,
 		})
 	}
+	locale := LocaleFromContext(r.Context())
 	view := webtempl.PublicServiceIndexView{
 		SiteName: h.siteName,
 		HomeURL:  "/",
 		Cards:    cards,
 		Pager:    pager(page, servicePublicPageSize, total, "/services", ""),
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:         "Services",
+		Description:   "Services offered by " + h.siteName,
+		CanonicalPath: i18n.LocalizePath(locale, "/services"),
+		OGType:        "website",
+	})
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicServiceIndex(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}
@@ -91,6 +106,18 @@ func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if svc.PublishedAt != nil {
 		publishedAt = *svc.PublishedAt
 	}
+	canonical := svc.CanonicalURL
+	if canonical == "" {
+		canonical = h.baseURL + i18n.LocalizePath(locale, "/services/"+svc.Slug)
+	}
+	metaTitle := svc.MetaTitle
+	if metaTitle == "" {
+		metaTitle = svc.Title
+	}
+	metaDesc := svc.MetaDescription
+	if metaDesc == "" {
+		metaDesc = svc.Summary
+	}
 	view := webtempl.PublicServiceView{
 		SiteName:     h.siteName,
 		HomeURL:      i18n.LocalizePath(locale, "/"),
@@ -103,8 +130,15 @@ func (h *ServicePublicHandler) Show(w http.ResponseWriter, r *http.Request) {
 		FAQs:         faqs,
 		PublishedAt:  publishedAt,
 		ReadingTime:  svc.ReadingTime,
-		CanonicalURL: h.baseURL + i18n.LocalizePath(locale, "/services/"+svc.Slug),
+		CanonicalURL: canonical,
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:        metaTitle,
+		Description:  metaDesc,
+		CanonicalURL: canonical,
+		NoIndex:      svc.NoIndex,
+		OGType:       "website",
+	})
 	// TODO(M8): emit Service + FAQPage JSON-LD from svc.JSONLD(view.CanonicalURL).
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicServiceDetail(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)

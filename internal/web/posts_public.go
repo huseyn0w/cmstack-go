@@ -61,6 +61,14 @@ type PostPublicHandler struct {
 	siteName   string
 	baseURL    string
 	csrf       func(*http.Request) string
+	site       SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8) so the handler
+// can build a per-page SEOView for the document head. Returns the receiver.
+func (h *PostPublicHandler) WithSite(s SiteConfig) *PostPublicHandler {
+	h.site = s
+	return h
 }
 
 // NewPostPublicHandler constructs the public posts handler.
@@ -122,6 +130,12 @@ func (h *PostPublicHandler) Index(w http.ResponseWriter, r *http.Request) {
 		Cards:    cards,
 		Pager:    pager(page, publicPageSize, total, i18n.LocalizePath(locale, "/blog"), blogFilterQuery(categorySlug, tagSlug)),
 	}
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:         "Blog",
+		Description:   "Latest posts from " + h.siteName,
+		CanonicalPath: i18n.LocalizePath(locale, "/blog"),
+		OGType:        "website",
+	})
 	h.render(w, r, webtempl.PublicPostIndex(view))
 }
 
@@ -210,6 +224,15 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 	if p.PublishedAt != nil {
 		publishedAt = *p.PublishedAt
 	}
+	canonical := h.canonicalFor(p)
+	metaTitle := p.MetaTitle
+	if metaTitle == "" {
+		metaTitle = p.Title
+	}
+	metaDesc := p.MetaDescription
+	if metaDesc == "" {
+		metaDesc = p.Excerpt
+	}
 	return webtempl.PublicPostView{
 		SiteName:     h.siteName,
 		HomeURL:      "/",
@@ -227,11 +250,27 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 		CanLike:      signedIn,
 		LikeURL:      "/blog/" + p.Slug + "/like",
 		CSRFToken:    h.csrf(r),
-		CanonicalURL: h.baseURL + "/blog/" + p.Slug,
-		Categories:   h.categoryPills(r.Context(), p.ID),
-		Tags:         h.tagPills(r.Context(), p.ID),
-		Related:      h.relatedCards(r.Context(), p.ID),
+		CanonicalURL: canonical,
+		SEO: h.site.BuildSEO(r, SEOInput{
+			Title:        metaTitle,
+			Description:  metaDesc,
+			CanonicalURL: canonical,
+			NoIndex:      p.NoIndex,
+			OGType:       "article",
+		}),
+		Categories: h.categoryPills(r.Context(), p.ID),
+		Tags:       h.tagPills(r.Context(), p.ID),
+		Related:    h.relatedCards(r.Context(), p.ID),
 	}
+}
+
+// canonicalFor resolves the post's canonical URL: an explicit CanonicalURL wins;
+// otherwise it is baseURL + the post's blog path.
+func (h *PostPublicHandler) canonicalFor(p posts.Post) string {
+	if p.CanonicalURL != "" {
+		return p.CanonicalURL
+	}
+	return h.baseURL + "/blog/" + p.Slug
 }
 
 // categoryPills returns the post's categories as archive-linking pills.

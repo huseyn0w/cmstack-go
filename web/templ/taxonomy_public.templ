@@ -6,7 +6,7 @@ import "fmt"
 // eyebrow + title (+ description for categories), the published-post card grid
 // (§5), pagination, and an empty state.
 templ TaxonomyArchive(v TaxonomyArchiveView) {
-	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: v.Description}) {
+	@Base(LayoutData{Title: v.Name + " · " + v.SiteName, Description: v.Description, SEO: v.SEO}) {
 		<nav aria-label="Breadcrumb" data-testid="archive-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
 				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>

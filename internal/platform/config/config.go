@@ -92,6 +92,46 @@ type Config struct {
 	// CommentRateLimitPerMinute caps guest/member comment submissions per client
 	// IP (M5). Defaults to 8/min (ts parity).
 	CommentRateLimitPerMinute float64 `env:"COMMENT_RATE_LIMIT_PER_MINUTE" envDefault:"8"`
+
+	// SEO / site identity (M8). All optional with sensible defaults so the app
+	// runs without any of these set; they enrich the document head + (later)
+	// JSON-LD Organization. SiteName is also passed as a router Dep today; it is
+	// mirrored here so the site identity lives in one config surface.
+	SiteName        string `env:"SITE_NAME" envDefault:"CMStack"`
+	SiteDescription string `env:"SITE_DESCRIPTION" envDefault:""`
+	// DefaultOGImage is the OG/Twitter image fallback (absolute URL or a rooted
+	// path resolved against BaseURL).
+	DefaultOGImage string `env:"DEFAULT_OG_IMAGE" envDefault:""`
+	// TwitterHandle is the site's Twitter/X handle (e.g. "@cmstack").
+	TwitterHandle string `env:"TWITTER_HANDLE" envDefault:""`
+	// GlobalNoindex forces noindex site-wide (a staging gate).
+	GlobalNoindex bool `env:"GLOBAL_NOINDEX" envDefault:"false"`
+	// AllowAICrawlers is consumed by the later robots slice; the identity lives
+	// here so the whole site-identity surface is in one place.
+	AllowAICrawlers bool `env:"ALLOW_AI_CRAWLERS" envDefault:"true"`
+
+	// Search-engine verification tokens. Each emits a <meta name=... content=...>
+	// verification tag in the head when set.
+	GoogleSiteVerification string `env:"GOOGLE_SITE_VERIFICATION" envDefault:""`
+	BingSiteVerification   string `env:"BING_SITE_VERIFICATION" envDefault:""`
+	YandexVerification     string `env:"YANDEX_VERIFICATION" envDefault:""`
+	PinterestVerification  string `env:"PINTEREST_VERIFICATION" envDefault:""`
+
+	// GEO / business identity (consumed later by JSON-LD Organization; defined
+	// now so the site identity lives in one place). SameAs is the list of social
+	// profile URLs.
+	OrgName       string   `env:"ORG_NAME" envDefault:""`
+	OrgLegalName  string   `env:"ORG_LEGAL_NAME" envDefault:""`
+	OrgLogo       string   `env:"ORG_LOGO" envDefault:""`
+	OrgEmail      string   `env:"ORG_EMAIL" envDefault:""`
+	OrgPhone      string   `env:"ORG_PHONE" envDefault:""`
+	OrgStreet     string   `env:"ORG_STREET" envDefault:""`
+	OrgLocality   string   `env:"ORG_LOCALITY" envDefault:""`
+	OrgRegion     string   `env:"ORG_REGION" envDefault:""`
+	OrgPostalCode string   `env:"ORG_POSTAL_CODE" envDefault:""`
+	OrgCountry    string   `env:"ORG_COUNTRY" envDefault:""`
+	GeoStatement  string   `env:"GEO_STATEMENT" envDefault:""`
+	SameAs        []string `env:"SOCIAL_PROFILES" envSeparator:","`
 }
 
 // IsProduction reports whether the app runs in production mode.

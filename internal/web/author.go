@@ -35,6 +35,14 @@ type AuthorHandler struct {
 	posts    AuthorPostsProvider
 	siteName string
 	homeURL  string
+	site     SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8). Returns the
+// receiver.
+func (h *AuthorHandler) WithSite(s SiteConfig) *AuthorHandler {
+	h.site = s
+	return h
 }
 
 // NewAuthorHandler constructs the public author handler. postsProvider may be
@@ -68,20 +76,31 @@ func (h *AuthorHandler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profileView := webtempl.ProfilePageView{
+		Name:        author.Name,
+		Bio:         author.Bio,
+		AvatarURL:   author.AvatarURL,
+		Website:     author.Website,
+		ProfileURL:  h.profileURL(author.ID),
+		SocialOrder: accounts.SocialOrder(author.SocialLinks),
+		Socials:     author.SocialLinks,
+		RoleLabel:   author.RoleLabel,
+		SiteName:    h.siteName,
+		HomeURL:     h.homeURL,
+	}
+	desc := author.Bio
+	if desc == "" {
+		desc = author.Name + " on " + h.siteName
+	}
 	view := webtempl.AuthorPageView{
-		ProfilePageView: webtempl.ProfilePageView{
-			Name:        author.Name,
-			Bio:         author.Bio,
-			AvatarURL:   author.AvatarURL,
-			Website:     author.Website,
-			ProfileURL:  h.profileURL(author.ID),
-			SocialOrder: accounts.SocialOrder(author.SocialLinks),
-			Socials:     author.SocialLinks,
-			RoleLabel:   author.RoleLabel,
-			SiteName:    h.siteName,
-			HomeURL:     h.homeURL,
-		},
-		Posts: h.authorPosts(r.Context(), author),
+		ProfilePageView: profileView,
+		Posts:           h.authorPosts(r.Context(), author),
+		SEO: h.site.BuildSEO(r, SEOInput{
+			Title:        author.Name,
+			Description:  desc,
+			CanonicalURL: profileView.ProfileURL,
+			OGType:       "website",
+		}),
 	}
 
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.AuthorPage(view)); err != nil {

@@ -194,6 +194,9 @@ type PublicPostIndexView struct {
 	HomeURL  string
 	Cards    []PublicPostCard
 	Pager    Pagination
+	// SEO carries the resolved document-head view-model (M8); nil in reduced
+	// contexts (the head then falls back to the minimal title/description).
+	SEO *SEOView
 }
 
 // PublicPostView is the public post detail page.
@@ -215,6 +218,8 @@ type PublicPostView struct {
 	LikeURL      string
 	CSRFToken    string
 	CanonicalURL string
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 
 	// Taxonomy (M3): the post's categories + tags as archive-linking pills, and
 	// the related-posts block (posts sharing >=1 category/tag).

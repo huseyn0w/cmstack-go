@@ -62,6 +62,11 @@ type Deps struct {
 	Authors       AuthorNamer
 	SiteName      string
 
+	// Site is the resolved site-identity + SEO config (M8). Threaded to every
+	// public handler that emits a document head. Optional so reduced-Deps tests
+	// keep working (an empty SiteConfig yields a minimal, still-valid head).
+	Site SiteConfig
+
 	// Pages (M2b). PageAdmin is the gated admin pages area; PagePublic renders a
 	// page at /p/{slug}. All optional.
 	PageAdminSvc  PageAdminService
@@ -174,19 +179,27 @@ func Router(d Deps) http.Handler {
 		// TODO(M1-ext): replace this inline closure with a real home handler in
 		// its own package once the content domain exists.
 		gr.Get("/", func(w http.ResponseWriter, req *http.Request) {
-			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.Home()); err != nil {
+			seo := d.Site.BuildSEO(req, SEOInput{
+				Title:         d.Site.SiteName,
+				Description:   d.Site.SiteDescription,
+				CanonicalPath: "/",
+				OGType:        "website",
+			})
+			if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeSEO(seo)); err != nil {
 				http.Error(w, "render error", http.StatusInternalServerError)
 			}
 		})
 
 		// Public author profile page (no auth) — anyone may view it.
 		if d.Author != nil {
+			d.Author.WithSite(d.Site)
 			gr.Get("/authors/{id}", d.Author.Show)
 		}
 
 		// Public blog (no auth for read). Liking requires an authenticated user.
 		if d.PostPublicSvc != nil {
 			pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
+			pub.WithSite(d.Site)
 			if d.CategoryPostSvc != nil || d.TagPostSvc != nil {
 				pub.WithTaxonomy(d.CategoryPostSvc, d.TagPostSvc)
 			}
@@ -214,6 +227,7 @@ func Router(d Deps) http.Handler {
 		// Public taxonomy archives (no auth): /categories/{slug} + /tags/{slug}.
 		if d.PostHydrateSvc != nil && (d.CategoryPublicSvc != nil || d.TagPublicSvc != nil) {
 			tax := NewTaxonomyPublicHandler(d.CategoryPublicSvc, d.TagPublicSvc, d.PostHydrateSvc, d.Authors, d.SiteName)
+			tax.WithSite(d.Site)
 			if d.CategoryPublicSvc != nil {
 				gr.Get("/categories/{slug}", tax.ShowCategory)
 			}
@@ -226,12 +240,14 @@ func Router(d Deps) http.Handler {
 		// hierarchy drives the breadcrumb trail.
 		if d.PagePublicSvc != nil {
 			pp := NewPagePublicHandler(d.PagePublicSvc, d.SiteName, d.Config.BaseURL)
+			pp.WithSite(d.Site)
 			gr.Get("/p/{slug}", pp.Show)
 		}
 
 		// Public services (no auth): /services index + /services/{slug} detail.
 		if d.ServicePublicSvc != nil {
 			sp := NewServicePublicHandler(d.ServicePublicSvc, d.SiteName, d.Config.BaseURL)
+			sp.WithSite(d.Site)
 			gr.Get("/services", sp.Index)
 			gr.Get("/services/{slug}", sp.Show)
 		}
@@ -240,6 +256,7 @@ func Router(d Deps) http.Handler {
 		// with an ILIKE fallback) across published posts/pages/services.
 		if d.SearchSvc != nil {
 			sh := NewSearchPublicHandler(d.SearchSvc, d.SiteName)
+			sh.WithSite(d.Site)
 			gr.Get("/search", sh.Search)
 		}
 

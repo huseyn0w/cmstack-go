@@ -6,7 +6,7 @@ import "fmt"
 // typography (§3), a mono eyebrow/date, reading time, author link, Breadcrumbs,
 // the BlogPosting JSON-LD (escaped seam), and a like button island.
 templ PublicPostDetail(v PublicPostView) {
-	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt}) {
+	@Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt, SEO: v.SEO}) {
 		@templ.Raw(`<script type="application/ld+json">` + PostJSONLD(v) + `</script>`)
 		<nav aria-label="Breadcrumb" data-testid="post-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
@@ -81,7 +81,7 @@ templ LikeIsland(v PublicPostView) {
 // PublicPostIndex renders the paginated published-posts grid (cards §5) with an
 // empty state.
 templ PublicPostIndex(v PublicPostIndexView) {
-	@Base(LayoutData{Title: "Blog · " + v.SiteName, Description: "Latest posts from " + v.SiteName}) {
+	@Base(LayoutData{Title: "Blog · " + v.SiteName, Description: "Latest posts from " + v.SiteName, SEO: v.SEO}) {
 		<header class="mb-8">
 			<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Blog</p>
 			<h1 class="mt-2 text-h1 text-text">Latest posts</h1>

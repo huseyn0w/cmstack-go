@@ -252,7 +252,8 @@ func run() error {
 		PostAdminSvc:  postSvc,
 		PostPublicSvc: postSvc,
 		Authors:       userRepo,
-		SiteName:      "CMStack",
+		SiteName:      cfg.SiteName,
+		Site:          web.NewSiteConfig(cfg),
 
 		PageAdminSvc:  pageSvc,
 		PagePublicSvc: pageSvc,

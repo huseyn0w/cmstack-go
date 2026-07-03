@@ -210,7 +210,7 @@ func PublicPostDetail(v PublicPostView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Excerpt, SEO: v.SEO}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -536,7 +536,7 @@ func PublicPostIndex(v PublicPostIndexView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(LayoutData{Title: "Blog · " + v.SiteName, Description: "Latest posts from " + v.SiteName}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(LayoutData{Title: "Blog · " + v.SiteName, Description: "Latest posts from " + v.SiteName, SEO: v.SEO}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

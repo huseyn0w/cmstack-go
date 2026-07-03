@@ -6,7 +6,7 @@ package templ
 // a11y throughout. The form is a GET (idempotent, shareable URL) so it carries
 // no CSRF token.
 templ PublicSearch(v SearchView) {
-	@Base(LayoutData{Title: searchTitle(v), Description: "Search " + v.SiteName}) {
+	@Base(LayoutData{Title: searchTitle(v), Description: "Search " + v.SiteName, SEO: v.SEO}) {
 		<nav aria-label="Breadcrumb" data-testid="search-breadcrumb">
 			<ol class="flex items-center gap-2 font-mono text-caption text-muted">
 				<li><a class="hover:text-text" href={ templ.SafeURL(v.HomeURL) }>{ v.SiteName }</a></li>

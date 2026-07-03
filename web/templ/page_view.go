@@ -123,4 +123,6 @@ type PublicPageView struct {
 	PublishedAt  time.Time
 	ReadingTime  int
 	CanonicalURL string
+	// SEO carries the resolved document-head view-model (M8).
+	SEO *SEOView
 }

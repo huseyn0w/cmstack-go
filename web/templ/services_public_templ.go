@@ -144,7 +144,7 @@ func PublicServiceIndex(v PublicServiceIndexView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(LayoutData{Title: "Services · " + v.SiteName, Description: "Services offered by " + v.SiteName}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(LayoutData{Title: "Services · " + v.SiteName, Description: "Services offered by " + v.SiteName, SEO: v.SEO}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -386,7 +386,7 @@ func PublicServiceDetail(v PublicServiceView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Summary}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Base(LayoutData{Title: v.Title + " · " + v.SiteName, Description: v.Summary, SEO: v.SEO}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

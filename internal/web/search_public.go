@@ -27,6 +27,14 @@ type SearchService interface {
 type SearchPublicHandler struct {
 	svc      SearchService
 	siteName string
+	site     SiteConfig
+}
+
+// WithSite attaches the resolved site-identity + SEO config (M8). Returns the
+// receiver.
+func (h *SearchPublicHandler) WithSite(s SiteConfig) *SearchPublicHandler {
+	h.site = s
+	return h
 }
 
 // NewSearchPublicHandler constructs the public search handler.
@@ -71,6 +79,14 @@ func (h *SearchPublicHandler) Search(w http.ResponseWriter, r *http.Request) {
 		Total:     res.Total,
 		Pager:     pager(page, searchPageSize, res.Total, "/search", searchQuery(res.Query)),
 	}
+	// Search result pages are noindex: query pages should not be indexed.
+	view.SEO = h.site.BuildSEO(r, SEOInput{
+		Title:         "Search",
+		Description:   "Search " + h.siteName,
+		CanonicalPath: "/search",
+		NoIndex:       true,
+		OGType:        "website",
+	})
 	if err := render.Component(r.Context(), w, http.StatusOK, webtempl.PublicSearch(view)); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}

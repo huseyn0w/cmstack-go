@@ -1,9 +1,13 @@
 package templ
 
-// LayoutData carries the document-level attributes for the base layout.
+// LayoutData carries the document-level attributes for the base layout. SEO is
+// optional: when set (public pages) the head emits the full document-head SEO
+// block (canonical/robots/Open Graph/Twitter/hreflang/verification); when nil
+// (admin + other pages) the head falls back to the minimal Title/Description.
 type LayoutData struct {
 	Title       string
 	Description string
+	SEO         *SEOView
 }
 
 // Base is the application's root HTML document. It establishes the language,
@@ -17,10 +21,12 @@ templ Base(data LayoutData) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<meta name="description" content={ data.Description }/>
-			<title>{ data.Title }</title>
-			// TODO(M8): emit loc.Switch as <link rel="alternate" hreflang> +
-			// x-default here. The alternate data is already assembled by LocaleView.
+			if data.SEO != nil {
+				@seoHead(data.SEO)
+			} else {
+				<meta name="description" content={ data.Description }/>
+				<title>{ data.Title }</title>
+			}
 			<link rel="preload" href="/static/fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="stylesheet" href="/static/app.css"/>
@@ -63,6 +69,44 @@ templ Base(data LayoutData) {
 			</footer>
 		</body>
 	</html>
+}
+
+// seoHead emits the full public document-head SEO block from a resolved SEOView:
+// title + description, canonical, robots, the Open Graph block, the Twitter Card
+// block, per-locale hreflang alternates (incl. x-default), and search-engine
+// verification tags. Text attributes auto-escape; hrefs use templ.SafeURL.
+templ seoHead(s *SEOView) {
+	<title>{ s.DocTitle }</title>
+	<meta name="description" content={ s.Description }/>
+	<link rel="canonical" href={ templ.SafeURL(s.Canonical) }/>
+	<meta name="robots" content={ s.Robots }/>
+	// Open Graph.
+	<meta property="og:type" content={ s.OGType }/>
+	<meta property="og:title" content={ s.OGTitle }/>
+	<meta property="og:description" content={ s.OGDescription }/>
+	<meta property="og:url" content={ s.OGURL }/>
+	<meta property="og:site_name" content={ s.OGSiteName }/>
+	if s.OGImage != "" {
+		<meta property="og:image" content={ s.OGImage }/>
+	}
+	// Twitter Card.
+	<meta name="twitter:card" content={ s.TwitterCard }/>
+	if s.TwitterSite != "" {
+		<meta name="twitter:site" content={ s.TwitterSite }/>
+	}
+	<meta name="twitter:title" content={ s.OGTitle }/>
+	<meta name="twitter:description" content={ s.OGDescription }/>
+	if s.OGImage != "" {
+		<meta name="twitter:image" content={ s.OGImage }/>
+	}
+	// hreflang alternates (incl. x-default).
+	for _, a := range s.Alternates {
+		<link rel="alternate" hreflang={ a.Hreflang } href={ templ.SafeURL(a.Href) }/>
+	}
+	// Search-engine verification tags.
+	for _, v := range s.Verifications {
+		<meta name={ v.Name } content={ v.Content }/>
+	}
 }
 
 // localeSwitcher renders the public header language switcher (DESIGN_SYSTEM §5):
@@ -125,7 +169,19 @@ templ localeSwitcherItem(loc LocaleViewData, alt Alternate) {
 // Home is a trivial page used to validate the layout end-to-end in M0.
 templ Home() {
 	@Base(LayoutData{Title: "CMStack-Go", Description: "Server-rendered CMS"}) {
-		<h1 class="text-h1 text-text">Welcome to CMStack-Go</h1>
-		<p class="mt-4 text-body text-muted">The walking skeleton is alive.</p>
+		@homeBody()
 	}
+}
+
+// HomeSEO renders the home page with a resolved SEOView so the head emits the
+// full document-head SEO block (M8).
+templ HomeSEO(seo *SEOView) {
+	@Base(LayoutData{Title: "CMStack-Go", Description: "Server-rendered CMS", SEO: seo}) {
+		@homeBody()
+	}
+}
+
+templ homeBody() {
+	<h1 class="text-h1 text-text">Welcome to CMStack-Go</h1>
+	<p class="mt-4 text-body text-muted">The walking skeleton is alive.</p>
 }

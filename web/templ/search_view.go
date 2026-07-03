@@ -28,6 +28,9 @@ type SearchView struct {
 	Cards     []SearchResultCard
 	Total     int
 	Pager     Pagination
+	// SEO carries the resolved document-head view-model (M8). Search result pages
+	// are noindex (query pages should not be indexed).
+	SEO *SEOView
 }
 
 // searchTitle builds the document <title>, echoing the query when one was run.
