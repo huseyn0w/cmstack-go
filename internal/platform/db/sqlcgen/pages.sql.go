@@ -65,21 +65,26 @@ func (q *Queries) CountTrashedPages(ctx context.Context) (int64, error) {
 
 const createPage = `-- name: CreatePage :one
 INSERT INTO pages (
-    title, slug, body, status, published_at, parent_id, template, reading_time
+    title, slug, body, status, published_at, parent_id, template, reading_time,
+    meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type CreatePageParams struct {
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ParentID    pgtype.UUID        `json:"parent_id"`
-	Template    string             `json:"template"`
-	ReadingTime int32              `json:"reading_time"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	Template        string             `json:"template"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (Page, error) {
@@ -92,6 +97,10 @@ func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (Page, e
 		arg.ParentID,
 		arg.Template,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Page
 	err := row.Scan(
@@ -108,12 +117,16 @@ func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (Page, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getActivePageByID = `-- name: GetActivePageByID :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages WHERE id = $1 AND deleted_at IS NULL
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error) {
@@ -133,12 +146,16 @@ func (q *Queries) GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPageByID = `-- name: GetPageByID :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages WHERE id = $1
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages WHERE id = $1
 `
 
 func (q *Queries) GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error) {
@@ -158,12 +175,16 @@ func (q *Queries) GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPublishedPageBySlug = `-- name: GetPublishedPageBySlug :one
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 `
 
@@ -184,12 +205,16 @@ func (q *Queries) GetPublishedPageBySlug(ctx context.Context, slug string) (Page
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const listAllActivePages = `-- name: ListAllActivePages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE deleted_at IS NULL
 ORDER BY title ASC
 `
@@ -217,6 +242,10 @@ func (q *Queries) ListAllActivePages(ctx context.Context) ([]Page, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -229,7 +258,7 @@ func (q *Queries) ListAllActivePages(ctx context.Context) ([]Page, error) {
 }
 
 const listChildPages = `-- name: ListChildPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE parent_id = $1 AND deleted_at IS NULL
 ORDER BY title ASC
 `
@@ -257,6 +286,10 @@ func (q *Queries) ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]P
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -269,7 +302,7 @@ func (q *Queries) ListChildPages(ctx context.Context, parentID pgtype.UUID) ([]P
 }
 
 const listPages = `-- name: ListPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE deleted_at IS NULL
   AND ($3::text IS NULL OR status = $3::text)
 ORDER BY title ASC
@@ -305,6 +338,10 @@ func (q *Queries) ListPages(ctx context.Context, arg ListPagesParams) ([]Page, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -317,7 +354,7 @@ func (q *Queries) ListPages(ctx context.Context, arg ListPagesParams) ([]Page, e
 }
 
 const listPublishedPages = `-- name: ListPublishedPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY title ASC
 LIMIT $1 OFFSET $2
@@ -351,6 +388,10 @@ func (q *Queries) ListPublishedPages(ctx context.Context, arg ListPublishedPages
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -363,7 +404,7 @@ func (q *Queries) ListPublishedPages(ctx context.Context, arg ListPublishedPages
 }
 
 const listTrashedPages = `-- name: ListTrashedPages :many
-SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector FROM pages
+SELECT id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM pages
 WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT $1 OFFSET $2
@@ -397,6 +438,10 @@ func (q *Queries) ListTrashedPages(ctx context.Context, arg ListTrashedPagesPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -447,21 +492,29 @@ SET title = $2,
     parent_id = $7,
     template = $8,
     reading_time = $9,
+    meta_title = $10,
+    meta_description = $11,
+    canonical_url = $12,
+    noindex = $13,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector
+RETURNING id, title, slug, body, status, published_at, parent_id, template, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type UpdatePageParams struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ParentID    pgtype.UUID        `json:"parent_id"`
-	Template    string             `json:"template"`
-	ReadingTime int32              `json:"reading_time"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	Template        string             `json:"template"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error) {
@@ -475,6 +528,10 @@ func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, e
 		arg.ParentID,
 		arg.Template,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Page
 	err := row.Scan(
@@ -491,6 +548,10 @@ func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }

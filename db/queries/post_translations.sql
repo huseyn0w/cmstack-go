@@ -2,12 +2,14 @@
 -- Insert or update the translation row for (post_id, locale). Callers pass a
 -- NON-default locale (en content lives on the base posts row). Body is sanitized
 -- by the service before it reaches here.
-INSERT INTO post_translations (post_id, locale, title, excerpt, body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO post_translations (post_id, locale, title, excerpt, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (post_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     excerpt = EXCLUDED.excerpt,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
 RETURNING *;
 
@@ -51,6 +53,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -74,6 +80,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -96,6 +106,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at

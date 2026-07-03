@@ -74,6 +74,12 @@ type CreateInput struct {
 	Status   kernel.Status
 	ParentID *uuid.UUID
 	Template string
+	// SEO metadata (M8-1). MetaTitle/MetaDescription are the default-locale (en)
+	// values stored on the base row; CanonicalURL/NoIndex are structural.
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // Create makes a new page. Body is sanitized, reading time computed, slug
@@ -113,14 +119,18 @@ func (s *Service) Create(ctx context.Context, actorID uuid.UUID, in CreateInput)
 	}
 
 	data := CreatePageData{
-		Title:       title,
-		Slug:        slug,
-		Body:        body,
-		Status:      status,
-		PublishedAt: publishedAt,
-		ParentID:    in.ParentID,
-		Template:    normalizeTemplate(in.Template),
-		ReadingTime: kernel.ReadingTimeMinutes(body),
+		Title:           title,
+		Slug:            slug,
+		Body:            body,
+		Status:          status,
+		PublishedAt:     publishedAt,
+		ParentID:        in.ParentID,
+		Template:        normalizeTemplate(in.Template),
+		ReadingTime:     kernel.ReadingTimeMinutes(body),
+		MetaTitle:       strings.TrimSpace(in.MetaTitle),
+		MetaDescription: strings.TrimSpace(in.MetaDescription),
+		CanonicalURL:    strings.TrimSpace(in.CanonicalURL),
+		NoIndex:         in.NoIndex,
 	}
 
 	var created Page
@@ -153,6 +163,11 @@ type UpdateInput struct {
 	Template  *string
 	SetParent bool
 	ParentID  *uuid.UUID
+	// SEO metadata (M8-1). Pointer-optional: nil leaves the stored value unchanged.
+	MetaTitle       *string
+	MetaDescription *string
+	CanonicalURL    *string
+	NoIndex         *bool
 }
 
 // Update mutates an existing page. It snapshots the prior state into a revision
@@ -198,6 +213,18 @@ func (s *Service) Update(ctx context.Context, actorID uuid.UUID, id uuid.UUID, i
 			return Page{}, err
 		}
 		next.ParentID = in.ParentID
+	}
+	if in.MetaTitle != nil {
+		next.MetaTitle = strings.TrimSpace(*in.MetaTitle)
+	}
+	if in.MetaDescription != nil {
+		next.MetaDescription = strings.TrimSpace(*in.MetaDescription)
+	}
+	if in.CanonicalURL != nil {
+		next.CanonicalURL = strings.TrimSpace(*in.CanonicalURL)
+	}
+	if in.NoIndex != nil {
+		next.NoIndex = *in.NoIndex
 	}
 
 	becamePublished := false
@@ -254,14 +281,18 @@ func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, n
 		}
 
 		p, err := s.repo.UpdateTx(ctx, tx, prior.ID, UpdatePageData{
-			Title:       next.Title,
-			Slug:        next.Slug,
-			Body:        next.Body,
-			Status:      next.Status,
-			PublishedAt: next.PublishedAt,
-			ParentID:    next.ParentID,
-			Template:    next.Template,
-			ReadingTime: next.ReadingTime,
+			Title:           next.Title,
+			Slug:            next.Slug,
+			Body:            next.Body,
+			Status:          next.Status,
+			PublishedAt:     next.PublishedAt,
+			ParentID:        next.ParentID,
+			Template:        next.Template,
+			ReadingTime:     next.ReadingTime,
+			MetaTitle:       next.MetaTitle,
+			MetaDescription: next.MetaDescription,
+			CanonicalURL:    next.CanonicalURL,
+			NoIndex:         next.NoIndex,
 		})
 		if err != nil {
 			return fmt.Errorf("update page: %w", err)
@@ -468,8 +499,10 @@ func (s *Service) Get(ctx context.Context, actorID, id uuid.UUID) (Page, error) 
 // structural fields are NOT part of it (they are shared on the base row and
 // edited via Update).
 type TranslationInput struct {
-	Title string
-	Body  string
+	Title           string
+	Body            string
+	MetaTitle       string
+	MetaDescription string
 }
 
 // SaveTranslation upserts a NON-default locale's content overlay for a page.
@@ -495,9 +528,11 @@ func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, lo
 		return ErrTitleRequired
 	}
 	t := Translation{
-		Locale: locale.String(),
-		Title:  title,
-		Body:   kernel.SanitizeRichText(in.Body),
+		Locale:          locale.String(),
+		Title:           title,
+		Body:            kernel.SanitizeRichText(in.Body),
+		MetaTitle:       strings.TrimSpace(in.MetaTitle),
+		MetaDescription: strings.TrimSpace(in.MetaDescription),
 	}
 	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		return s.repo.UpsertTranslationTx(ctx, tx, id, t)

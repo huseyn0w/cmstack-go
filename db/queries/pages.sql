@@ -1,8 +1,9 @@
 -- name: CreatePage :one
 INSERT INTO pages (
-    title, slug, body, status, published_at, parent_id, template, reading_time
+    title, slug, body, status, published_at, parent_id, template, reading_time,
+    meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: UpdatePage :one
@@ -15,6 +16,10 @@ SET title = $2,
     parent_id = $7,
     template = $8,
     reading_time = $9,
+    meta_title = $10,
+    meta_description = $11,
+    canonical_url = $12,
+    noindex = $13,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

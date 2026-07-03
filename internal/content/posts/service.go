@@ -111,6 +111,12 @@ type CreateInput struct {
 	Body        string
 	Status      kernel.Status
 	ScheduledAt *time.Time
+	// SEO metadata (M8-1). MetaTitle/MetaDescription are the default-locale (en)
+	// values stored on the base row; CanonicalURL/NoIndex are structural.
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 	// Taxonomy (M3): the full category/tag sets to associate with the new post,
 	// persisted in the SAME transaction as the post insert. nil = none. A nil
 	// SetTaxonomy on update vs. an empty slice both clear; on create an empty
@@ -153,15 +159,19 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, in CreateInput
 	}
 
 	data := CreatePostData{
-		Title:       title,
-		Slug:        slug,
-		Excerpt:     sanitizeExcerpt(in.Excerpt),
-		Body:        body,
-		Status:      status,
-		PublishedAt: publishedAt,
-		ScheduledAt: scheduledAt,
-		AuthorID:    authorID,
-		ReadingTime: kernel.ReadingTimeMinutes(body),
+		Title:           title,
+		Slug:            slug,
+		Excerpt:         sanitizeExcerpt(in.Excerpt),
+		Body:            body,
+		Status:          status,
+		PublishedAt:     publishedAt,
+		ScheduledAt:     scheduledAt,
+		AuthorID:        authorID,
+		ReadingTime:     kernel.ReadingTimeMinutes(body),
+		MetaTitle:       strings.TrimSpace(in.MetaTitle),
+		MetaDescription: strings.TrimSpace(in.MetaDescription),
+		CanonicalURL:    strings.TrimSpace(in.CanonicalURL),
+		NoIndex:         in.NoIndex,
 	}
 
 	// A concurrent create of the same title can win the slug between our dedupe
@@ -211,6 +221,11 @@ type UpdateInput struct {
 	Body        *string
 	Status      *kernel.Status
 	ScheduledAt *time.Time // nil = unchanged
+	// SEO metadata (M8-1). Pointer-optional: nil leaves the stored value unchanged.
+	MetaTitle       *string
+	MetaDescription *string
+	CanonicalURL    *string
+	NoIndex         *bool
 	// Taxonomy (M3): when SetTaxonomy is true the post's category/tag sets are
 	// REPLACED with CategoryIDs/TagIDs (an empty/nil slice clears that axis),
 	// persisted in the SAME transaction as the post update. When false the
@@ -257,6 +272,18 @@ func (s *Service) Update(ctx context.Context, actorID uuid.UUID, id uuid.UUID, i
 			return Post{}, err
 		}
 		next.Slug = slug
+	}
+	if in.MetaTitle != nil {
+		next.MetaTitle = strings.TrimSpace(*in.MetaTitle)
+	}
+	if in.MetaDescription != nil {
+		next.MetaDescription = strings.TrimSpace(*in.MetaDescription)
+	}
+	if in.CanonicalURL != nil {
+		next.CanonicalURL = strings.TrimSpace(*in.CanonicalURL)
+	}
+	if in.NoIndex != nil {
+		next.NoIndex = *in.NoIndex
 	}
 
 	becamePublished := false
@@ -321,14 +348,18 @@ func (s *Service) persistUpdate(ctx context.Context, actorID uuid.UUID, prior, n
 		}
 
 		p, err := s.repo.UpdateTx(ctx, tx, prior.ID, UpdatePostData{
-			Title:       next.Title,
-			Slug:        next.Slug,
-			Excerpt:     next.Excerpt,
-			Body:        next.Body,
-			Status:      next.Status,
-			PublishedAt: next.PublishedAt,
-			ScheduledAt: next.ScheduledAt,
-			ReadingTime: next.ReadingTime,
+			Title:           next.Title,
+			Slug:            next.Slug,
+			Excerpt:         next.Excerpt,
+			Body:            next.Body,
+			Status:          next.Status,
+			PublishedAt:     next.PublishedAt,
+			ScheduledAt:     next.ScheduledAt,
+			ReadingTime:     next.ReadingTime,
+			MetaTitle:       next.MetaTitle,
+			MetaDescription: next.MetaDescription,
+			CanonicalURL:    next.CanonicalURL,
+			NoIndex:         next.NoIndex,
 		})
 		if err != nil {
 			return fmt.Errorf("update post: %w", err)
@@ -589,14 +620,18 @@ func (s *Service) publishScheduled(ctx context.Context, id uuid.UUID, now time.T
 
 	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		p, err := s.repo.UpdateTx(ctx, tx, id, UpdatePostData{
-			Title:       next.Title,
-			Slug:        next.Slug,
-			Excerpt:     next.Excerpt,
-			Body:        next.Body,
-			Status:      next.Status,
-			PublishedAt: next.PublishedAt,
-			ScheduledAt: next.ScheduledAt,
-			ReadingTime: next.ReadingTime,
+			Title:           next.Title,
+			Slug:            next.Slug,
+			Excerpt:         next.Excerpt,
+			Body:            next.Body,
+			Status:          next.Status,
+			PublishedAt:     next.PublishedAt,
+			ScheduledAt:     next.ScheduledAt,
+			ReadingTime:     next.ReadingTime,
+			MetaTitle:       next.MetaTitle,
+			MetaDescription: next.MetaDescription,
+			CanonicalURL:    next.CanonicalURL,
+			NoIndex:         next.NoIndex,
 		})
 		if err != nil {
 			return fmt.Errorf("publish scheduled post: %w", err)
@@ -714,9 +749,11 @@ func (s *Service) Get(ctx context.Context, actorID, id uuid.UUID) (Post, error) 
 // excerpt is stripped write-time; structural fields are NOT part of it (they are
 // shared on the base row and edited via Update).
 type TranslationInput struct {
-	Title   string
-	Excerpt string
-	Body    string
+	Title           string
+	Excerpt         string
+	Body            string
+	MetaTitle       string
+	MetaDescription string
 }
 
 // SaveTranslation upserts a NON-default locale's content overlay for a post.
@@ -743,10 +780,12 @@ func (s *Service) SaveTranslation(ctx context.Context, actorID, id uuid.UUID, lo
 		return ErrTitleRequired
 	}
 	t := Translation{
-		Locale:  locale.String(),
-		Title:   title,
-		Excerpt: sanitizeExcerpt(in.Excerpt),
-		Body:    kernel.SanitizeRichText(in.Body),
+		Locale:          locale.String(),
+		Title:           title,
+		Excerpt:         sanitizeExcerpt(in.Excerpt),
+		Body:            kernel.SanitizeRichText(in.Body),
+		MetaTitle:       strings.TrimSpace(in.MetaTitle),
+		MetaDescription: strings.TrimSpace(in.MetaDescription),
 	}
 	return db.RunInTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		return s.repo.UpsertTranslationTx(ctx, tx, id, t)

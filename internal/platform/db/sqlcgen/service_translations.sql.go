@@ -57,6 +57,10 @@ SELECT
     s.status,
     s.published_at,
     s.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), s.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), s.meta_description) AS meta_description,
+    s.canonical_url,
+    s.noindex,
     s.deleted_at,
     s.created_at,
     s.updated_at
@@ -71,19 +75,23 @@ type GetActiveServiceInLocaleByIDParams struct {
 }
 
 type GetActiveServiceInLocaleByIDRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Summary     string             `json:"summary"`
-	Body        string             `json:"body"`
-	Price       string             `json:"price"`
-	AreaServed  string             `json:"area_served"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ReadingTime int32              `json:"reading_time"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	Price           string             `json:"price"`
+	AreaServed      string             `json:"area_served"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Load an ACTIVE (non-trashed) service by id with title/summary/body OVERLAID by
@@ -105,6 +113,10 @@ func (q *Queries) GetActiveServiceInLocaleByID(ctx context.Context, arg GetActiv
 		&i.Status,
 		&i.PublishedAt,
 		&i.ReadingTime,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -124,6 +136,10 @@ SELECT
     s.status,
     s.published_at,
     s.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), s.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), s.meta_description) AS meta_description,
+    s.canonical_url,
+    s.noindex,
     s.deleted_at,
     s.created_at,
     s.updated_at
@@ -138,19 +154,23 @@ type GetPublishedServiceInLocaleBySlugParams struct {
 }
 
 type GetPublishedServiceInLocaleBySlugRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Summary     string             `json:"summary"`
-	Body        string             `json:"body"`
-	Price       string             `json:"price"`
-	AreaServed  string             `json:"area_served"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ReadingTime int32              `json:"reading_time"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	Price           string             `json:"price"`
+	AreaServed      string             `json:"area_served"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Public detail read: a published, non-trashed service by slug with its content
@@ -169,6 +189,10 @@ func (q *Queries) GetPublishedServiceInLocaleBySlug(ctx context.Context, arg Get
 		&i.Status,
 		&i.PublishedAt,
 		&i.ReadingTime,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -202,7 +226,7 @@ func (q *Queries) GetServiceFAQTranslation(ctx context.Context, arg GetServiceFA
 }
 
 const getServiceTranslation = `-- name: GetServiceTranslation :one
-SELECT id, service_id, locale, title, summary, body, created_at, updated_at FROM service_translations
+SELECT id, service_id, locale, title, summary, body, created_at, updated_at, meta_title, meta_description FROM service_translations
 WHERE service_id = $1 AND locale = $2
 `
 
@@ -223,6 +247,8 @@ func (q *Queries) GetServiceTranslation(ctx context.Context, arg GetServiceTrans
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }
@@ -311,7 +337,7 @@ func (q *Queries) ListServiceTranslationLocales(ctx context.Context, serviceID p
 }
 
 const listServiceTranslations = `-- name: ListServiceTranslations :many
-SELECT id, service_id, locale, title, summary, body, created_at, updated_at FROM service_translations
+SELECT id, service_id, locale, title, summary, body, created_at, updated_at, meta_title, meta_description FROM service_translations
 WHERE service_id = $1
 ORDER BY locale
 `
@@ -334,6 +360,8 @@ func (q *Queries) ListServiceTranslations(ctx context.Context, serviceID pgtype.
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MetaTitle,
+			&i.MetaDescription,
 		); err != nil {
 			return nil, err
 		}
@@ -384,22 +412,26 @@ func (q *Queries) UpsertServiceFAQTranslation(ctx context.Context, arg UpsertSer
 }
 
 const upsertServiceTranslation = `-- name: UpsertServiceTranslation :one
-INSERT INTO service_translations (service_id, locale, title, summary, body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO service_translations (service_id, locale, title, summary, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (service_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     summary = EXCLUDED.summary,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
-RETURNING id, service_id, locale, title, summary, body, created_at, updated_at
+RETURNING id, service_id, locale, title, summary, body, created_at, updated_at, meta_title, meta_description
 `
 
 type UpsertServiceTranslationParams struct {
-	ServiceID pgtype.UUID `json:"service_id"`
-	Locale    string      `json:"locale"`
-	Title     string      `json:"title"`
-	Summary   string      `json:"summary"`
-	Body      string      `json:"body"`
+	ServiceID       pgtype.UUID `json:"service_id"`
+	Locale          string      `json:"locale"`
+	Title           string      `json:"title"`
+	Summary         string      `json:"summary"`
+	Body            string      `json:"body"`
+	MetaTitle       string      `json:"meta_title"`
+	MetaDescription string      `json:"meta_description"`
 }
 
 // Insert or update the translation row for (service_id, locale). Callers pass a
@@ -412,6 +444,8 @@ func (q *Queries) UpsertServiceTranslation(ctx context.Context, arg UpsertServic
 		arg.Title,
 		arg.Summary,
 		arg.Body,
+		arg.MetaTitle,
+		arg.MetaDescription,
 	)
 	var i ServiceTranslation
 	err := row.Scan(
@@ -423,6 +457,8 @@ func (q *Queries) UpsertServiceTranslation(ctx context.Context, arg UpsertServic
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }

@@ -2,11 +2,13 @@
 -- Insert or update the translation row for (page_id, locale). Callers pass a
 -- NON-default locale (en content lives on the base pages row). Body is sanitized
 -- by the service before it reaches here.
-INSERT INTO page_translations (page_id, locale, title, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO page_translations (page_id, locale, title, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (page_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
 RETURNING *;
 
@@ -48,6 +50,10 @@ SELECT
     p.parent_id,
     p.template,
     p.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -69,6 +75,10 @@ SELECT
     p.parent_id,
     p.template,
     p.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at

@@ -29,15 +29,19 @@ func NewRepoPG(q *sqlcgen.Queries) *RepoPG { return &RepoPG{q: q} }
 // CreateTx inserts a service within tx.
 func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreateServiceData) (Service, error) {
 	row, err := r.q.WithTx(tx).CreateService(ctx, sqlcgen.CreateServiceParams{
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Summary:     in.Summary,
-		Body:        in.Body,
-		Price:       in.Price,
-		AreaServed:  in.AreaServed,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ReadingTime: int32(in.ReadingTime),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Summary:         in.Summary,
+		Body:            in.Body,
+		Price:           in.Price,
+		AreaServed:      in.AreaServed,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return serviceFromRow(row), mapErr(err)
 }
@@ -45,16 +49,20 @@ func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreateServiceData) 
 // UpdateTx updates an active service within tx.
 func (r *RepoPG) UpdateTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, in UpdateServiceData) (Service, error) {
 	row, err := r.q.WithTx(tx).UpdateService(ctx, sqlcgen.UpdateServiceParams{
-		ID:          toPgUUID(id),
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Summary:     in.Summary,
-		Body:        in.Body,
-		Price:       in.Price,
-		AreaServed:  in.AreaServed,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ReadingTime: int32(in.ReadingTime),
+		ID:              toPgUUID(id),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Summary:         in.Summary,
+		Body:            in.Body,
+		Price:           in.Price,
+		AreaServed:      in.AreaServed,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return serviceFromRow(row), mapErr(err)
 }
@@ -196,11 +204,13 @@ func (r *RepoPG) ReplaceFAQsTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UU
 // non-default locale within tx.
 func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, serviceID uuid.UUID, t Translation) error {
 	_, err := r.q.WithTx(tx).UpsertServiceTranslation(ctx, sqlcgen.UpsertServiceTranslationParams{
-		ServiceID: toPgUUID(serviceID),
-		Locale:    t.Locale,
-		Title:     t.Title,
-		Summary:   t.Summary,
-		Body:      t.Body,
+		ServiceID:       toPgUUID(serviceID),
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Summary:         t.Summary,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	})
 	return mapErr(err)
 }
@@ -260,6 +270,7 @@ func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale
 		Body: row.Body, Price: row.Price, AreaServed: row.AreaServed,
 		Status:      kernel.Status(row.Status),
 		PublishedAt: fromTimestamptz(row.PublishedAt), ReadingTime: int(row.ReadingTime),
+		MetaTitle: row.MetaTitle, MetaDescription: row.MetaDescription, CanonicalURL: row.CanonicalUrl, NoIndex: row.Noindex,
 		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, nil
 }
@@ -278,6 +289,7 @@ func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale st
 		Body: row.Body, Price: row.Price, AreaServed: row.AreaServed,
 		Status:      kernel.Status(row.Status),
 		PublishedAt: fromTimestamptz(row.PublishedAt), ReadingTime: int(row.ReadingTime),
+		MetaTitle: row.MetaTitle, MetaDescription: row.MetaDescription, CanonicalURL: row.CanonicalUrl, NoIndex: row.Noindex,
 		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, nil
 }
@@ -393,19 +405,23 @@ func fromTimestamptz(ts pgtype.Timestamptz) *time.Time {
 
 func serviceFromRow(s sqlcgen.Service) Service {
 	return Service{
-		ID:          fromPgUUID(s.ID),
-		Title:       s.Title,
-		Slug:        s.Slug,
-		Summary:     s.Summary,
-		Body:        s.Body,
-		Price:       s.Price,
-		AreaServed:  s.AreaServed,
-		Status:      kernel.Status(s.Status),
-		PublishedAt: fromTimestamptz(s.PublishedAt),
-		ReadingTime: int(s.ReadingTime),
-		DeletedAt:   fromTimestamptz(s.DeletedAt),
-		CreatedAt:   s.CreatedAt.Time,
-		UpdatedAt:   s.UpdatedAt.Time,
+		ID:              fromPgUUID(s.ID),
+		Title:           s.Title,
+		Slug:            s.Slug,
+		Summary:         s.Summary,
+		Body:            s.Body,
+		Price:           s.Price,
+		AreaServed:      s.AreaServed,
+		Status:          kernel.Status(s.Status),
+		PublishedAt:     fromTimestamptz(s.PublishedAt),
+		ReadingTime:     int(s.ReadingTime),
+		MetaTitle:       s.MetaTitle,
+		MetaDescription: s.MetaDescription,
+		CanonicalURL:    s.CanonicalUrl,
+		NoIndex:         s.Noindex,
+		DeletedAt:       fromTimestamptz(s.DeletedAt),
+		CreatedAt:       s.CreatedAt.Time,
+		UpdatedAt:       s.UpdatedAt.Time,
 	}
 }
 
@@ -419,10 +435,12 @@ func servicesFromRows(rows []sqlcgen.Service) []Service {
 
 func serviceTranslationFromRow(t sqlcgen.ServiceTranslation) Translation {
 	return Translation{
-		Locale:  t.Locale,
-		Title:   t.Title,
-		Summary: t.Summary,
-		Body:    t.Body,
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Summary:         t.Summary,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	}
 }
 

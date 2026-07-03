@@ -37,6 +37,10 @@ SELECT
     p.parent_id,
     p.template,
     p.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -51,18 +55,22 @@ type GetActivePageInLocaleByIDParams struct {
 }
 
 type GetActivePageInLocaleByIDRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ParentID    pgtype.UUID        `json:"parent_id"`
-	Template    string             `json:"template"`
-	ReadingTime int32              `json:"reading_time"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	Template        string             `json:"template"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Load an ACTIVE (non-trashed) page by id with its title/body OVERLAID by the
@@ -84,6 +92,10 @@ func (q *Queries) GetActivePageInLocaleByID(ctx context.Context, arg GetActivePa
 		&i.ParentID,
 		&i.Template,
 		&i.ReadingTime,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -92,7 +104,7 @@ func (q *Queries) GetActivePageInLocaleByID(ctx context.Context, arg GetActivePa
 }
 
 const getPageTranslation = `-- name: GetPageTranslation :one
-SELECT id, page_id, locale, title, body, created_at, updated_at FROM page_translations
+SELECT id, page_id, locale, title, body, created_at, updated_at, meta_title, meta_description FROM page_translations
 WHERE page_id = $1 AND locale = $2
 `
 
@@ -112,6 +124,8 @@ func (q *Queries) GetPageTranslation(ctx context.Context, arg GetPageTranslation
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }
@@ -127,6 +141,10 @@ SELECT
     p.parent_id,
     p.template,
     p.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -141,18 +159,22 @@ type GetPublishedPageInLocaleBySlugParams struct {
 }
 
 type GetPublishedPageInLocaleBySlugRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ParentID    pgtype.UUID        `json:"parent_id"`
-	Template    string             `json:"template"`
-	ReadingTime int32              `json:"reading_time"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	Template        string             `json:"template"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Public detail read: a published, non-trashed page by slug with its content
@@ -171,6 +193,10 @@ func (q *Queries) GetPublishedPageInLocaleBySlug(ctx context.Context, arg GetPub
 		&i.ParentID,
 		&i.Template,
 		&i.ReadingTime,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -207,7 +233,7 @@ func (q *Queries) ListPageTranslationLocales(ctx context.Context, pageID pgtype.
 }
 
 const listPageTranslations = `-- name: ListPageTranslations :many
-SELECT id, page_id, locale, title, body, created_at, updated_at FROM page_translations
+SELECT id, page_id, locale, title, body, created_at, updated_at, meta_title, meta_description FROM page_translations
 WHERE page_id = $1
 ORDER BY locale
 `
@@ -230,6 +256,8 @@ func (q *Queries) ListPageTranslations(ctx context.Context, pageID pgtype.UUID) 
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MetaTitle,
+			&i.MetaDescription,
 		); err != nil {
 			return nil, err
 		}
@@ -242,20 +270,24 @@ func (q *Queries) ListPageTranslations(ctx context.Context, pageID pgtype.UUID) 
 }
 
 const upsertPageTranslation = `-- name: UpsertPageTranslation :one
-INSERT INTO page_translations (page_id, locale, title, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO page_translations (page_id, locale, title, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (page_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
-RETURNING id, page_id, locale, title, body, created_at, updated_at
+RETURNING id, page_id, locale, title, body, created_at, updated_at, meta_title, meta_description
 `
 
 type UpsertPageTranslationParams struct {
-	PageID pgtype.UUID `json:"page_id"`
-	Locale string      `json:"locale"`
-	Title  string      `json:"title"`
-	Body   string      `json:"body"`
+	PageID          pgtype.UUID `json:"page_id"`
+	Locale          string      `json:"locale"`
+	Title           string      `json:"title"`
+	Body            string      `json:"body"`
+	MetaTitle       string      `json:"meta_title"`
+	MetaDescription string      `json:"meta_description"`
 }
 
 // Insert or update the translation row for (page_id, locale). Callers pass a
@@ -267,6 +299,8 @@ func (q *Queries) UpsertPageTranslation(ctx context.Context, arg UpsertPageTrans
 		arg.Locale,
 		arg.Title,
 		arg.Body,
+		arg.MetaTitle,
+		arg.MetaDescription,
 	)
 	var i PageTranslation
 	err := row.Scan(
@@ -277,6 +311,8 @@ func (q *Queries) UpsertPageTranslation(ctx context.Context, arg UpsertPageTrans
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }

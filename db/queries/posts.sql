@@ -1,9 +1,9 @@
 -- name: CreatePost :one
 INSERT INTO posts (
     title, slug, excerpt, body, status, published_at, scheduled_at,
-    author_id, reading_time
+    author_id, reading_time, meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdatePost :one
@@ -16,6 +16,10 @@ SET title = $2,
     published_at = $7,
     scheduled_at = $8,
     reading_time = $9,
+    meta_title = $10,
+    meta_description = $11,
+    canonical_url = $12,
+    noindex = $13,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

@@ -30,28 +30,36 @@ type ListFilter struct {
 // already sanitized the body, computed reading time, deduped the slug, and
 // resolved the publish/schedule timestamps.
 type CreatePostData struct {
-	Title       string
-	Slug        string
-	Excerpt     string
-	Body        string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ScheduledAt *time.Time
-	AuthorID    uuid.UUID
-	ReadingTime int
+	Title           string
+	Slug            string
+	Excerpt         string
+	Body            string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ScheduledAt     *time.Time
+	AuthorID        uuid.UUID
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // UpdatePostData is the fully-prepared row the repo writes on update. Like
 // CreatePostData, every field is already validated/derived by the service.
 type UpdatePostData struct {
-	Title       string
-	Slug        string
-	Excerpt     string
-	Body        string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ScheduledAt *time.Time
-	ReadingTime int
+	Title           string
+	Slug            string
+	Excerpt         string
+	Body            string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ScheduledAt     *time.Time
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // Repository is the data-access contract for posts. It is the ONLY layer

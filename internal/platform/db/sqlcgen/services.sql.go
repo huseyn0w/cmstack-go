@@ -65,22 +65,27 @@ func (q *Queries) CountTrashedServices(ctx context.Context) (int64, error) {
 
 const createService = `-- name: CreateService :one
 INSERT INTO services (
-    title, slug, summary, body, price, area_served, status, published_at, reading_time
+    title, slug, summary, body, price, area_served, status, published_at, reading_time,
+    meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type CreateServiceParams struct {
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Summary     string             `json:"summary"`
-	Body        string             `json:"body"`
-	Price       string             `json:"price"`
-	AreaServed  string             `json:"area_served"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ReadingTime int32              `json:"reading_time"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	Price           string             `json:"price"`
+	AreaServed      string             `json:"area_served"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (Service, error) {
@@ -94,6 +99,10 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		arg.Status,
 		arg.PublishedAt,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Service
 	err := row.Scan(
@@ -111,6 +120,10 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
@@ -158,7 +171,7 @@ func (q *Queries) DeleteServiceFAQs(ctx context.Context, serviceID pgtype.UUID) 
 }
 
 const getActiveServiceByID = `-- name: GetActiveServiceByID :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services WHERE id = $1 AND deleted_at IS NULL
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -179,12 +192,16 @@ func (q *Queries) GetActiveServiceByID(ctx context.Context, id pgtype.UUID) (Ser
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPublishedServiceBySlug = `-- name: GetPublishedServiceBySlug :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services
 WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 `
 
@@ -206,12 +223,16 @@ func (q *Queries) GetPublishedServiceBySlug(ctx context.Context, slug string) (S
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getServiceByID = `-- name: GetServiceByID :one
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services WHERE id = $1
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services WHERE id = $1
 `
 
 func (q *Queries) GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -232,12 +253,16 @@ func (q *Queries) GetServiceByID(ctx context.Context, id pgtype.UUID) (Service, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const listPublishedServices = `-- name: ListPublishedServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services
 WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY published_at DESC NULLS LAST, created_at DESC
 LIMIT $1 OFFSET $2
@@ -272,6 +297,10 @@ func (q *Queries) ListPublishedServices(ctx context.Context, arg ListPublishedSe
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -318,7 +347,7 @@ func (q *Queries) ListServiceFAQs(ctx context.Context, serviceID pgtype.UUID) ([
 }
 
 const listServices = `-- name: ListServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services
 WHERE deleted_at IS NULL
   AND ($3::text IS NULL OR status = $3::text)
 ORDER BY created_at DESC
@@ -355,6 +384,10 @@ func (q *Queries) ListServices(ctx context.Context, arg ListServicesParams) ([]S
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -367,7 +400,7 @@ func (q *Queries) ListServices(ctx context.Context, arg ListServicesParams) ([]S
 }
 
 const listTrashedServices = `-- name: ListTrashedServices :many
-SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector FROM services
+SELECT id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM services
 WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT $1 OFFSET $2
@@ -402,6 +435,10 @@ func (q *Queries) ListTrashedServices(ctx context.Context, arg ListTrashedServic
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -453,22 +490,30 @@ SET title = $2,
     status = $8,
     published_at = $9,
     reading_time = $10,
+    meta_title = $11,
+    meta_description = $12,
+    canonical_url = $13,
+    noindex = $14,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector
+RETURNING id, title, slug, summary, body, price, area_served, status, published_at, reading_time, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type UpdateServiceParams struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Summary     string             `json:"summary"`
-	Body        string             `json:"body"`
-	Price       string             `json:"price"`
-	AreaServed  string             `json:"area_served"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ReadingTime int32              `json:"reading_time"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	Price           string             `json:"price"`
+	AreaServed      string             `json:"area_served"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error) {
@@ -483,6 +528,10 @@ func (q *Queries) UpdateService(ctx context.Context, arg UpdateServiceParams) (S
 		arg.Status,
 		arg.PublishedAt,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Service
 	err := row.Scan(
@@ -500,6 +549,10 @@ func (q *Queries) UpdateService(ctx context.Context, arg UpdateServiceParams) (S
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }

@@ -29,15 +29,19 @@ func NewRepoPG(q *sqlcgen.Queries) *RepoPG { return &RepoPG{q: q} }
 // CreateTx inserts a post within tx.
 func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreatePostData) (Post, error) {
 	row, err := r.q.WithTx(tx).CreatePost(ctx, sqlcgen.CreatePostParams{
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Excerpt:     in.Excerpt,
-		Body:        in.Body,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ScheduledAt: optTime(in.ScheduledAt),
-		AuthorID:    toPgUUID(in.AuthorID),
-		ReadingTime: int32(in.ReadingTime),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Excerpt:         in.Excerpt,
+		Body:            in.Body,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ScheduledAt:     optTime(in.ScheduledAt),
+		AuthorID:        toPgUUID(in.AuthorID),
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return postFromRow(row), mapErr(err)
 }
@@ -45,15 +49,19 @@ func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreatePostData) (Po
 // UpdateTx updates an active post within tx.
 func (r *RepoPG) UpdateTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, in UpdatePostData) (Post, error) {
 	row, err := r.q.WithTx(tx).UpdatePost(ctx, sqlcgen.UpdatePostParams{
-		ID:          toPgUUID(id),
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Excerpt:     in.Excerpt,
-		Body:        in.Body,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ScheduledAt: optTime(in.ScheduledAt),
-		ReadingTime: int32(in.ReadingTime),
+		ID:              toPgUUID(id),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Excerpt:         in.Excerpt,
+		Body:            in.Body,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ScheduledAt:     optTime(in.ScheduledAt),
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return postFromRow(row), mapErr(err)
 }
@@ -255,11 +263,13 @@ func (r *RepoPG) ListDueScheduledIDs(ctx context.Context, now time.Time) ([]uuid
 // UpsertTranslationTx inserts or updates a NON-default locale's translation row.
 func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, postID uuid.UUID, t Translation) error {
 	_, err := r.q.WithTx(tx).UpsertPostTranslation(ctx, sqlcgen.UpsertPostTranslationParams{
-		PostID:  toPgUUID(postID),
-		Locale:  t.Locale,
-		Title:   t.Title,
-		Excerpt: t.Excerpt,
-		Body:    t.Body,
+		PostID:          toPgUUID(postID),
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Excerpt:         t.Excerpt,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	})
 	return mapErr(err)
 }
@@ -317,6 +327,7 @@ func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale
 		Body: row.Body, Status: kernel.Status(row.Status),
 		PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
 		AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+		MetaTitle: row.MetaTitle, MetaDescription: row.MetaDescription, CanonicalURL: row.CanonicalUrl, NoIndex: row.Noindex,
 		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, nil
 }
@@ -335,6 +346,7 @@ func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale st
 		Body: row.Body, Status: kernel.Status(row.Status),
 		PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
 		AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+		MetaTitle: row.MetaTitle, MetaDescription: row.MetaDescription, CanonicalURL: row.CanonicalUrl, NoIndex: row.Noindex,
 		DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 	}, nil
 }
@@ -356,6 +368,7 @@ func (r *RepoPG) ListPublishedInLocale(ctx context.Context, locale string, limit
 			Body: row.Body, Status: kernel.Status(row.Status),
 			PublishedAt: fromTimestamptz(row.PublishedAt), ScheduledAt: fromTimestamptz(row.ScheduledAt),
 			AuthorID: fromPgUUID(row.AuthorID), ReadingTime: int(row.ReadingTime), LikeCount: int(row.LikeCount),
+			MetaTitle: row.MetaTitle, MetaDescription: row.MetaDescription, CanonicalURL: row.CanonicalUrl, NoIndex: row.Noindex,
 			DeletedAt: fromTimestamptz(row.DeletedAt), CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
@@ -512,20 +525,24 @@ func fromTimestamptz(ts pgtype.Timestamptz) *time.Time {
 
 func postFromRow(p sqlcgen.Post) Post {
 	return Post{
-		ID:          fromPgUUID(p.ID),
-		Title:       p.Title,
-		Slug:        p.Slug,
-		Excerpt:     p.Excerpt,
-		Body:        p.Body,
-		Status:      kernel.Status(p.Status),
-		PublishedAt: fromTimestamptz(p.PublishedAt),
-		ScheduledAt: fromTimestamptz(p.ScheduledAt),
-		AuthorID:    fromPgUUID(p.AuthorID),
-		ReadingTime: int(p.ReadingTime),
-		LikeCount:   int(p.LikeCount),
-		DeletedAt:   fromTimestamptz(p.DeletedAt),
-		CreatedAt:   p.CreatedAt.Time,
-		UpdatedAt:   p.UpdatedAt.Time,
+		ID:              fromPgUUID(p.ID),
+		Title:           p.Title,
+		Slug:            p.Slug,
+		Excerpt:         p.Excerpt,
+		Body:            p.Body,
+		Status:          kernel.Status(p.Status),
+		PublishedAt:     fromTimestamptz(p.PublishedAt),
+		ScheduledAt:     fromTimestamptz(p.ScheduledAt),
+		AuthorID:        fromPgUUID(p.AuthorID),
+		ReadingTime:     int(p.ReadingTime),
+		LikeCount:       int(p.LikeCount),
+		MetaTitle:       p.MetaTitle,
+		MetaDescription: p.MetaDescription,
+		CanonicalURL:    p.CanonicalUrl,
+		NoIndex:         p.Noindex,
+		DeletedAt:       fromTimestamptz(p.DeletedAt),
+		CreatedAt:       p.CreatedAt.Time,
+		UpdatedAt:       p.UpdatedAt.Time,
 	}
 }
 
@@ -542,29 +559,35 @@ func slugFilter(slug string) *string {
 // domain Post; the shared_count ranking is consumed only by the SQL ORDER BY.
 func relatedRowToPost(r sqlcgen.ListRelatedPublishedPostsRow) Post {
 	return Post{
-		ID:          fromPgUUID(r.ID),
-		Title:       r.Title,
-		Slug:        r.Slug,
-		Excerpt:     r.Excerpt,
-		Body:        r.Body,
-		Status:      kernel.Status(r.Status),
-		PublishedAt: fromTimestamptz(r.PublishedAt),
-		ScheduledAt: fromTimestamptz(r.ScheduledAt),
-		AuthorID:    fromPgUUID(r.AuthorID),
-		ReadingTime: int(r.ReadingTime),
-		LikeCount:   int(r.LikeCount),
-		DeletedAt:   fromTimestamptz(r.DeletedAt),
-		CreatedAt:   r.CreatedAt.Time,
-		UpdatedAt:   r.UpdatedAt.Time,
+		ID:              fromPgUUID(r.ID),
+		Title:           r.Title,
+		Slug:            r.Slug,
+		Excerpt:         r.Excerpt,
+		Body:            r.Body,
+		Status:          kernel.Status(r.Status),
+		PublishedAt:     fromTimestamptz(r.PublishedAt),
+		ScheduledAt:     fromTimestamptz(r.ScheduledAt),
+		AuthorID:        fromPgUUID(r.AuthorID),
+		ReadingTime:     int(r.ReadingTime),
+		LikeCount:       int(r.LikeCount),
+		MetaTitle:       r.MetaTitle,
+		MetaDescription: r.MetaDescription,
+		CanonicalURL:    r.CanonicalUrl,
+		NoIndex:         r.Noindex,
+		DeletedAt:       fromTimestamptz(r.DeletedAt),
+		CreatedAt:       r.CreatedAt.Time,
+		UpdatedAt:       r.UpdatedAt.Time,
 	}
 }
 
 func translationFromRow(t sqlcgen.PostTranslation) Translation {
 	return Translation{
-		Locale:  t.Locale,
-		Title:   t.Title,
-		Excerpt: t.Excerpt,
-		Body:    t.Body,
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Excerpt:         t.Excerpt,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	}
 }
 

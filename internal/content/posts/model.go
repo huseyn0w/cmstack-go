@@ -32,21 +32,30 @@ type Post struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 
-	// TODO(M8 SEO fields): MetaTitle, MetaDescription, CanonicalURL, NoIndex.
+	// SEO metadata (M8-1). MetaTitle/MetaDescription are TRANSLATABLE (the base
+	// row holds the default-locale value, overlaid per-locale via Translation);
+	// CanonicalURL/NoIndex are STRUCTURAL (shared across locales, base row only).
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
+
 	// TODO(M3 categories/tags M2M): Categories, Tags.
 }
 
 // Translation is the per-locale CONTENT overlay for a post (M7b-1). It carries
 // only the translatable text fields for a NON-default locale; the base post row
 // holds the default-locale (en) content plus every structural field (slug,
-// status, author, schedule, taxonomy), which are shared across locales.
-//
-// TODO(M8): MetaTitle/MetaDescription join here when SEO fields translate.
+// status, author, schedule, taxonomy), which are shared across locales. The
+// translatable SEO fields (MetaTitle/MetaDescription) overlay here too; the
+// structural CanonicalURL/NoIndex stay on the base row and are not per-locale.
 type Translation struct {
-	Locale  string
-	Title   string
-	Excerpt string
-	Body    string // sanitized HTML (kernel.SanitizeRichText on every save)
+	Locale          string
+	Title           string
+	Excerpt         string
+	Body            string // sanitized HTML (kernel.SanitizeRichText on every save)
+	MetaTitle       string
+	MetaDescription string
 }
 
 // Published reports whether the post is visible on the public site.

@@ -29,14 +29,18 @@ func NewRepoPG(q *sqlcgen.Queries) *RepoPG { return &RepoPG{q: q} }
 // CreateTx inserts a page within tx.
 func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreatePageData) (Page, error) {
 	row, err := r.q.WithTx(tx).CreatePage(ctx, sqlcgen.CreatePageParams{
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Body:        in.Body,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ParentID:    optUUID(in.ParentID),
-		Template:    in.Template,
-		ReadingTime: int32(in.ReadingTime),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Body:            in.Body,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ParentID:        optUUID(in.ParentID),
+		Template:        in.Template,
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return pageFromRow(row), mapErr(err)
 }
@@ -44,15 +48,19 @@ func (r *RepoPG) CreateTx(ctx context.Context, tx pgx.Tx, in CreatePageData) (Pa
 // UpdateTx updates an active page within tx.
 func (r *RepoPG) UpdateTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, in UpdatePageData) (Page, error) {
 	row, err := r.q.WithTx(tx).UpdatePage(ctx, sqlcgen.UpdatePageParams{
-		ID:          toPgUUID(id),
-		Title:       in.Title,
-		Slug:        in.Slug,
-		Body:        in.Body,
-		Status:      in.Status.String(),
-		PublishedAt: optTime(in.PublishedAt),
-		ParentID:    optUUID(in.ParentID),
-		Template:    in.Template,
-		ReadingTime: int32(in.ReadingTime),
+		ID:              toPgUUID(id),
+		Title:           in.Title,
+		Slug:            in.Slug,
+		Body:            in.Body,
+		Status:          in.Status.String(),
+		PublishedAt:     optTime(in.PublishedAt),
+		ParentID:        optUUID(in.ParentID),
+		Template:        in.Template,
+		ReadingTime:     int32(in.ReadingTime),
+		MetaTitle:       in.MetaTitle,
+		MetaDescription: in.MetaDescription,
+		CanonicalUrl:    in.CanonicalURL,
+		Noindex:         in.NoIndex,
 	})
 	return pageFromRow(row), mapErr(err)
 }
@@ -294,10 +302,12 @@ func fromTimestamptz(ts pgtype.Timestamptz) *time.Time {
 // UpsertTranslationTx inserts or updates a page's translation row for a non-default locale.
 func (r *RepoPG) UpsertTranslationTx(ctx context.Context, tx pgx.Tx, pageID uuid.UUID, t Translation) error {
 	_, err := r.q.WithTx(tx).UpsertPageTranslation(ctx, sqlcgen.UpsertPageTranslationParams{
-		PageID: toPgUUID(pageID),
-		Locale: t.Locale,
-		Title:  t.Title,
-		Body:   t.Body,
+		PageID:          toPgUUID(pageID),
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	})
 	return mapErr(err)
 }
@@ -351,18 +361,22 @@ func (r *RepoPG) GetActiveInLocaleByID(ctx context.Context, id uuid.UUID, locale
 		return Page{}, mapErr(err)
 	}
 	return Page{
-		ID:          fromPgUUID(row.ID),
-		Title:       row.Title,
-		Slug:        row.Slug,
-		Body:        row.Body,
-		Status:      kernel.Status(row.Status),
-		PublishedAt: fromTimestamptz(row.PublishedAt),
-		ParentID:    fromPgUUIDPtr(row.ParentID),
-		Template:    row.Template,
-		ReadingTime: int(row.ReadingTime),
-		DeletedAt:   fromTimestamptz(row.DeletedAt),
-		CreatedAt:   row.CreatedAt.Time,
-		UpdatedAt:   row.UpdatedAt.Time,
+		ID:              fromPgUUID(row.ID),
+		Title:           row.Title,
+		Slug:            row.Slug,
+		Body:            row.Body,
+		Status:          kernel.Status(row.Status),
+		PublishedAt:     fromTimestamptz(row.PublishedAt),
+		ParentID:        fromPgUUIDPtr(row.ParentID),
+		Template:        row.Template,
+		ReadingTime:     int(row.ReadingTime),
+		MetaTitle:       row.MetaTitle,
+		MetaDescription: row.MetaDescription,
+		CanonicalURL:    row.CanonicalUrl,
+		NoIndex:         row.Noindex,
+		DeletedAt:       fromTimestamptz(row.DeletedAt),
+		CreatedAt:       row.CreatedAt.Time,
+		UpdatedAt:       row.UpdatedAt.Time,
 	}, nil
 }
 
@@ -376,43 +390,53 @@ func (r *RepoPG) GetPublishedInLocaleBySlug(ctx context.Context, slug, locale st
 		return Page{}, mapErr(err)
 	}
 	return Page{
-		ID:          fromPgUUID(row.ID),
-		Title:       row.Title,
-		Slug:        row.Slug,
-		Body:        row.Body,
-		Status:      kernel.Status(row.Status),
-		PublishedAt: fromTimestamptz(row.PublishedAt),
-		ParentID:    fromPgUUIDPtr(row.ParentID),
-		Template:    row.Template,
-		ReadingTime: int(row.ReadingTime),
-		DeletedAt:   fromTimestamptz(row.DeletedAt),
-		CreatedAt:   row.CreatedAt.Time,
-		UpdatedAt:   row.UpdatedAt.Time,
+		ID:              fromPgUUID(row.ID),
+		Title:           row.Title,
+		Slug:            row.Slug,
+		Body:            row.Body,
+		Status:          kernel.Status(row.Status),
+		PublishedAt:     fromTimestamptz(row.PublishedAt),
+		ParentID:        fromPgUUIDPtr(row.ParentID),
+		Template:        row.Template,
+		ReadingTime:     int(row.ReadingTime),
+		MetaTitle:       row.MetaTitle,
+		MetaDescription: row.MetaDescription,
+		CanonicalURL:    row.CanonicalUrl,
+		NoIndex:         row.Noindex,
+		DeletedAt:       fromTimestamptz(row.DeletedAt),
+		CreatedAt:       row.CreatedAt.Time,
+		UpdatedAt:       row.UpdatedAt.Time,
 	}, nil
 }
 
 func pageTranslationFromRow(t sqlcgen.PageTranslation) Translation {
 	return Translation{
-		Locale: t.Locale,
-		Title:  t.Title,
-		Body:   t.Body,
+		Locale:          t.Locale,
+		Title:           t.Title,
+		Body:            t.Body,
+		MetaTitle:       t.MetaTitle,
+		MetaDescription: t.MetaDescription,
 	}
 }
 
 func pageFromRow(p sqlcgen.Page) Page {
 	return Page{
-		ID:          fromPgUUID(p.ID),
-		Title:       p.Title,
-		Slug:        p.Slug,
-		Body:        p.Body,
-		Status:      kernel.Status(p.Status),
-		PublishedAt: fromTimestamptz(p.PublishedAt),
-		ParentID:    fromPgUUIDPtr(p.ParentID),
-		Template:    p.Template,
-		ReadingTime: int(p.ReadingTime),
-		DeletedAt:   fromTimestamptz(p.DeletedAt),
-		CreatedAt:   p.CreatedAt.Time,
-		UpdatedAt:   p.UpdatedAt.Time,
+		ID:              fromPgUUID(p.ID),
+		Title:           p.Title,
+		Slug:            p.Slug,
+		Body:            p.Body,
+		Status:          kernel.Status(p.Status),
+		PublishedAt:     fromTimestamptz(p.PublishedAt),
+		ParentID:        fromPgUUIDPtr(p.ParentID),
+		Template:        p.Template,
+		ReadingTime:     int(p.ReadingTime),
+		MetaTitle:       p.MetaTitle,
+		MetaDescription: p.MetaDescription,
+		CanonicalURL:    p.CanonicalUrl,
+		NoIndex:         p.Noindex,
+		DeletedAt:       fromTimestamptz(p.DeletedAt),
+		CreatedAt:       p.CreatedAt.Time,
+		UpdatedAt:       p.UpdatedAt.Time,
 	}
 }
 

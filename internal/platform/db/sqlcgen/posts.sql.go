@@ -104,22 +104,26 @@ func (q *Queries) CountTrashedPosts(ctx context.Context) (int64, error) {
 const createPost = `-- name: CreatePost :one
 INSERT INTO posts (
     title, slug, excerpt, body, status, published_at, scheduled_at,
-    author_id, reading_time
+    author_id, reading_time, meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type CreatePostParams struct {
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Excerpt     string             `json:"excerpt"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID    pgtype.UUID        `json:"author_id"`
-	ReadingTime int32              `json:"reading_time"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
@@ -133,6 +137,10 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 		arg.ScheduledAt,
 		arg.AuthorID,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Post
 	err := row.Scan(
@@ -151,12 +159,16 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getActivePostByID = `-- name: GetActivePostByID :one
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts WHERE id = $1 AND deleted_at IS NULL
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, error) {
@@ -178,12 +190,16 @@ func (q *Queries) GetActivePostByID(ctx context.Context, id pgtype.UUID) (Post, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPostByID = `-- name: GetPostByID :one
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts WHERE id = $1
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts WHERE id = $1
 `
 
 func (q *Queries) GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error) {
@@ -205,12 +221,16 @@ func (q *Queries) GetPostByID(ctx context.Context, id pgtype.UUID) (Post, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPublishedPostBySlug = `-- name: GetPublishedPostBySlug :one
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 `
 
@@ -233,12 +253,16 @@ func (q *Queries) GetPublishedPostBySlug(ctx context.Context, slug string) (Post
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }
 
 const getPublishedPostsByIDs = `-- name: GetPublishedPostsByIDs :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE id = ANY($1::uuid[])
   AND status = 'PUBLISHED'
   AND deleted_at IS NULL
@@ -272,6 +296,10 @@ func (q *Queries) GetPublishedPostsByIDs(ctx context.Context, ids []pgtype.UUID)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -350,7 +378,7 @@ func (q *Queries) ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtyp
 }
 
 const listPosts = `-- name: ListPosts :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE deleted_at IS NULL
   AND ($3::text IS NULL OR status = $3::text)
   AND ($4::uuid IS NULL OR author_id = $4::uuid)
@@ -395,6 +423,10 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -407,7 +439,7 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, e
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY published_at DESC NULLS LAST, created_at DESC
 LIMIT $1 OFFSET $2
@@ -443,6 +475,10 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +491,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 }
 
 const listPublishedPostsByAuthor = `-- name: ListPublishedPostsByAuthor :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE author_id = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL
 ORDER BY published_at DESC NULLS LAST, created_at DESC
 `
@@ -485,6 +521,10 @@ func (q *Queries) ListPublishedPostsByAuthor(ctx context.Context, authorID pgtyp
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -497,7 +537,7 @@ func (q *Queries) ListPublishedPostsByAuthor(ctx context.Context, authorID pgtyp
 }
 
 const listPublishedPostsFiltered = `-- name: ListPublishedPostsFiltered :many
-SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector FROM posts p
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector, p.meta_title, p.meta_description, p.canonical_url, p.noindex FROM posts p
 WHERE p.status = 'PUBLISHED'
   AND p.deleted_at IS NULL
   AND (
@@ -558,6 +598,10 @@ func (q *Queries) ListPublishedPostsFiltered(ctx context.Context, arg ListPublis
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -570,7 +614,7 @@ func (q *Queries) ListPublishedPostsFiltered(ctx context.Context, arg ListPublis
 }
 
 const listRelatedPublishedPosts = `-- name: ListRelatedPublishedPosts :many
-SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector, count(*) AS shared_count
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector, p.meta_title, p.meta_description, p.canonical_url, p.noindex, count(*) AS shared_count
 FROM posts p
 JOIN (
     SELECT pc.post_id AS related_post_id
@@ -599,22 +643,26 @@ type ListRelatedPublishedPostsParams struct {
 }
 
 type ListRelatedPublishedPostsRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	Title        string             `json:"title"`
-	Slug         string             `json:"slug"`
-	Excerpt      string             `json:"excerpt"`
-	Body         string             `json:"body"`
-	Status       string             `json:"status"`
-	PublishedAt  pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt  pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID     pgtype.UUID        `json:"author_id"`
-	ReadingTime  int32              `json:"reading_time"`
-	LikeCount    int32              `json:"like_count"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	SearchVector interface{}        `json:"search_vector"`
-	SharedCount  int64              `json:"shared_count"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	LikeCount       int32              `json:"like_count"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SearchVector    interface{}        `json:"search_vector"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	SharedCount     int64              `json:"shared_count"`
 }
 
 // Posts sharing >=1 category OR tag with the given post (laravel parity).
@@ -646,6 +694,10 @@ func (q *Queries) ListRelatedPublishedPosts(ctx context.Context, arg ListRelated
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 			&i.SharedCount,
 		); err != nil {
 			return nil, err
@@ -659,7 +711,7 @@ func (q *Queries) ListRelatedPublishedPosts(ctx context.Context, arg ListRelated
 }
 
 const listTrashedPosts = `-- name: ListTrashedPosts :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector FROM posts
+SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
 WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT $1 OFFSET $2
@@ -695,6 +747,10 @@ func (q *Queries) ListTrashedPosts(ctx context.Context, arg ListTrashedPostsPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 		); err != nil {
 			return nil, err
 		}
@@ -774,21 +830,29 @@ SET title = $2,
     published_at = $7,
     scheduled_at = $8,
     reading_time = $9,
+    meta_title = $10,
+    meta_description = $11,
+    canonical_url = $12,
+    noindex = $13,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector
+RETURNING id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex
 `
 
 type UpdatePostParams struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Excerpt     string             `json:"excerpt"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
-	ReadingTime int32              `json:"reading_time"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error) {
@@ -802,6 +866,10 @@ func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, e
 		arg.PublishedAt,
 		arg.ScheduledAt,
 		arg.ReadingTime,
+		arg.MetaTitle,
+		arg.MetaDescription,
+		arg.CanonicalUrl,
+		arg.Noindex,
 	)
 	var i Post
 	err := row.Scan(
@@ -820,6 +888,10 @@ func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 	)
 	return i, err
 }

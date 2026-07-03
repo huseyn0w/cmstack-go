@@ -1,8 +1,9 @@
 -- name: CreateService :one
 INSERT INTO services (
-    title, slug, summary, body, price, area_served, status, published_at, reading_time
+    title, slug, summary, body, price, area_served, status, published_at, reading_time,
+    meta_title, meta_description, canonical_url, noindex
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdateService :one
@@ -16,6 +17,10 @@ SET title = $2,
     status = $8,
     published_at = $9,
     reading_time = $10,
+    meta_title = $11,
+    meta_description = $12,
+    canonical_url = $13,
+    noindex = $14,
     updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

@@ -98,29 +98,35 @@ type Outbox struct {
 }
 
 type Page struct {
-	ID           pgtype.UUID        `json:"id"`
-	Title        string             `json:"title"`
-	Slug         string             `json:"slug"`
-	Body         string             `json:"body"`
-	Status       string             `json:"status"`
-	PublishedAt  pgtype.Timestamptz `json:"published_at"`
-	ParentID     pgtype.UUID        `json:"parent_id"`
-	Template     string             `json:"template"`
-	ReadingTime  int32              `json:"reading_time"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	SearchVector interface{}        `json:"search_vector"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ParentID        pgtype.UUID        `json:"parent_id"`
+	Template        string             `json:"template"`
+	ReadingTime     int32              `json:"reading_time"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SearchVector    interface{}        `json:"search_vector"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 type PageTranslation struct {
-	ID        pgtype.UUID        `json:"id"`
-	PageID    pgtype.UUID        `json:"page_id"`
-	Locale    string             `json:"locale"`
-	Title     string             `json:"title"`
-	Body      string             `json:"body"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	PageID          pgtype.UUID        `json:"page_id"`
+	Locale          string             `json:"locale"`
+	Title           string             `json:"title"`
+	Body            string             `json:"body"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
 }
 
 type PasswordResetToken struct {
@@ -140,21 +146,25 @@ type Permission struct {
 }
 
 type Post struct {
-	ID           pgtype.UUID        `json:"id"`
-	Title        string             `json:"title"`
-	Slug         string             `json:"slug"`
-	Excerpt      string             `json:"excerpt"`
-	Body         string             `json:"body"`
-	Status       string             `json:"status"`
-	PublishedAt  pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt  pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID     pgtype.UUID        `json:"author_id"`
-	ReadingTime  int32              `json:"reading_time"`
-	LikeCount    int32              `json:"like_count"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	SearchVector interface{}        `json:"search_vector"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	LikeCount       int32              `json:"like_count"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SearchVector    interface{}        `json:"search_vector"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 type PostCategory struct {
@@ -176,14 +186,16 @@ type PostTag struct {
 }
 
 type PostTranslation struct {
-	ID        pgtype.UUID        `json:"id"`
-	PostID    pgtype.UUID        `json:"post_id"`
-	Locale    string             `json:"locale"`
-	Title     string             `json:"title"`
-	Excerpt   string             `json:"excerpt"`
-	Body      string             `json:"body"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	PostID          pgtype.UUID        `json:"post_id"`
+	Locale          string             `json:"locale"`
+	Title           string             `json:"title"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
 }
 
 type Revision struct {
@@ -215,20 +227,24 @@ type SchemaMetum struct {
 }
 
 type Service struct {
-	ID           pgtype.UUID        `json:"id"`
-	Title        string             `json:"title"`
-	Slug         string             `json:"slug"`
-	Summary      string             `json:"summary"`
-	Body         string             `json:"body"`
-	Price        string             `json:"price"`
-	AreaServed   string             `json:"area_served"`
-	Status       string             `json:"status"`
-	PublishedAt  pgtype.Timestamptz `json:"published_at"`
-	ReadingTime  int32              `json:"reading_time"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	SearchVector interface{}        `json:"search_vector"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	Price           string             `json:"price"`
+	AreaServed      string             `json:"area_served"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ReadingTime     int32              `json:"reading_time"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SearchVector    interface{}        `json:"search_vector"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
 }
 
 type ServiceFaq struct {
@@ -252,14 +268,16 @@ type ServiceFaqTranslation struct {
 }
 
 type ServiceTranslation struct {
-	ID        pgtype.UUID        `json:"id"`
-	ServiceID pgtype.UUID        `json:"service_id"`
-	Locale    string             `json:"locale"`
-	Title     string             `json:"title"`
-	Summary   string             `json:"summary"`
-	Body      string             `json:"body"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	ServiceID       pgtype.UUID        `json:"service_id"`
+	Locale          string             `json:"locale"`
+	Title           string             `json:"title"`
+	Summary         string             `json:"summary"`
+	Body            string             `json:"body"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
 }
 
 type Tag struct {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // --- fakes -------------------------------------------------------------------
@@ -119,6 +120,14 @@ func overlayService(base Service, t Translation) Service {
 	if t.Body != "" {
 		base.Body = t.Body
 	}
+	// meta_title/meta_description overlay with base fallback; canonical_url/noindex
+	// are structural (base row only) and are NOT overridden per-locale.
+	if t.MetaTitle != "" {
+		base.MetaTitle = t.MetaTitle
+	}
+	if t.MetaDescription != "" {
+		base.MetaDescription = t.MetaDescription
+	}
 	return base
 }
 
@@ -129,6 +138,8 @@ func (m *memRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreateServiceData) (S
 		ID: uuid.New(), Title: in.Title, Slug: in.Slug, Summary: in.Summary,
 		Body: in.Body, Price: in.Price, AreaServed: in.AreaServed, Status: in.Status,
 		PublishedAt: in.PublishedAt, ReadingTime: in.ReadingTime,
+		MetaTitle: in.MetaTitle, MetaDescription: in.MetaDescription,
+		CanonicalURL: in.CanonicalURL, NoIndex: in.NoIndex,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	m.services[s.ID] = s
@@ -145,6 +156,8 @@ func (m *memRepo) UpdateTx(_ context.Context, _ pgx.Tx, id uuid.UUID, in UpdateS
 	s.Title, s.Slug, s.Summary, s.Body = in.Title, in.Slug, in.Summary, in.Body
 	s.Price, s.AreaServed, s.Status = in.Price, in.AreaServed, in.Status
 	s.PublishedAt, s.ReadingTime = in.PublishedAt, in.ReadingTime
+	s.MetaTitle, s.MetaDescription = in.MetaTitle, in.MetaDescription
+	s.CanonicalURL, s.NoIndex = in.CanonicalURL, in.NoIndex
 	s.UpdatedAt = time.Now()
 	m.services[id] = s
 	return s, nil
@@ -455,6 +468,56 @@ func TestRestoreRevision_ReappliesScalarFields(t *testing.T) {
 	if restored.Title != "Original" || restored.Price != "$100" || restored.Summary != "orig" {
 		t.Errorf("restore did not reapply: %+v", restored)
 	}
+}
+
+func TestSEOMeta_RoundTripsAndTranslationOverlay(t *testing.T) {
+	actor := uuid.New()
+	repo := newMemRepo()
+	mgr := newTestManager(repo, newMemRevisions(), allow(actor), nullBus{}, time.Now())
+
+	svc, err := mgr.Create(context.Background(), actor, CreateInput{
+		Title: "SEO", Body: "<p>b</p>",
+		MetaTitle: "  Base Meta  ", MetaDescription: "Base desc",
+		CanonicalURL: " https://x/seo ", NoIndex: true,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if svc.MetaTitle != "Base Meta" || svc.MetaDescription != "Base desc" {
+		t.Errorf("base meta not round-tripped: %q / %q", svc.MetaTitle, svc.MetaDescription)
+	}
+	if svc.CanonicalURL != "https://x/seo" || !svc.NoIndex {
+		t.Errorf("structural SEO not persisted: canonical=%q noindex=%v", svc.CanonicalURL, svc.NoIndex)
+	}
+
+	de := mustLocale(t, "de")
+	if err := mgr.SaveTranslation(context.Background(), actor, svc.ID, de, TranslationInput{
+		Title: "DE", MetaTitle: "DE Meta",
+	}); err != nil {
+		t.Fatalf("save translation: %v", err)
+	}
+	got, err := mgr.GetInLocale(context.Background(), actor, svc.ID, de)
+	if err != nil {
+		t.Fatalf("get in locale: %v", err)
+	}
+	if got.MetaTitle != "DE Meta" {
+		t.Errorf("meta_title overlay = %q, want DE Meta", got.MetaTitle)
+	}
+	if got.MetaDescription != "Base desc" {
+		t.Errorf("meta_description should fall back to base, got %q", got.MetaDescription)
+	}
+	if got.CanonicalURL != "https://x/seo" || !got.NoIndex {
+		t.Errorf("structural SEO must not be per-locale: canonical=%q noindex=%v", got.CanonicalURL, got.NoIndex)
+	}
+}
+
+func mustLocale(t *testing.T, s string) i18n.Locale {
+	t.Helper()
+	l, ok := i18n.Parse(s)
+	if !ok {
+		t.Fatalf("locale %q not supported", s)
+	}
+	return l
 }
 
 func TestJSONLDSeam_CollectsData(t *testing.T) {

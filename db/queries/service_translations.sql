@@ -2,12 +2,14 @@
 -- Insert or update the translation row for (service_id, locale). Callers pass a
 -- NON-default locale (en content lives on the base services row). Body is
 -- sanitized by the service before it reaches here.
-INSERT INTO service_translations (service_id, locale, title, summary, body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO service_translations (service_id, locale, title, summary, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (service_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     summary = EXCLUDED.summary,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
 RETURNING *;
 
@@ -48,6 +50,10 @@ SELECT
     s.status,
     s.published_at,
     s.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), s.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), s.meta_description) AS meta_description,
+    s.canonical_url,
+    s.noindex,
     s.deleted_at,
     s.created_at,
     s.updated_at
@@ -69,6 +75,10 @@ SELECT
     s.status,
     s.published_at,
     s.reading_time,
+    COALESCE(NULLIF(t.meta_title, ''), s.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), s.meta_description) AS meta_description,
+    s.canonical_url,
+    s.noindex,
     s.deleted_at,
     s.created_at,
     s.updated_at

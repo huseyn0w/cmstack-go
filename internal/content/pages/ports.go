@@ -27,26 +27,34 @@ type ListFilter struct {
 // already sanitized the body, computed reading time, deduped the slug, validated
 // the template, checked the parent, and resolved the publish timestamp.
 type CreatePageData struct {
-	Title       string
-	Slug        string
-	Body        string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ParentID    *uuid.UUID
-	Template    string
-	ReadingTime int
+	Title           string
+	Slug            string
+	Body            string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ParentID        *uuid.UUID
+	Template        string
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // UpdatePageData is the fully-prepared row the repo writes on update.
 type UpdatePageData struct {
-	Title       string
-	Slug        string
-	Body        string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ParentID    *uuid.UUID
-	Template    string
-	ReadingTime int
+	Title           string
+	Slug            string
+	Body            string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ParentID        *uuid.UUID
+	Template        string
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // Repository is the data-access contract for pages. It is the ONLY layer

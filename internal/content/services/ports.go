@@ -25,28 +25,36 @@ type ListFilter struct {
 
 // CreateServiceData is the fully-prepared row the repo inserts.
 type CreateServiceData struct {
-	Title       string
-	Slug        string
-	Summary     string
-	Body        string
-	Price       string
-	AreaServed  string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ReadingTime int
+	Title           string
+	Slug            string
+	Summary         string
+	Body            string
+	Price           string
+	AreaServed      string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // UpdateServiceData is the fully-prepared row the repo writes on update.
 type UpdateServiceData struct {
-	Title       string
-	Slug        string
-	Summary     string
-	Body        string
-	Price       string
-	AreaServed  string
-	Status      kernel.Status
-	PublishedAt *time.Time
-	ReadingTime int
+	Title           string
+	Slug            string
+	Summary         string
+	Body            string
+	Price           string
+	AreaServed      string
+	Status          kernel.Status
+	PublishedAt     *time.Time
+	ReadingTime     int
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
 }
 
 // FAQData is one FAQ row the repo writes when replacing a service's FAQ list.

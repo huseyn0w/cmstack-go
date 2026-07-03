@@ -39,6 +39,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -53,20 +57,24 @@ type GetActivePostInLocaleByIDParams struct {
 }
 
 type GetActivePostInLocaleByIDRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Excerpt     string             `json:"excerpt"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID    pgtype.UUID        `json:"author_id"`
-	ReadingTime int32              `json:"reading_time"`
-	LikeCount   int32              `json:"like_count"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	LikeCount       int32              `json:"like_count"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Load an ACTIVE (non-trashed) post by id with its title/excerpt/body OVERLAID
@@ -90,6 +98,10 @@ func (q *Queries) GetActivePostInLocaleByID(ctx context.Context, arg GetActivePo
 		&i.AuthorID,
 		&i.ReadingTime,
 		&i.LikeCount,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -98,7 +110,7 @@ func (q *Queries) GetActivePostInLocaleByID(ctx context.Context, arg GetActivePo
 }
 
 const getPostTranslation = `-- name: GetPostTranslation :one
-SELECT id, post_id, locale, title, excerpt, body, created_at, updated_at FROM post_translations
+SELECT id, post_id, locale, title, excerpt, body, created_at, updated_at, meta_title, meta_description FROM post_translations
 WHERE post_id = $1 AND locale = $2
 `
 
@@ -119,6 +131,8 @@ func (q *Queries) GetPostTranslation(ctx context.Context, arg GetPostTranslation
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }
@@ -136,6 +150,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -150,20 +168,24 @@ type GetPublishedPostInLocaleBySlugParams struct {
 }
 
 type GetPublishedPostInLocaleBySlugRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Excerpt     string             `json:"excerpt"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID    pgtype.UUID        `json:"author_id"`
-	ReadingTime int32              `json:"reading_time"`
-	LikeCount   int32              `json:"like_count"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	LikeCount       int32              `json:"like_count"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Public detail read: a published, non-trashed post by slug with its content
@@ -184,6 +206,10 @@ func (q *Queries) GetPublishedPostInLocaleBySlug(ctx context.Context, arg GetPub
 		&i.AuthorID,
 		&i.ReadingTime,
 		&i.LikeCount,
+		&i.MetaTitle,
+		&i.MetaDescription,
+		&i.CanonicalUrl,
+		&i.Noindex,
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -220,7 +246,7 @@ func (q *Queries) ListPostTranslationLocales(ctx context.Context, postID pgtype.
 }
 
 const listPostTranslations = `-- name: ListPostTranslations :many
-SELECT id, post_id, locale, title, excerpt, body, created_at, updated_at FROM post_translations
+SELECT id, post_id, locale, title, excerpt, body, created_at, updated_at, meta_title, meta_description FROM post_translations
 WHERE post_id = $1
 ORDER BY locale
 `
@@ -244,6 +270,8 @@ func (q *Queries) ListPostTranslations(ctx context.Context, postID pgtype.UUID) 
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MetaTitle,
+			&i.MetaDescription,
 		); err != nil {
 			return nil, err
 		}
@@ -268,6 +296,10 @@ SELECT
     p.author_id,
     p.reading_time,
     p.like_count,
+    COALESCE(NULLIF(t.meta_title, ''), p.meta_title)             AS meta_title,
+    COALESCE(NULLIF(t.meta_description, ''), p.meta_description) AS meta_description,
+    p.canonical_url,
+    p.noindex,
     p.deleted_at,
     p.created_at,
     p.updated_at
@@ -285,20 +317,24 @@ type ListPublishedPostsInLocaleParams struct {
 }
 
 type ListPublishedPostsInLocaleRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Title       string             `json:"title"`
-	Slug        string             `json:"slug"`
-	Excerpt     string             `json:"excerpt"`
-	Body        string             `json:"body"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
-	AuthorID    pgtype.UUID        `json:"author_id"`
-	ReadingTime int32              `json:"reading_time"`
-	LikeCount   int32              `json:"like_count"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	Slug            string             `json:"slug"`
+	Excerpt         string             `json:"excerpt"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ScheduledAt     pgtype.Timestamptz `json:"scheduled_at"`
+	AuthorID        pgtype.UUID        `json:"author_id"`
+	ReadingTime     int32              `json:"reading_time"`
+	LikeCount       int32              `json:"like_count"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	CanonicalUrl    string             `json:"canonical_url"`
+	Noindex         bool               `json:"noindex"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Public blog index in a locale: published posts (newest first) with content
@@ -324,6 +360,10 @@ func (q *Queries) ListPublishedPostsInLocale(ctx context.Context, arg ListPublis
 			&i.AuthorID,
 			&i.ReadingTime,
 			&i.LikeCount,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -339,22 +379,26 @@ func (q *Queries) ListPublishedPostsInLocale(ctx context.Context, arg ListPublis
 }
 
 const upsertPostTranslation = `-- name: UpsertPostTranslation :one
-INSERT INTO post_translations (post_id, locale, title, excerpt, body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO post_translations (post_id, locale, title, excerpt, body, meta_title, meta_description)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (post_id, locale) DO UPDATE
 SET title = EXCLUDED.title,
     excerpt = EXCLUDED.excerpt,
     body = EXCLUDED.body,
+    meta_title = EXCLUDED.meta_title,
+    meta_description = EXCLUDED.meta_description,
     updated_at = now()
-RETURNING id, post_id, locale, title, excerpt, body, created_at, updated_at
+RETURNING id, post_id, locale, title, excerpt, body, created_at, updated_at, meta_title, meta_description
 `
 
 type UpsertPostTranslationParams struct {
-	PostID  pgtype.UUID `json:"post_id"`
-	Locale  string      `json:"locale"`
-	Title   string      `json:"title"`
-	Excerpt string      `json:"excerpt"`
-	Body    string      `json:"body"`
+	PostID          pgtype.UUID `json:"post_id"`
+	Locale          string      `json:"locale"`
+	Title           string      `json:"title"`
+	Excerpt         string      `json:"excerpt"`
+	Body            string      `json:"body"`
+	MetaTitle       string      `json:"meta_title"`
+	MetaDescription string      `json:"meta_description"`
 }
 
 // Insert or update the translation row for (post_id, locale). Callers pass a
@@ -367,6 +411,8 @@ func (q *Queries) UpsertPostTranslation(ctx context.Context, arg UpsertPostTrans
 		arg.Title,
 		arg.Excerpt,
 		arg.Body,
+		arg.MetaTitle,
+		arg.MetaDescription,
 	)
 	var i PostTranslation
 	err := row.Scan(
@@ -378,6 +424,8 @@ func (q *Queries) UpsertPostTranslation(ctx context.Context, arg UpsertPostTrans
 		&i.Body,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MetaTitle,
+		&i.MetaDescription,
 	)
 	return i, err
 }

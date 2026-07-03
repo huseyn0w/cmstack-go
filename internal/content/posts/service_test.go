@@ -13,6 +13,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
 
 // --- fakes -------------------------------------------------------------------
@@ -109,6 +110,14 @@ func (m *memRepo) overlay(p Post, locale string) Post {
 	if t.Body != "" {
 		p.Body = t.Body
 	}
+	// meta_title/meta_description overlay with base fallback; canonical_url/noindex
+	// are structural (base row only) and are NOT overridden per-locale.
+	if t.MetaTitle != "" {
+		p.MetaTitle = t.MetaTitle
+	}
+	if t.MetaDescription != "" {
+		p.MetaDescription = t.MetaDescription
+	}
 	return p
 }
 
@@ -157,6 +166,8 @@ func (m *memRepo) CreateTx(_ context.Context, _ pgx.Tx, in CreatePostData) (Post
 		ID: uuid.New(), Title: in.Title, Slug: in.Slug, Excerpt: in.Excerpt,
 		Body: in.Body, Status: in.Status, PublishedAt: in.PublishedAt,
 		ScheduledAt: in.ScheduledAt, AuthorID: in.AuthorID, ReadingTime: in.ReadingTime,
+		MetaTitle: in.MetaTitle, MetaDescription: in.MetaDescription,
+		CanonicalURL: in.CanonicalURL, NoIndex: in.NoIndex,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	m.put(p)
@@ -172,6 +183,8 @@ func (m *memRepo) UpdateTx(_ context.Context, _ pgx.Tx, id uuid.UUID, in UpdateP
 	}
 	p.Title, p.Slug, p.Excerpt, p.Body = in.Title, in.Slug, in.Excerpt, in.Body
 	p.Status, p.PublishedAt, p.ScheduledAt, p.ReadingTime = in.Status, in.PublishedAt, in.ScheduledAt, in.ReadingTime
+	p.MetaTitle, p.MetaDescription = in.MetaTitle, in.MetaDescription
+	p.CanonicalURL, p.NoIndex = in.CanonicalURL, in.NoIndex
 	p.UpdatedAt = time.Now()
 	m.posts[id] = p
 	return p, nil
@@ -700,4 +713,60 @@ func TestSlugDedupe(t *testing.T) {
 	if p2.Slug != "same-title-2" {
 		t.Errorf("p2 slug = %q, want same-title-2", p2.Slug)
 	}
+}
+
+func TestSEOMeta_RoundTripsAndTranslationOverlay(t *testing.T) {
+	author := uuid.New()
+	repo := newMemRepo()
+	svc := newTestService(repo, newMemRevisions(),
+		fakeAuthz{allowed: map[uuid.UUID]bool{author: true}},
+		fakeRoles{byUser: map[uuid.UUID]string{author: accounts.RoleAuthor}},
+		nullBus{}, time.Now())
+
+	p, err := svc.Create(context.Background(), author, CreateInput{
+		Title: "SEO", Body: "<p>b</p>", Status: kernel.StatusPublished,
+		MetaTitle: "  Base Meta Title  ", MetaDescription: "Base desc",
+		CanonicalURL: " https://x/seo ", NoIndex: true,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// Create trims and persists all four base fields.
+	if p.MetaTitle != "Base Meta Title" || p.MetaDescription != "Base desc" {
+		t.Errorf("base meta not round-tripped: %q / %q", p.MetaTitle, p.MetaDescription)
+	}
+	if p.CanonicalURL != "https://x/seo" || !p.NoIndex {
+		t.Errorf("structural SEO not persisted: canonical=%q noindex=%v", p.CanonicalURL, p.NoIndex)
+	}
+
+	// A de translation overrides meta_title but leaves meta_description empty ->
+	// base fallback; canonical_url/noindex are structural and never per-locale.
+	de := mustLocale(t, "de")
+	if err := svc.SaveTranslation(context.Background(), author, p.ID, de, TranslationInput{
+		Title: "DE", MetaTitle: "DE Meta Title",
+	}); err != nil {
+		t.Fatalf("save translation: %v", err)
+	}
+	got, err := svc.GetInLocale(context.Background(), author, p.ID, de)
+	if err != nil {
+		t.Fatalf("get in locale: %v", err)
+	}
+	if got.MetaTitle != "DE Meta Title" {
+		t.Errorf("meta_title overlay = %q, want DE Meta Title", got.MetaTitle)
+	}
+	if got.MetaDescription != "Base desc" {
+		t.Errorf("meta_description should fall back to base, got %q", got.MetaDescription)
+	}
+	if got.CanonicalURL != "https://x/seo" || !got.NoIndex {
+		t.Errorf("structural SEO must not be per-locale: canonical=%q noindex=%v", got.CanonicalURL, got.NoIndex)
+	}
+}
+
+func mustLocale(t *testing.T, s string) i18n.Locale {
+	t.Helper()
+	l, ok := i18n.Parse(s)
+	if !ok {
+		t.Fatalf("locale %q not supported", s)
+	}
+	return l
 }
