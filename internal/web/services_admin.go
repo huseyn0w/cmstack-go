@@ -125,6 +125,11 @@ func (h *ServiceAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 		AreaServed: in.areaServed,
 		Status:     in.status,
 		FAQs:       in.faqs,
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	})
 	if err != nil {
 		h.renderCreateError(w, r, in, err)
@@ -176,9 +181,11 @@ func (h *ServiceAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// path below.
 	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
 		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, services.TranslationInput{
-			Title:   in.title,
-			Summary: in.summary,
-			Body:    in.body,
+			Title:           in.title,
+			Summary:         in.summary,
+			Body:            in.body,
+			MetaTitle:       in.metaTitle,
+			MetaDescription: in.metaDescription,
 		})
 		if errors.Is(err, services.ErrForbidden) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -209,6 +216,11 @@ func (h *ServiceAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Status:     &in.status,
 		SetFAQs:    true,
 		FAQs:       in.faqs,
+
+		MetaTitle:       &in.metaTitle,
+		MetaDescription: &in.metaDescription,
+		CanonicalURL:    &in.canonicalURL,
+		NoIndex:         &in.noindex,
 	}
 	if r.PostFormValue("action") == "publish" {
 		published := kernel.StatusPublished
@@ -342,14 +354,18 @@ func (h *ServiceAdminHandler) RestoreRevision(w http.ResponseWriter, r *http.Req
 // --- helpers -----------------------------------------------------------------
 
 type serviceForm struct {
-	title      string
-	slug       string
-	summary    string
-	body       string
-	price      string
-	areaServed string
-	status     kernel.Status
-	faqs       []services.FAQInput
+	title           string
+	slug            string
+	summary         string
+	body            string
+	price           string
+	areaServed      string
+	status          kernel.Status
+	faqs            []services.FAQInput
+	metaTitle       string
+	metaDescription string
+	canonicalURL    string
+	noindex         bool
 }
 
 func (h *ServiceAdminHandler) decodeForm(r *http.Request) serviceForm {
@@ -365,14 +381,18 @@ func (h *ServiceAdminHandler) decodeForm(r *http.Request) serviceForm {
 		faqs = append(faqs, services.FAQInput{Question: questions[i], Answer: ans})
 	}
 	return serviceForm{
-		title:      r.PostFormValue("title"),
-		slug:       r.PostFormValue("slug"),
-		summary:    r.PostFormValue("summary"),
-		body:       r.PostFormValue("body"),
-		price:      r.PostFormValue("price"),
-		areaServed: r.PostFormValue("area_served"),
-		status:     kernel.ParseStatus(r.PostFormValue("status")),
-		faqs:       faqs,
+		title:           r.PostFormValue("title"),
+		slug:            r.PostFormValue("slug"),
+		summary:         r.PostFormValue("summary"),
+		body:            r.PostFormValue("body"),
+		price:           r.PostFormValue("price"),
+		areaServed:      r.PostFormValue("area_served"),
+		status:          kernel.ParseStatus(r.PostFormValue("status")),
+		faqs:            faqs,
+		metaTitle:       r.PostFormValue("meta_title"),
+		metaDescription: r.PostFormValue("meta_description"),
+		canonicalURL:    r.PostFormValue("canonical_url"),
+		noindex:         r.PostFormValue("noindex") != "",
 	}
 }
 
@@ -397,6 +417,11 @@ func (h *ServiceAdminHandler) renderCreateError(w http.ResponseWriter, r *http.R
 		FieldErrors: map[string]string{},
 		Error:       serviceHumanError(err),
 		BackURL:     "/admin/services",
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	}
 	if errors.Is(err, services.ErrTitleRequired) {
 		view.FieldErrors["title"] = "Title is required."
@@ -449,6 +474,10 @@ func (h *ServiceAdminHandler) formView(r *http.Request, s services.Service, loca
 		FieldErrors:     map[string]string{},
 		RevisionsURL:    "/admin/services/" + s.ID.String() + "/revisions",
 		BackURL:         "/admin/services",
+		MetaTitle:       s.MetaTitle,
+		MetaDescription: s.MetaDescription,
+		CanonicalURL:    s.CanonicalURL,
+		NoIndex:         s.NoIndex,
 		LocaleTabs:      h.localeTabs(r, s.ID, locale),
 		ActiveLocale:    locale.String(),
 		IsDefaultLocale: locale.IsDefault(),

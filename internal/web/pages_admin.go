@@ -127,6 +127,11 @@ func (h *PageAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:   in.status,
 		ParentID: in.parentID,
 		Template: in.template,
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	})
 	if err != nil {
 		h.renderCreateError(w, r, in, err)
@@ -178,8 +183,10 @@ func (h *PageAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// path below.
 	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
 		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, pages.TranslationInput{
-			Title: in.title,
-			Body:  in.body,
+			Title:           in.title,
+			Body:            in.body,
+			MetaTitle:       in.metaTitle,
+			MetaDescription: in.metaDescription,
 		})
 		if errors.Is(err, pages.ErrForbidden) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -208,6 +215,11 @@ func (h *PageAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Template:  &in.template,
 		SetParent: true,
 		ParentID:  in.parentID,
+
+		MetaTitle:       &in.metaTitle,
+		MetaDescription: &in.metaDescription,
+		CanonicalURL:    &in.canonicalURL,
+		NoIndex:         &in.noindex,
 	}
 	if r.PostFormValue("action") == "publish" {
 		published := kernel.StatusPublished
@@ -341,21 +353,29 @@ func (h *PageAdminHandler) RestoreRevision(w http.ResponseWriter, r *http.Reques
 // --- helpers -----------------------------------------------------------------
 
 type pageForm struct {
-	title    string
-	slug     string
-	body     string
-	status   kernel.Status
-	parentID *uuid.UUID
-	template string
+	title           string
+	slug            string
+	body            string
+	status          kernel.Status
+	parentID        *uuid.UUID
+	template        string
+	metaTitle       string
+	metaDescription string
+	canonicalURL    string
+	noindex         bool
 }
 
 func (h *PageAdminHandler) decodeForm(r *http.Request) pageForm {
 	f := pageForm{
-		title:    r.PostFormValue("title"),
-		slug:     r.PostFormValue("slug"),
-		body:     r.PostFormValue("body"),
-		status:   kernel.ParseStatus(r.PostFormValue("status")),
-		template: r.PostFormValue("template"),
+		title:           r.PostFormValue("title"),
+		slug:            r.PostFormValue("slug"),
+		body:            r.PostFormValue("body"),
+		status:          kernel.ParseStatus(r.PostFormValue("status")),
+		template:        r.PostFormValue("template"),
+		metaTitle:       r.PostFormValue("meta_title"),
+		metaDescription: r.PostFormValue("meta_description"),
+		canonicalURL:    r.PostFormValue("canonical_url"),
+		noindex:         r.PostFormValue("noindex") != "",
 	}
 	if raw := r.PostFormValue("parent_id"); raw != "" {
 		if id, err := uuid.Parse(raw); err == nil {
@@ -386,6 +406,11 @@ func (h *PageAdminHandler) renderCreateError(w http.ResponseWriter, r *http.Requ
 		FieldErrors:  map[string]string{},
 		Error:        pageHumanError(err),
 		BackURL:      "/admin/pages",
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	}
 	if in.parentID != nil {
 		view.ParentID = in.parentID.String()
@@ -442,6 +467,10 @@ func (h *PageAdminHandler) formView(r *http.Request, p pages.Page, locale i18n.L
 		FieldErrors:     map[string]string{},
 		RevisionsURL:    "/admin/pages/" + p.ID.String() + "/revisions",
 		BackURL:         "/admin/pages",
+		MetaTitle:       p.MetaTitle,
+		MetaDescription: p.MetaDescription,
+		CanonicalURL:    p.CanonicalURL,
+		NoIndex:         p.NoIndex,
 		LocaleTabs:      h.localeTabs(r, p.ID, locale),
 		ActiveLocale:    locale.String(),
 		IsDefaultLocale: locale.IsDefault(),

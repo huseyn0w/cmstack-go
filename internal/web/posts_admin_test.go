@@ -43,6 +43,10 @@ type stubPostAdmin struct {
 	// assert the de/ru save reached the service with the right locale + content.
 	translated       []i18n.Locale
 	savedTranslation *savedTranslation
+
+	// SEO editor (M8). When set, savedUpdate captures the last base-row Update
+	// input so a handler test can assert the SEO fields reached the service.
+	savedUpdate *posts.UpdateInput
 }
 
 type savedTranslation struct {
@@ -97,7 +101,10 @@ func (s stubPostAdmin) Create(context.Context, uuid.UUID, posts.CreateInput) (po
 	return s.created, s.createErr
 }
 
-func (s stubPostAdmin) Update(context.Context, uuid.UUID, uuid.UUID, posts.UpdateInput) (posts.Post, error) {
+func (s stubPostAdmin) Update(_ context.Context, _, _ uuid.UUID, in posts.UpdateInput) (posts.Post, error) {
+	if s.savedUpdate != nil {
+		*s.savedUpdate = in
+	}
 	return posts.Post{}, nil
 }
 func (s stubPostAdmin) Trash(context.Context, uuid.UUID, uuid.UUID) error           { return nil }
@@ -456,5 +463,115 @@ func TestPostsAdmin_UpdateEnEditsBaseRow(t *testing.T) {
 	}
 	if saved.locale != "" {
 		t.Errorf("en save must NOT call SaveTranslation, got locale %v", saved.locale)
+	}
+}
+
+// TestPostsAdmin_EditRendersSEOFields asserts the SEO panel renders on the
+// default (en) tab: translatable meta title/description plus the structural
+// canonical URL and noindex checkbox (M8).
+func TestPostsAdmin_EditRendersSEOFields(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	svc := stubPostAdmin{
+		get: posts.Post{
+			ID: id, Title: "Hello", Slug: "hello", AuthorID: user.ID,
+			MetaTitle: "Custom Meta", MetaDescription: "Meta desc", CanonicalURL: "https://x.test/hello", NoIndex: true,
+		},
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/posts/"+id.String()+"/edit", nil)
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Edit(rec, req)
+
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-testid="field-meta-title"`,
+		`data-testid="field-meta-description"`,
+		`data-testid="field-canonical-url"`,
+		`data-testid="field-noindex"`,
+		`value="Custom Meta"`,
+		`value="https://x.test/hello"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("SEO editor missing %q", want)
+		}
+	}
+}
+
+// TestPostsAdmin_EditDeTabHidesStructuralSEO asserts the de tab keeps the
+// translatable meta title but hides the structural canonical/noindex fields.
+func TestPostsAdmin_EditDeTabHidesStructuralSEO(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	svc := stubPostAdmin{
+		get:        posts.Post{ID: id, Title: "Hallo", Slug: "hello", AuthorID: user.ID},
+		translated: []i18n.Locale{i18n.LocaleDE},
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/posts/"+id.String()+"/edit?language=de", nil)
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Edit(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-testid="field-meta-title"`) {
+		t.Error("de tab should keep the translatable meta title field")
+	}
+	if strings.Contains(body, `data-testid="field-canonical-url"`) {
+		t.Error("de tab must hide the structural canonical URL field")
+	}
+	if strings.Contains(body, `data-testid="field-noindex"`) {
+		t.Error("de tab must hide the structural noindex field")
+	}
+}
+
+// TestPostsAdmin_UpdateSavesSEOFields asserts an en (base-row) POST forwards the
+// SEO form values into the UpdateInput reaching the service (M8).
+func TestPostsAdmin_UpdateSavesSEOFields(t *testing.T) {
+	id := uuid.New()
+	user := accounts.User{ID: uuid.New(), Name: "Ed"}
+	upd := posts.UpdateInput{}
+	svc := stubPostAdmin{
+		get:         posts.Post{ID: id, Title: "Hello", AuthorID: user.ID},
+		savedUpdate: &upd,
+	}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{role: accounts.Role{Label: "Editor"}}, csrf: security.Token, siteURL: "/"}
+	h := NewPostAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{
+		"title":            {"Hello"},
+		"body":             {"<p>x</p>"},
+		"status":           {"DRAFT"},
+		"action":           {"save"},
+		"meta_title":       {"SEO Title"},
+		"meta_description": {"SEO Description"},
+		"canonical_url":    {"https://x.test/hello"},
+		"noindex":          {"on"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/posts/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = withPostID(req, id, user)
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update = %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if upd.MetaTitle == nil || *upd.MetaTitle != "SEO Title" {
+		t.Errorf("MetaTitle = %v, want SEO Title", upd.MetaTitle)
+	}
+	if upd.MetaDescription == nil || *upd.MetaDescription != "SEO Description" {
+		t.Errorf("MetaDescription = %v, want SEO Description", upd.MetaDescription)
+	}
+	if upd.CanonicalURL == nil || *upd.CanonicalURL != "https://x.test/hello" {
+		t.Errorf("CanonicalURL = %v, want https://x.test/hello", upd.CanonicalURL)
+	}
+	if upd.NoIndex == nil || !*upd.NoIndex {
+		t.Errorf("NoIndex = %v, want true", upd.NoIndex)
 	}
 }

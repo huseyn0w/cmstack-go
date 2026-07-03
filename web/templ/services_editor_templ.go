@@ -334,6 +334,10 @@ func ServiceEditor(v ServiceFormView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
+			templ_7745c5c3_Err = seoFields(v.MetaTitle, v.MetaDescription, v.CanonicalURL, v.NoIndex, v.editStructural()).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"flex items-center gap-3 border-t border-border pt-5\"><button type=\"submit\" name=\"action\" value=\"save\" data-testid=\"service-action-save\" class=\"inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring\">Save</button> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -352,7 +356,7 @@ func ServiceEditor(v ServiceFormView) templ.Component {
 				var templ_7745c5c3_Var15 templ.SafeURL
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.RevisionsURL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/services_editor.templ`, Line: 109, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/services_editor.templ`, Line: 110, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -409,7 +413,7 @@ func faqEditor(faqs []ServiceFAQField) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue("faqEditor(" + faqsJSON(faqs) + ")")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/services_editor.templ`, Line: 122, Col: 116}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/services_editor.templ`, Line: 123, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {

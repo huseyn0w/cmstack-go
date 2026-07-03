@@ -37,6 +37,10 @@ type stubPageAdmin struct {
 	translated []i18n.Locale
 	saved      *savedPageTranslation // capture for SaveTranslation
 	saveErr    error
+
+	// SEO editor (M8). When set, savedUpdate captures the last base-row Update
+	// input so a handler test can assert the SEO fields reached the service.
+	savedUpdate *pages.UpdateInput
 }
 
 // savedPageTranslation captures a SaveTranslation call so a value-receiver stub
@@ -89,7 +93,10 @@ func (s stubPageAdmin) Create(context.Context, uuid.UUID, pages.CreateInput) (pa
 	return pages.Page{}, s.createErr
 }
 
-func (s stubPageAdmin) Update(context.Context, uuid.UUID, uuid.UUID, pages.UpdateInput) (pages.Page, error) {
+func (s stubPageAdmin) Update(_ context.Context, _, _ uuid.UUID, in pages.UpdateInput) (pages.Page, error) {
+	if s.savedUpdate != nil {
+		*s.savedUpdate = in
+	}
 	return pages.Page{}, nil
 }
 func (s stubPageAdmin) Trash(context.Context, uuid.UUID, uuid.UUID) error           { return nil }
@@ -314,6 +321,107 @@ func TestPagesAdmin_UpdateDePersistsTranslation(t *testing.T) {
 	}
 	if saved.locale != i18n.LocaleDE || saved.input.Title != "Ueber uns" || saved.input.Body != "<p>de body</p>" {
 		t.Errorf("SaveTranslation got %+v / %+v", saved.locale, saved.input)
+	}
+}
+
+// TestPagesAdmin_EditRendersSEOFields asserts the SEO panel renders on the
+// default tab: translatable meta title/description + structural canonical/
+// noindex (M8).
+func TestPagesAdmin_EditRendersSEOFields(t *testing.T) {
+	id := uuid.New()
+	page := pages.Page{
+		ID: id, Title: "About", Slug: "about", Body: "<p>en</p>", Template: "default",
+		MetaTitle: "Custom Meta", MetaDescription: "Meta desc", CanonicalURL: "https://x.test/about", NoIndex: true,
+	}
+	svc := stubPageAdmin{get: page}
+	r, sess, mw, user := buildPagesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/pages/"+id.String()+"/edit", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-testid="field-meta-title"`,
+		`data-testid="field-meta-description"`,
+		`data-testid="field-canonical-url"`,
+		`data-testid="field-noindex"`,
+		`value="Custom Meta"`,
+		`value="https://x.test/about"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("SEO editor missing %q", want)
+		}
+	}
+}
+
+// TestPagesAdmin_EditDeTabHidesStructuralSEO asserts the de tab keeps the
+// translatable meta title but hides the structural canonical/noindex fields.
+func TestPagesAdmin_EditDeTabHidesStructuralSEO(t *testing.T) {
+	id := uuid.New()
+	en := pages.Page{ID: id, Title: "About", Slug: "about", Body: "<p>en</p>", Template: "default"}
+	svc := stubPageAdmin{get: en, byLocale: map[i18n.Locale]pages.Page{i18n.LocaleDE: en}, translated: []i18n.Locale{i18n.LocaleDE}}
+	r, sess, mw, user := buildPagesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/pages/"+id.String()+"/edit?language=de", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit de = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-testid="field-meta-title"`) {
+		t.Error("de tab should keep the translatable meta title field")
+	}
+	if strings.Contains(body, `data-testid="field-canonical-url"`) {
+		t.Error("de tab must hide the structural canonical URL field")
+	}
+	if strings.Contains(body, `data-testid="field-noindex"`) {
+		t.Error("de tab must hide the structural noindex field")
+	}
+}
+
+// TestPagesAdmin_UpdateSavesSEOFields asserts a base-row POST forwards the SEO
+// form values into the UpdateInput reaching the service (M8).
+func TestPagesAdmin_UpdateSavesSEOFields(t *testing.T) {
+	id := uuid.New()
+	upd := pages.UpdateInput{}
+	svc := stubPageAdmin{get: pages.Page{ID: id, Title: "About", Slug: "about"}, savedUpdate: &upd}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewPageAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{
+		"title":            {"About"},
+		"body":             {"<p>x</p>"},
+		"status":           {"DRAFT"},
+		"template":         {"default"},
+		"meta_title":       {"SEO Title"},
+		"meta_description": {"SEO Description"},
+		"canonical_url":    {"https://x.test/about"},
+		"noindex":          {"on"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/pages/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id.String())
+	req = req.WithContext(withUser(context.WithValue(req.Context(), chi.RouteCtxKey, rctx), accounts.User{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update = %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if upd.MetaTitle == nil || *upd.MetaTitle != "SEO Title" {
+		t.Errorf("MetaTitle = %v, want SEO Title", upd.MetaTitle)
+	}
+	if upd.CanonicalURL == nil || *upd.CanonicalURL != "https://x.test/about" {
+		t.Errorf("CanonicalURL = %v, want https://x.test/about", upd.CanonicalURL)
+	}
+	if upd.NoIndex == nil || !*upd.NoIndex {
+		t.Errorf("NoIndex = %v, want true", upd.NoIndex)
 	}
 }
 

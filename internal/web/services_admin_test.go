@@ -32,6 +32,10 @@ type stubServiceAdmin struct {
 	createErr error
 	captured  *services.CreateInput
 
+	// SEO editor (M8). updated captures the last base-row Update input so a handler
+	// test can assert the SEO fields reached the service.
+	updated *services.UpdateInput
+
 	// M7b-2 per-locale fields.
 	byLocale       map[i18n.Locale]services.Service
 	translated     []i18n.Locale
@@ -83,7 +87,9 @@ func (s *stubServiceAdmin) Create(_ context.Context, _ uuid.UUID, in services.Cr
 	return services.Service{}, s.createErr
 }
 
-func (s *stubServiceAdmin) Update(context.Context, uuid.UUID, uuid.UUID, services.UpdateInput) (services.Service, error) {
+func (s *stubServiceAdmin) Update(_ context.Context, _, _ uuid.UUID, in services.UpdateInput) (services.Service, error) {
+	cp := in
+	s.updated = &cp
 	return services.Service{}, nil
 }
 
@@ -309,6 +315,108 @@ func TestServicesAdmin_UpdateDePersistsTranslation(t *testing.T) {
 	}
 	if svc.savedLocale != i18n.LocaleDE || svc.savedInput.Title != "SEO Pruefung" || svc.savedInput.Body != "<p>de body</p>" {
 		t.Errorf("SaveTranslation got %+v / %+v", svc.savedLocale, svc.savedInput)
+	}
+}
+
+// TestServicesAdmin_EditRendersSEOFields asserts the SEO panel renders on the
+// default tab: translatable meta title/description + structural canonical/
+// noindex (M8).
+func TestServicesAdmin_EditRendersSEOFields(t *testing.T) {
+	id := uuid.New()
+	svcRow := services.Service{
+		ID: id, Title: "SEO Audit", Slug: "seo-audit", Body: "<p>en</p>",
+		MetaTitle: "Custom Meta", MetaDescription: "Meta desc", CanonicalURL: "https://x.test/seo-audit", NoIndex: true,
+	}
+	svc := &stubServiceAdmin{get: svcRow}
+	r, sess, mw, user := buildServicesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/services/"+id.String()+"/edit", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit = %d\n%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-testid="field-meta-title"`,
+		`data-testid="field-meta-description"`,
+		`data-testid="field-canonical-url"`,
+		`data-testid="field-noindex"`,
+		`value="Custom Meta"`,
+		`value="https://x.test/seo-audit"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("SEO editor missing %q", want)
+		}
+	}
+}
+
+// TestServicesAdmin_EditDeTabHidesStructuralSEO asserts the de tab keeps the
+// translatable meta title but hides the structural canonical/noindex fields.
+func TestServicesAdmin_EditDeTabHidesStructuralSEO(t *testing.T) {
+	id := uuid.New()
+	en := services.Service{ID: id, Title: "SEO Audit", Slug: "seo-audit", Body: "<p>en</p>"}
+	svc := &stubServiceAdmin{get: en, byLocale: map[i18n.Locale]services.Service{i18n.LocaleDE: en}, translated: []i18n.Locale{i18n.LocaleDE}}
+	r, sess, mw, user := buildServicesAdminEnv(t, svc, allowAllAuthz{})
+	cookie := mintSession(t, sess, mw, user)
+	req := httptest.NewRequest(http.MethodGet, "/admin/services/"+id.String()+"/edit?language=de", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit de = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-testid="field-meta-title"`) {
+		t.Error("de tab should keep the translatable meta title field")
+	}
+	if strings.Contains(body, `data-testid="field-canonical-url"`) {
+		t.Error("de tab must hide the structural canonical URL field")
+	}
+	if strings.Contains(body, `data-testid="field-noindex"`) {
+		t.Error("de tab must hide the structural noindex field")
+	}
+}
+
+// TestServicesAdmin_UpdateSavesSEOFields asserts a base-row POST forwards the
+// SEO form values into the UpdateInput reaching the service (M8).
+func TestServicesAdmin_UpdateSavesSEOFields(t *testing.T) {
+	id := uuid.New()
+	svc := &stubServiceAdmin{get: services.Service{ID: id, Title: "SEO Audit", Slug: "seo-audit"}}
+	shell := adminShellDeps{authz: allowAllAuthz{}, roles: fakeRoles{}, csrf: security.Token, siteURL: "/"}
+	h := NewServiceAdminHandler(svc, shell, nil, security.Token)
+
+	form := url.Values{
+		"title":            {"SEO Audit"},
+		"body":             {"<p>x</p>"},
+		"status":           {"DRAFT"},
+		"meta_title":       {"SEO Title"},
+		"meta_description": {"SEO Description"},
+		"canonical_url":    {"https://x.test/seo-audit"},
+		"noindex":          {"on"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/admin/services/"+id.String(), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id.String())
+	req = req.WithContext(withUser(context.WithValue(req.Context(), chi.RouteCtxKey, rctx), accounts.User{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+	h.Update(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update = %d, want 303\n%s", rec.Code, rec.Body.String())
+	}
+	if svc.updated == nil {
+		t.Fatal("Update was not called")
+	}
+	if svc.updated.MetaTitle == nil || *svc.updated.MetaTitle != "SEO Title" {
+		t.Errorf("MetaTitle = %v, want SEO Title", svc.updated.MetaTitle)
+	}
+	if svc.updated.CanonicalURL == nil || *svc.updated.CanonicalURL != "https://x.test/seo-audit" {
+		t.Errorf("CanonicalURL = %v, want https://x.test/seo-audit", svc.updated.CanonicalURL)
+	}
+	if svc.updated.NoIndex == nil || !*svc.updated.NoIndex {
+		t.Errorf("NoIndex = %v, want true", svc.updated.NoIndex)
 	}
 }
 

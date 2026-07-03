@@ -92,6 +92,14 @@ type PostFormView struct {
 	CategoryChoices []TaxonomyChoice
 	TagChoices      []TaxonomyChoice
 
+	// SEO metadata (M8). MetaTitle/MetaDescription are TRANSLATABLE and render on
+	// every locale tab; CanonicalURL/NoIndex are STRUCTURAL and render only on the
+	// default-locale base row (gated by editStructural, like slug/status).
+	MetaTitle       string
+	MetaDescription string
+	CanonicalURL    string
+	NoIndex         bool
+
 	// Per-locale translation (M7b-1). LocaleTabs is the one-tab-per-language strip
 	// on the editor (django-parler ?language=xx parity); ActiveLocale is the tag of
 	// the tab currently being edited (en = base row, de/ru = translation overlay).

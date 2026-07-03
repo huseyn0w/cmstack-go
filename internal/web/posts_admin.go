@@ -170,6 +170,11 @@ func (h *PostAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ScheduledAt: in.scheduledAt,
 		CategoryIDs: in.categoryIDs,
 		TagIDs:      in.tagIDs,
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	})
 	if err != nil {
 		h.renderCreateError(w, r, in, status, err)
@@ -231,9 +236,11 @@ func (h *PostAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Update path below.
 	if loc, ok := i18n.Parse(r.PostFormValue("locale")); ok && !loc.IsDefault() {
 		err = h.svc.SaveTranslation(r.Context(), u.ID, id, loc, posts.TranslationInput{
-			Title:   in.title,
-			Excerpt: in.excerpt,
-			Body:    in.body,
+			Title:           in.title,
+			Excerpt:         in.excerpt,
+			Body:            in.body,
+			MetaTitle:       in.metaTitle,
+			MetaDescription: in.metaDescription,
 		})
 		if errors.Is(err, posts.ErrForbidden) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -263,6 +270,11 @@ func (h *PostAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		SetTaxonomy: true,
 		CategoryIDs: in.categoryIDs,
 		TagIDs:      in.tagIDs,
+
+		MetaTitle:       &in.metaTitle,
+		MetaDescription: &in.metaDescription,
+		CanonicalURL:    &in.canonicalURL,
+		NoIndex:         &in.noindex,
 	}
 	// The clicked action button refines intent.
 	switch r.PostFormValue("action") {
@@ -407,24 +419,32 @@ func (h *PostAdminHandler) RestoreRevision(w http.ResponseWriter, r *http.Reques
 // --- helpers -----------------------------------------------------------------
 
 type postForm struct {
-	title       string
-	slug        string
-	excerpt     string
-	body        string
-	scheduledAt *time.Time
-	categoryIDs []uuid.UUID
-	tagIDs      []uuid.UUID
+	title           string
+	slug            string
+	excerpt         string
+	body            string
+	scheduledAt     *time.Time
+	categoryIDs     []uuid.UUID
+	tagIDs          []uuid.UUID
+	metaTitle       string
+	metaDescription string
+	canonicalURL    string
+	noindex         bool
 }
 
 func (h *PostAdminHandler) decodeForm(r *http.Request) (postForm, kernel.Status) {
 	_ = r.ParseForm()
 	f := postForm{
-		title:       r.PostFormValue("title"),
-		slug:        r.PostFormValue("slug"),
-		excerpt:     r.PostFormValue("excerpt"),
-		body:        r.PostFormValue("body"),
-		categoryIDs: parseBulkIDs(r.PostForm["category_ids"]),
-		tagIDs:      parseBulkIDs(r.PostForm["tag_ids"]),
+		title:           r.PostFormValue("title"),
+		slug:            r.PostFormValue("slug"),
+		excerpt:         r.PostFormValue("excerpt"),
+		body:            r.PostFormValue("body"),
+		categoryIDs:     parseBulkIDs(r.PostForm["category_ids"]),
+		tagIDs:          parseBulkIDs(r.PostForm["tag_ids"]),
+		metaTitle:       r.PostFormValue("meta_title"),
+		metaDescription: r.PostFormValue("meta_description"),
+		canonicalURL:    r.PostFormValue("canonical_url"),
+		noindex:         r.PostFormValue("noindex") != "",
 	}
 	status := kernel.ParseStatus(r.PostFormValue("status"))
 	if raw := r.PostFormValue("scheduled_at"); raw != "" {
@@ -456,6 +476,11 @@ func (h *PostAdminHandler) renderCreateError(w http.ResponseWriter, r *http.Requ
 		FieldErrors: map[string]string{},
 		Error:       humanError(err),
 		BackURL:     "/admin/posts",
+
+		MetaTitle:       in.metaTitle,
+		MetaDescription: in.metaDescription,
+		CanonicalURL:    in.canonicalURL,
+		NoIndex:         in.noindex,
 	}
 	if errors.Is(err, posts.ErrTitleRequired) {
 		view.FieldErrors["title"] = "Title is required."
@@ -505,6 +530,10 @@ func (h *PostAdminHandler) formView(r *http.Request, p posts.Post, locale i18n.L
 		BackURL:         "/admin/posts",
 		CategoryChoices: cats,
 		TagChoices:      tagChoices,
+		MetaTitle:       p.MetaTitle,
+		MetaDescription: p.MetaDescription,
+		CanonicalURL:    p.CanonicalURL,
+		NoIndex:         p.NoIndex,
 		LocaleTabs:      h.localeTabs(r.Context(), r, p.ID, locale),
 		ActiveLocale:    locale.String(),
 		IsDefaultLocale: locale.IsDefault(),

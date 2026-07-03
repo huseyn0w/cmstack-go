@@ -100,6 +100,7 @@ templ ServiceEditor(v ServiceFormView) {
 				} else {
 					<p class="text-caption text-muted" data-testid="service-translation-note">Editing the { v.ActiveLocale } translation. Slug, status, price, area served and FAQs are shared across languages and edited on the English tab.</p>
 				}
+				@seoFields(v.MetaTitle, v.MetaDescription, v.CanonicalURL, v.NoIndex, v.editStructural())
 				<div class="flex items-center gap-3 border-t border-border pt-5">
 					<button type="submit" name="action" value="save" data-testid="service-action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
 					if v.editStructural() {

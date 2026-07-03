@@ -97,6 +97,7 @@ templ PostEditor(v PostFormView) {
 				} else {
 					<p class="text-caption text-muted" data-testid="translation-note">Editing the { v.ActiveLocale } translation. Slug, status, schedule and taxonomy are shared across languages and edited on the English tab.</p>
 				}
+				@seoFields(v.MetaTitle, v.MetaDescription, v.CanonicalURL, v.NoIndex, v.editStructural())
 				<div class="flex items-center gap-3 border-t border-border pt-5">
 					<button type="submit" name="action" value="save" data-testid="action-save" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save</button>
 					if v.editStructural() {
@@ -219,6 +220,54 @@ templ richTextField(body string) {
 		<textarea x-ref="hidden" name="body" class="hidden" aria-hidden="true"></textarea>
 		@mediaPickerModal()
 	</div>
+}
+
+// seoFields renders the shared "SEO" panel used by every content editor (M8).
+// MetaTitle/MetaDescription are TRANSLATABLE and always render (every locale
+// tab). CanonicalURL and the NoIndex checkbox are STRUCTURAL and render only
+// when editStructural is true (the default-locale base row / new form), exactly
+// like slug/parent. Reuses the same label/input classes as the sibling fields.
+templ seoFields(metaTitle, metaDescription, canonicalURL string, noIndex, structural bool) {
+	<fieldset class="border-t border-border pt-5" data-testid="seo-editor">
+		<legend class="text-small font-medium text-text">SEO</legend>
+		<p class="mt-1 text-caption text-muted">Search-engine metadata for this content. Meta title and description are translated per language.</p>
+		<div class="mt-4 space-y-5">
+			<div>
+				<label for="meta_title" class="block text-small font-medium text-text">Meta title <span class="text-subtle">(optional)</span></label>
+				<input
+					id="meta_title" name="meta_title" type="text" value={ metaTitle }
+					data-testid="field-meta-title"
+					class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				/>
+			</div>
+			<div>
+				<label for="meta_description" class="block text-small font-medium text-text">Meta description <span class="text-subtle">(optional)</span></label>
+				<textarea
+					id="meta_description" name="meta_description" rows="2"
+					data-testid="field-meta-description"
+					class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>{ metaDescription }</textarea>
+			</div>
+			if structural {
+				<div>
+					<label for="canonical_url" class="block text-small font-medium text-text">Canonical URL <span class="text-subtle">(optional)</span></label>
+					<input
+						id="canonical_url" name="canonical_url" type="text" value={ canonicalURL }
+						data-testid="field-canonical-url"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-small text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+				</div>
+				<label class="flex items-center gap-2 text-small text-text">
+					<input
+						type="checkbox" name="noindex" checked?={ noIndex }
+						data-testid="field-noindex"
+						class="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					<span>Discourage search engines from indexing this content (noindex)</span>
+				</label>
+			}
+		</div>
+	</fieldset>
 }
 
 // mediaPickerModal is the editor's media-library picker (M4): a Modal/dialog
