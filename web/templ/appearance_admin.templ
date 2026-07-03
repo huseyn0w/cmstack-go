@@ -1,0 +1,73 @@
+package templ
+
+// AppearancePage renders the admin theme switcher: a card per registered theme
+// with a live palette preview (the card's preview box re-scopes the design
+// tokens via a `.theme-<id>` class so each swatch shows that theme's colours),
+// the active theme badged, and a one-click activate form on the rest.
+templ AppearancePage(v AppearanceView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="appearance" class="mx-auto max-w-4xl">
+			<div class="mb-6">
+				<h2 class="text-h3 text-text">Appearance</h2>
+				<p class="mt-1 text-small text-muted">Choose the public site theme. The admin area always uses the base palette.</p>
+			</div>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				for _, t := range v.Themes {
+					<div
+						data-testid={ "theme-card-" + t.ID }
+						if t.Active {
+							class="rounded-lg border-2 border-primary bg-surface p-4"
+						} else {
+							class="rounded-lg border border-border bg-surface p-4"
+						}
+					>
+						@themePreview(t.ID)
+						<div class="mt-3 flex items-start justify-between gap-2">
+							<div>
+								<h3 class="text-body font-medium text-text">{ t.Label }</h3>
+								<p class="mt-0.5 text-caption text-muted">{ t.Description }</p>
+							</div>
+							if t.Active {
+								<span data-testid={ "theme-active-" + t.ID } class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-caption font-medium text-primary">Active</span>
+							}
+						</div>
+						if !t.Active {
+							<form method="post" action={ templ.SafeURL(v.ActivateURL) } class="mt-3">
+								@csrfField(v.CSRFToken)
+								<input type="hidden" name="theme" value={ t.ID }/>
+								<button
+									type="submit"
+									data-testid={ "theme-activate-" + t.ID }
+									class="inline-flex h-9 w-full items-center justify-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								>Activate</button>
+							</form>
+						}
+					</div>
+				}
+			</div>
+		</section>
+	}
+}
+
+// themePreview renders a small swatch strip whose colours come from the given
+// theme: the box re-scopes the design tokens via `.theme-<id>` (the default
+// theme is the base `:root`, so it gets no class), and the inner swatches use
+// the token-mapped utilities.
+templ themePreview(id string) {
+	<div
+		if id != "" && id != "default" {
+			class={ "theme-" + id, "flex h-16 overflow-hidden rounded-md border border-border" }
+		} else {
+			class="flex h-16 overflow-hidden rounded-md border border-border"
+		}
+		aria-hidden="true"
+	>
+		<div class="flex-1 bg-bg"></div>
+		<div class="flex-1 bg-surface-2"></div>
+		<div class="flex-1 bg-primary"></div>
+		<div class="flex-1 bg-accent"></div>
+		<div class="flex flex-1 items-center justify-center bg-surface text-text">
+			<span class="font-serif text-body">Aa</span>
+		</div>
+	</div>
+}

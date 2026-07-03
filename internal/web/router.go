@@ -139,6 +139,11 @@ type Deps struct {
 	// back to the base palette (theme isolation). Optional so reduced-Deps tests
 	// keep working (they then render on the default theme).
 	Theme *ThemeResolver
+
+	// AppearanceSvc backs the gated /admin/appearance theme switcher (M9-2): it
+	// reads and persists the active theme id. *settings.Service satisfies it.
+	// Optional; when nil the appearance area is not mounted.
+	AppearanceSvc AppearanceSettings
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -413,7 +418,27 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountTagsAdmin(gr, d, shell)
 	mountMediaAdmin(gr, d, shell)
 	mountCommentsAdmin(gr, d, shell)
+	mountAppearanceAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountAppearanceAdmin wires the gated admin appearance (theme switcher) area
+// (M9). Listing themes requires read:theme; activating one requires
+// update:theme. The theme catalogue is the in-code registry; the active choice
+// is persisted via the settings service.
+func mountAppearanceAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.AppearanceSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewAppearanceHandler(d.AppearanceSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/appearance", func(ar chi.Router) {
+		ar.Use(d.AuthMW.RequireAuth)
+		ar.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectTheme)).
+			Get("/", h.Show)
+		ar.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectTheme)).
+			Post("/activate", h.Activate)
+	})
 }
 
 // mountCommentsAdmin wires the gated admin comment-moderation area (M5). The

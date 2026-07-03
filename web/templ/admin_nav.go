@@ -72,7 +72,7 @@ func navBlueprint() []NavGroup {
 		{
 			Label: "Design",
 			Items: []NavItem{
-				{Label: "Appearance", Href: "#", Icon: "theme", Action: "read", Subject: "theme"},
+				{Label: "Appearance", Href: "/admin/appearance", Icon: "theme", Action: "read", Subject: "theme"},
 				{Label: "Menus", Href: "#", Icon: "menu", Action: "read", Subject: "menu"},
 				{Label: "Plugins", Href: "#", Icon: "plugin", Action: "read", Subject: "plugin"},
 			},

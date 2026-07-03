@@ -295,8 +295,9 @@ func run() error {
 		// i18n (M7a).
 		Locale: localeResolver,
 
-		// Public theme (M9-1).
-		Theme: themeResolver,
+		// Public theme (M9-1) + admin theme switcher (M9-2).
+		Theme:         themeResolver,
+		AppearanceSvc: settingsSvc,
 
 		// SEO crawler routes (M8): sitemap.xml / llms.txt enumerators. The
 		// content services satisfy SitemapEnumerator via SitemapItems; taxonomy
