@@ -472,6 +472,48 @@ func (q *Queries) RestorePage(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const sitemapPages = `-- name: SitemapPages :many
+SELECT slug, title, meta_title, meta_description, updated_at
+FROM pages
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC
+`
+
+type SitemapPagesRow struct {
+	Slug            string             `json:"slug"`
+	Title           string             `json:"title"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+func (q *Queries) SitemapPages(ctx context.Context) ([]SitemapPagesRow, error) {
+	rows, err := q.db.Query(ctx, sitemapPages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SitemapPagesRow{}
+	for rows.Next() {
+		var i SitemapPagesRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Title,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const trashPage = `-- name: TrashPage :exec
 UPDATE pages SET deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL

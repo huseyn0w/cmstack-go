@@ -108,6 +108,17 @@ type Deps struct {
 	// no auth. Optional so reduced-Deps tests keep working.
 	SearchSvc SearchService
 
+	// Crawler routes (M8). These enumerate published content for the domain-root
+	// crawler files (/sitemap.xml, /robots.txt, /llms.txt, /llms-full.txt), which
+	// are served UNPREFIXED + locale-agnostic on the root router. Each is
+	// optional; a nil enumerator simply contributes no URLs. Categories/Tags are
+	// enumerated via the taxonomy adapters (AllFlat -> SitemapItem).
+	SitemapPostSvc     SitemapEnumerator
+	SitemapPageSvc     SitemapEnumerator
+	SitemapServiceSvc  SitemapEnumerator
+	SitemapCategorySvc TaxonomyEnumerator
+	SitemapTagSvc      TaxonomyEnumerator
+
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -163,6 +174,22 @@ func Router(d Deps) http.Handler {
 	if d.Health != nil {
 		d.Health.Routes(r)
 	}
+
+	// Crawler-facing files (M8). Registered on the ROOT router (unprefixed and
+	// locale-agnostic): /sitemap.xml, /robots.txt, /llms.txt, /llms-full.txt must
+	// resolve at the domain root regardless of any locale prefix. They live here
+	// alongside /health rather than inside the localized public group so the
+	// locale middleware (which wraps the whole router) never rewrites their paths.
+	// Emit them only for the unprefixed form; /de/sitemap.xml need not exist.
+	crawler := NewCrawlerHandler(
+		d.Site,
+		d.SitemapPostSvc, d.SitemapPageSvc, d.SitemapServiceSvc,
+		d.SitemapCategorySvc, d.SitemapTagSvc,
+	)
+	r.Get("/sitemap.xml", crawler.Sitemap)
+	r.Get("/robots.txt", crawler.Robots)
+	r.Get("/llms.txt", crawler.LLMs)
+	r.Get("/llms-full.txt", crawler.LLMsFull)
 
 	// Application routes carry session + CSRF.
 	r.Group(func(gr chi.Router) {

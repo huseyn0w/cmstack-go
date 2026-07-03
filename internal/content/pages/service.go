@@ -409,6 +409,12 @@ func (s *Service) PublicBySlug(ctx context.Context, slug string) (Page, error) {
 	return s.repo.GetPublishedBySlug(ctx, slug)
 }
 
+// SitemapItems returns a lightweight enumeration of every published page for the
+// M8 crawler routes (sitemap.xml + llms.txt). It loads no body/heavy fields.
+func (s *Service) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	return s.repo.SitemapItems(ctx)
+}
+
 // PublicBySlugLocale returns a published page by slug with its content overlaid
 // by the active locale, falling back to the base (en) row for any missing
 // translation field. When locale is the default (en) or unsupported it resolves

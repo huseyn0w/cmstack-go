@@ -1,3 +1,15 @@
+# cmstack-go — local development helpers.
+#
+#   make dev     one command: .env + local Postgres + migrate + seed, then run
+#   make up      start the dockerized dependency (Postgres); the app runs natively
+#   make down    stop the Postgres container (keeps data)
+#
+# NOTE: unlike the other stacks this one has no docker-compose — only Postgres runs
+# in Docker; the server/worker run natively via `go run`. The up/down/logs/clean
+# targets therefore operate on the single Postgres container.
+#
+# Run `make` (or `make help`) to list every target.
+
 SHELL := /bin/bash
 GOPATH_BIN := $(shell go env GOPATH)/bin
 export PATH := $(PATH):$(GOPATH_BIN)
@@ -15,15 +27,32 @@ DEV_PORTS := 8090
 LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
 
 .DEFAULT_GOAL := help
-.PHONY: help dev kill env db-up db-down tools generate templ sqlc tailwind build run worker seed migrate-up migrate-down test cover lint vet fmt
+.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt
 
 help: ## List the common targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
-	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
+	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 dev: kill env db-up migrate-up seed ## One command: .env + local Postgres + migrate + seed, then run
 	@echo "server: http://localhost:8090"
 	@$(LOAD_ENV); go run ./cmd/server
+
+up: db-up ## Start this stack's dockerized dependency (Postgres); run the app with `make dev`/`make run`
+
+down: ## Stop the local Postgres container (keeps data)
+	-docker stop $(PG_CONTAINER)
+
+reset: ## Wipe the DB (remove the Postgres container) and re-bootstrap from scratch
+	-docker rm -f $(PG_CONTAINER)
+	$(MAKE) dev
+
+logs: ## Follow the local Postgres container logs
+	docker logs -f $(PG_CONTAINER)
+
+migrate: migrate-up ## Apply DB migrations (alias for migrate-up)
+
+clean: ## Stop and remove the local Postgres container (destroys data)
+	-docker rm -f $(PG_CONTAINER)
 
 kill: ## Free the native HTTP port from any stale server process
 	@pids=$$(lsof -ti:$(DEV_PORTS) -sTCP:LISTEN 2>/dev/null); \

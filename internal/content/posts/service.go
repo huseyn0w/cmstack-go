@@ -696,6 +696,12 @@ func (s *Service) PublicList(ctx context.Context, limit, offset int) ([]Post, in
 	return items, total, nil
 }
 
+// SitemapItems returns a lightweight enumeration of every published post for the
+// M8 crawler routes (sitemap.xml + llms.txt). It loads no body/heavy fields.
+func (s *Service) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	return s.repo.SitemapItems(ctx)
+}
+
 // PublishedByAuthor returns an author's published posts (newest first) — the
 // data behind the public author page's Posts section seam.
 func (s *Service) PublishedByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error) {

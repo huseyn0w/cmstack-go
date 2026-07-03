@@ -88,3 +88,10 @@ WHERE id = $1 AND deleted_at IS NOT NULL;
 
 -- name: PermanentDeletePage :exec
 DELETE FROM pages WHERE id = $1;
+
+-- name: SitemapPages :many
+-- Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+SELECT slug, title, meta_title, meta_description, updated_at
+FROM pages
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC;

@@ -17,6 +17,10 @@ type SiteConfig struct {
 	DefaultOGImage  string
 	TwitterHandle   string
 	GlobalNoindex   bool
+	// AllowAICrawlers governs whether robots.txt permits the well-known AI
+	// crawlers (M8). When false, robots.txt emits an explicit Disallow: / block
+	// per AI user-agent; when true (default) they are not blocked.
+	AllowAICrawlers bool
 	// Verifications are the search-engine verification meta tags emitted in the
 	// head (Google/Bing/Yandex/Pinterest, whichever are configured).
 	Verifications []webtempl.MetaTag
@@ -47,6 +51,7 @@ func NewSiteConfig(cfg config.Config) SiteConfig {
 		DefaultOGImage:  cfg.DefaultOGImage,
 		TwitterHandle:   cfg.TwitterHandle,
 		GlobalNoindex:   cfg.GlobalNoindex,
+		AllowAICrawlers: cfg.AllowAICrawlers,
 		Verifications:   verifications,
 	}
 

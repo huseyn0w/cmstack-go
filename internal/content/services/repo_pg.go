@@ -149,6 +149,34 @@ func (r *RepoPG) CountPublished(ctx context.Context) (int, error) {
 	return int(n), mapErr(err)
 }
 
+// SitemapItems enumerates every published, non-trashed service as a lightweight
+// SitemapItem (no body). Title falls back to the service title when meta_title
+// is empty; Description falls back to the summary when meta_description is empty.
+func (r *RepoPG) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	rows, err := r.q.SitemapServices(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]kernel.SitemapItem, 0, len(rows))
+	for _, row := range rows {
+		title := row.MetaTitle
+		if title == "" {
+			title = row.Title
+		}
+		desc := row.MetaDescription
+		if desc == "" {
+			desc = row.Summary
+		}
+		out = append(out, kernel.SitemapItem{
+			Slug:        row.Slug,
+			Title:       title,
+			Description: desc,
+			UpdatedAt:   row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 // TrashTx soft-deletes within tx.
 func (r *RepoPG) TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 	return mapErr(r.q.WithTx(tx).TrashService(ctx, toPgUUID(id)))

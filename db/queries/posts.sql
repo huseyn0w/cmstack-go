@@ -191,3 +191,10 @@ WHERE p.status = 'PUBLISHED'
         WHERE pt.post_id = p.id AND t.slug = sqlc.narg('tag_slug')::text
     )
   );
+
+-- name: SitemapPosts :many
+-- Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+SELECT slug, title, meta_title, meta_description, excerpt, updated_at
+FROM posts
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC;

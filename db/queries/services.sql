@@ -92,3 +92,10 @@ RETURNING *;
 
 -- name: DeleteServiceFAQs :exec
 DELETE FROM service_faqs WHERE service_id = $1;
+
+-- name: SitemapServices :many
+-- Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+SELECT slug, title, meta_title, meta_description, summary, updated_at
+FROM services
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC;

@@ -213,6 +213,8 @@ func (m *memRepo) CountTrashed(context.Context) (int, error)                  { 
 func (m *memRepo) ListPublished(context.Context, int, int) ([]Service, error) { return nil, nil }
 func (m *memRepo) CountPublished(context.Context) (int, error)                { return 0, nil }
 
+func (m *memRepo) SitemapItems(context.Context) ([]kernel.SitemapItem, error) { return nil, nil }
+
 func (m *memRepo) TrashTx(_ context.Context, _ pgx.Tx, id uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

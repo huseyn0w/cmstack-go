@@ -285,6 +285,15 @@ func run() error {
 
 		// i18n (M7a).
 		Locale: localeResolver,
+
+		// SEO crawler routes (M8): sitemap.xml / llms.txt enumerators. The
+		// content services satisfy SitemapEnumerator via SitemapItems; taxonomy
+		// archives are adapted from AllFlat.
+		SitemapPostSvc:     postSvc,
+		SitemapPageSvc:     pageSvc,
+		SitemapServiceSvc:  serviceMgr,
+		SitemapCategorySvc: web.NewCategorySitemapAdapter(categorySvc),
+		SitemapTagSvc:      web.NewTagSitemapAdapter(tagSvc),
 	})
 
 	srv := &http.Server{

@@ -165,6 +165,30 @@ func (r *RepoPG) CountPublished(ctx context.Context) (int, error) {
 	return int(n), mapErr(err)
 }
 
+// SitemapItems enumerates every published, non-trashed page as a lightweight
+// SitemapItem (no body). Title falls back to the page title when meta_title is
+// empty; Description is meta_description (pages carry no excerpt/summary).
+func (r *RepoPG) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	rows, err := r.q.SitemapPages(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]kernel.SitemapItem, 0, len(rows))
+	for _, row := range rows {
+		title := row.MetaTitle
+		if title == "" {
+			title = row.Title
+		}
+		out = append(out, kernel.SitemapItem{
+			Slug:        row.Slug,
+			Title:       title,
+			Description: row.MetaDescription,
+			UpdatedAt:   row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 // TrashTx soft-deletes within tx.
 func (r *RepoPG) TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 	return mapErr(r.q.WithTx(tx).TrashPage(ctx, toPgUUID(id)))

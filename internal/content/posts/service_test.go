@@ -240,6 +240,8 @@ func (m *memRepo) CountTrashed(context.Context) (int, error)               { ret
 func (m *memRepo) ListPublished(context.Context, int, int) ([]Post, error) { return nil, nil }
 func (m *memRepo) CountPublished(context.Context) (int, error)             { return 0, nil }
 
+func (m *memRepo) SitemapItems(context.Context) ([]kernel.SitemapItem, error) { return nil, nil }
+
 func (m *memRepo) ListPublishedFiltered(context.Context, string, string, int, int) ([]Post, error) {
 	return nil, nil
 }

@@ -83,6 +83,11 @@ type Repository interface {
 	CountTrashed(ctx context.Context) (int, error)
 	ListPublished(ctx context.Context, limit, offset int) ([]Post, error)
 	CountPublished(ctx context.Context) (int, error)
+
+	// SitemapItems returns a lightweight enumeration of every published,
+	// non-trashed post (slug/title/description/updated_at only) for the M8
+	// crawler routes. It loads no body/heavy fields.
+	SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error)
 	ListPublishedByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error)
 
 	// ListPublishedFiltered returns published posts narrowed by optional,

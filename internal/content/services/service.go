@@ -473,6 +473,12 @@ func (m *Manager) PublicList(ctx context.Context, limit, offset int) ([]Service,
 	return items, total, nil
 }
 
+// SitemapItems returns a lightweight enumeration of every published service for
+// the M8 crawler routes (sitemap.xml + llms.txt). It loads no body/heavy fields.
+func (m *Manager) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	return m.repo.SitemapItems(ctx)
+}
+
 // --- admin reads ------------------------------------------------------------
 
 // AdminList returns a filtered, paginated admin listing plus the total count.

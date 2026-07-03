@@ -84,6 +84,11 @@ type Repository interface {
 	ListPublished(ctx context.Context, limit, offset int) ([]Service, error)
 	CountPublished(ctx context.Context) (int, error)
 
+	// SitemapItems returns a lightweight enumeration of every published,
+	// non-trashed service (slug/title/description/updated_at only) for the M8
+	// crawler routes. It loads no body/heavy fields.
+	SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error)
+
 	TrashTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	RestoreTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error
 	PermanentDeleteTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error

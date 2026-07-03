@@ -152,6 +152,34 @@ func (r *RepoPG) CountPublished(ctx context.Context) (int, error) {
 	return int(n), mapErr(err)
 }
 
+// SitemapItems enumerates every published, non-trashed post as a lightweight
+// SitemapItem (no body). Title falls back to the post title when meta_title is
+// empty; Description falls back to the excerpt when meta_description is empty.
+func (r *RepoPG) SitemapItems(ctx context.Context) ([]kernel.SitemapItem, error) {
+	rows, err := r.q.SitemapPosts(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]kernel.SitemapItem, 0, len(rows))
+	for _, row := range rows {
+		title := row.MetaTitle
+		if title == "" {
+			title = row.Title
+		}
+		desc := row.MetaDescription
+		if desc == "" {
+			desc = row.Excerpt
+		}
+		out = append(out, kernel.SitemapItem{
+			Slug:        row.Slug,
+			Title:       title,
+			Description: desc,
+			UpdatedAt:   row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 // ListPublishedByAuthor returns an author's published posts (newest first).
 func (r *RepoPG) ListPublishedByAuthor(ctx context.Context, authorID uuid.UUID) ([]Post, error) {
 	rows, err := r.q.ListPublishedPostsByAuthor(ctx, toPgUUID(authorID))

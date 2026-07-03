@@ -793,6 +793,50 @@ func (q *Queries) SetPostLikeCount(ctx context.Context, postID pgtype.UUID) erro
 	return err
 }
 
+const sitemapPosts = `-- name: SitemapPosts :many
+SELECT slug, title, meta_title, meta_description, excerpt, updated_at
+FROM posts
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC
+`
+
+type SitemapPostsRow struct {
+	Slug            string             `json:"slug"`
+	Title           string             `json:"title"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	Excerpt         string             `json:"excerpt"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+func (q *Queries) SitemapPosts(ctx context.Context) ([]SitemapPostsRow, error) {
+	rows, err := q.db.Query(ctx, sitemapPosts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SitemapPostsRow{}
+	for rows.Next() {
+		var i SitemapPostsRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Title,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.Excerpt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const trashPost = `-- name: TrashPost :exec
 UPDATE posts SET deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL

@@ -469,6 +469,50 @@ func (q *Queries) RestoreService(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const sitemapServices = `-- name: SitemapServices :many
+SELECT slug, title, meta_title, meta_description, summary, updated_at
+FROM services
+WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+ORDER BY updated_at DESC
+`
+
+type SitemapServicesRow struct {
+	Slug            string             `json:"slug"`
+	Title           string             `json:"title"`
+	MetaTitle       string             `json:"meta_title"`
+	MetaDescription string             `json:"meta_description"`
+	Summary         string             `json:"summary"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+func (q *Queries) SitemapServices(ctx context.Context) ([]SitemapServicesRow, error) {
+	rows, err := q.db.Query(ctx, sitemapServices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SitemapServicesRow{}
+	for rows.Next() {
+		var i SitemapServicesRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Title,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.Summary,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const trashService = `-- name: TrashService :exec
 UPDATE services SET deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL

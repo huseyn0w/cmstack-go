@@ -264,6 +264,12 @@ type Querier interface {
 	SetPostLikeCount(ctx context.Context, postID pgtype.UUID) error
 	SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error)
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error
+	// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+	SitemapPages(ctx context.Context) ([]SitemapPagesRow, error)
+	// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+	SitemapPosts(ctx context.Context) ([]SitemapPostsRow, error)
+	// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
+	SitemapServices(ctx context.Context) ([]SitemapServicesRow, error)
 	TrashPage(ctx context.Context, id pgtype.UUID) error
 	TrashPost(ctx context.Context, id pgtype.UUID) error
 	TrashService(ctx context.Context, id pgtype.UUID) error
