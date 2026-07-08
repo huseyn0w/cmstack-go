@@ -18,6 +18,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
+	"github.com/huseyn0w/cmstack-go/internal/content/menus"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/search"
@@ -240,6 +241,12 @@ func run() error {
 	// the public group. It reads the active theme id, validates it against the
 	// in-code registry, and threads the resolved id to templ. Admin routes never
 	// run it, so they render on the base palette (theme isolation).
+	// Menus (M11-2) wiring: the sqlc-backed repo over the pool + querier, behind
+	// the menu service. The admin builder reuses the post/page/category read
+	// services (via narrow listers) to resolve internal item slugs to URLs.
+	menuRepo := menus.NewRepoPG(pool, queries)
+	menuSvc := menus.NewService(pool, menuRepo, authz)
+
 	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
 	themeResolver := web.NewThemeResolver(settingsSvc)
 
@@ -310,6 +317,13 @@ func run() error {
 		// Public theme (M9-1) + admin theme switcher (M9-2).
 		Theme:         themeResolver,
 		AppearanceSvc: settingsSvc,
+
+		// Menus (M11-2): the gated /admin/menus builder. The item picker + slug
+		// resolution reuse the post/page/category read services via narrow listers.
+		MenuAdminSvc:      menuSvc,
+		MenuPostListerSvc: postSvc,
+		MenuPageListerSvc: pageSvc,
+		MenuCatListerSvc:  categorySvc,
 
 		// Plugin core (M10-1).
 		Plugins: pluginManager,

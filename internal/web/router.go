@@ -141,6 +141,15 @@ type Deps struct {
 	// keep working (they then render on the default theme).
 	Theme *ThemeResolver
 
+	// Menus (M11-2). MenuAdminSvc backs the gated /admin/menus builder; the three
+	// content listers populate the item picker + resolve internal slugs to URLs.
+	// The post/page/category read services are reused via narrow interfaces.
+	// Optional; the area is mounted only when the menu service + authz are wired.
+	MenuAdminSvc      MenuAdminService
+	MenuPostListerSvc menuPostLister
+	MenuPageListerSvc menuPageLister
+	MenuCatListerSvc  menuCategoryLister
+
 	// AppearanceSvc backs the gated /admin/appearance theme switcher (M9-2): it
 	// reads and persists the active theme id. *settings.Service satisfies it.
 	// Optional; when nil the appearance area is not mounted.
@@ -443,8 +452,50 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountMediaAdmin(gr, d, shell)
 	mountCommentsAdmin(gr, d, shell)
 	mountAppearanceAdmin(gr, d, shell)
+	mountMenusAdmin(gr, d, shell)
 	mountPluginsAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountMenusAdmin wires the gated admin menu builder (M11-2). Read routes
+// require read:menu; creating a menu requires create:menu; every edit + reorder
+// + per-locale label POST requires update:menu; deletes require delete:menu.
+// Menus have NO per-author ownership — the coarse grant is the gate. Mounted only
+// when the menu service + authz are wired.
+func mountMenusAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.MenuAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewMenuAdminHandler(d.MenuAdminSvc, d.MenuPostListerSvc, d.MenuPageListerSvc, d.MenuCatListerSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/menus", func(mr chi.Router) {
+		mr.Use(d.AuthMW.RequireAuth)
+
+		// Read.
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectMenu)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/{id}", h.Edit)
+			rr.Get("/{id}/items/{itemID}/edit", h.EditItem)
+		})
+
+		// Create (new menu).
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionCreate, accounts.SubjectMenu)).
+			Post("/", h.Create)
+
+		// Update: settings, add/edit item, reorder (move).
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectMenu)).Group(func(ur chi.Router) {
+			ur.Post("/{id}", h.UpdateSettings)
+			ur.Post("/{id}/items", h.AddItem)
+			ur.Post("/{id}/items/{itemID}/move", h.MoveItem)
+			ur.Post("/{id}/items/{itemID}/edit", h.UpdateItem)
+		})
+
+		// Delete: whole menu + single item (item removal is a coarse delete gate).
+		mr.With(d.AuthMW.RequirePermission(accounts.ActionDelete, accounts.SubjectMenu)).Group(func(dr chi.Router) {
+			dr.Post("/{id}/delete", h.Delete)
+			dr.Post("/{id}/items/{itemID}/delete", h.DeleteItemHandler)
+		})
+	})
 }
 
 // mountPluginsAdmin wires the gated admin plugin manager (M10-2). Listing
