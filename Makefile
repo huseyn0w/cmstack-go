@@ -108,8 +108,9 @@ run: ## Run the HTTP server (loads .env)
 worker: ## Run the background worker (loads .env)
 	@$(LOAD_ENV); go run ./cmd/worker
 
-seed: ## Idempotently seed roles/permissions/admin (loads .env)
+seed: ## Idempotently seed roles/permissions/admin + demo content en/de/ru (loads .env)
 	@$(LOAD_ENV); go run ./cmd/seed
+	@$(LOAD_ENV); go run ./cmd/seedcontent
 
 migrate-up: ## Apply DB migrations (loads .env)
 	@$(LOAD_ENV); go run ./cmd/migrate up

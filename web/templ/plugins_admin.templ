@@ -1,0 +1,48 @@
+package templ
+
+// PluginsPage renders the admin plugin manager: one row per registered plugin
+// with its name/description, an enabled/disabled status pill, and a single
+// activate/deactivate form (the submitted `enable` value is the opposite of the
+// current state, so the button always toggles).
+templ PluginsPage(v PluginsView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="plugins" class="mx-auto max-w-3xl">
+			<div class="mb-6">
+				<h2 class="text-h3 text-text">Plugins</h2>
+				<p class="mt-1 text-small text-muted">Enable or disable bundled extensions. Changes take effect immediately — no restart.</p>
+			</div>
+			if len(v.Plugins) == 0 {
+				<p data-testid="plugins-empty" class="rounded-lg border border-border bg-surface p-6 text-small text-muted">No plugins are registered.</p>
+			} else {
+				<ul class="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
+					for _, p := range v.Plugins {
+						<li data-testid={ "plugin-row-" + p.ID } class="flex items-center justify-between gap-4 p-4">
+							<div class="min-w-0">
+								<div class="flex items-center gap-2">
+									<h3 class="text-body font-medium text-text">{ p.Name }</h3>
+									if p.Enabled {
+										<span data-testid={ "plugin-status-" + p.ID } class="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-caption font-medium text-success">Enabled</span>
+									} else {
+										<span data-testid={ "plugin-status-" + p.ID } class="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-muted">Disabled</span>
+									}
+								</div>
+								<p class="mt-0.5 text-caption text-muted">{ p.Description }</p>
+							</div>
+							<form method="post" action={ templ.SafeURL(v.ToggleURL) } class="shrink-0">
+								@csrfField(v.CSRFToken)
+								<input type="hidden" name="plugin" value={ p.ID }/>
+								if p.Enabled {
+									<input type="hidden" name="enable" value="0"/>
+									<button type="submit" data-testid={ "plugin-toggle-" + p.ID } class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Deactivate</button>
+								} else {
+									<input type="hidden" name="enable" value="1"/>
+									<button type="submit" data-testid={ "plugin-toggle-" + p.ID } class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Activate</button>
+								}
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		</section>
+	}
+}

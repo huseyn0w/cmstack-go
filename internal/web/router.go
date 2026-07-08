@@ -443,7 +443,26 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountMediaAdmin(gr, d, shell)
 	mountCommentsAdmin(gr, d, shell)
 	mountAppearanceAdmin(gr, d, shell)
+	mountPluginsAdmin(gr, d, shell)
 	mountAccount(gr, d)
+}
+
+// mountPluginsAdmin wires the gated admin plugin manager (M10-2). Listing
+// plugins requires read:plugin; toggling one requires update:plugin. The
+// catalogue is the in-code registry; enabled state persists via the manager.
+func mountPluginsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.Plugins == nil || d.Authz == nil {
+		return
+	}
+	h := NewPluginAdminHandler(d.Plugins, shell, d.CSRFFunc)
+
+	gr.Route("/admin/plugins", func(pr chi.Router) {
+		pr.Use(d.AuthMW.RequireAuth)
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectPlugin)).
+			Get("/", h.Show)
+		pr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectPlugin)).
+			Post("/toggle", h.Toggle)
+	})
 }
 
 // mountAppearanceAdmin wires the gated admin appearance (theme switcher) area
