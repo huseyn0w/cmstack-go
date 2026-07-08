@@ -21,8 +21,15 @@ type Config struct {
 	BaseURL string `env:"BASE_URL" envDefault:"http://localhost:8090"`
 	// DatabaseURL is the Postgres DSN (required).
 	DatabaseURL string `env:"DATABASE_URL,required"`
-	// RedisURL is optional; used for caching/sessions when present.
+	// RedisURL is optional; used for caching/sessions when present
+	// (e.g. redis://localhost:6379/0). Required only when CacheDriver=redis.
 	RedisURL string `env:"REDIS_URL" envDefault:""`
+	// CacheDriver selects the cache backend (M13): "memory" (default, in-process),
+	// "redis" (shared, uses RedisURL) or "noop" (caching disabled).
+	CacheDriver string `env:"CACHE_DRIVER" envDefault:"memory"`
+	// CacheKeyPrefix namespaces every Redis cache key so a Redis instance can be
+	// shared safely; Clear/DeleteByPrefix stay scoped to this prefix.
+	CacheKeyPrefix string `env:"CACHE_KEY_PREFIX" envDefault:"cmstack:"`
 	// SessionKey is reserved for the future Postgres-backed session store and
 	// cookie signing. The current scs in-memory store does not consume it, so it
 	// is intentionally NOT required: a required-but-ignored secret is misleading.
