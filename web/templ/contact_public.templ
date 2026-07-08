@@ -1,0 +1,119 @@
+package templ
+
+// ContactPage renders the public contact form (M12) as a full document via the
+// @Base layout with a resolved SEOView. It is a normal server-rendered POST form
+// (no htmx swap): a valid submission re-renders the page with a success banner;
+// validation / recaptcha / rate-limit failures re-render with field errors +
+// entered values. The custom form builder is out of scope (v1) — the fields are
+// fixed (Name, Email, Subject, Message). It NEVER exposes the recipient.
+templ ContactPage(v ContactFormView) {
+	@Base(LayoutData{Title: "Contact · " + v.SiteName, Description: "Get in touch with " + v.SiteName, SEO: v.SEO}) {
+		<section class="mx-auto max-w-prose" data-testid="contact-page">
+			<header class="mb-8">
+				<p class="font-mono text-eyebrow uppercase tracking-widest text-subtle">Contact</p>
+				<h1 class="mt-2 text-h1 text-text" data-testid="contact-heading">Get in touch</h1>
+				<p class="mt-4 text-body text-muted">Send us a message and we'll get back to you.</p>
+			</header>
+			if v.Submitted {
+				<div
+					role="status"
+					aria-live="polite"
+					data-testid="contact-success-banner"
+					class="mb-6 rounded-md border border-success bg-success-bg p-4 text-success"
+				>Thanks! Your message has been sent. We'll be in touch soon.</div>
+			}
+			@contactForm(v)
+		</section>
+	}
+}
+
+// contactForm renders the fixed contact form: Name, Email, Subject, Message. It
+// is fully a11y-wired (labels, aria-invalid, aria-describedby, error summary).
+templ contactForm(v ContactFormView) {
+	<form
+		method="post"
+		action={ templ.SafeURL(v.SubmitURL) }
+		data-testid="contact-form"
+		class="rounded-lg border border-border bg-surface p-5"
+		aria-labelledby="contact-form-title"
+	>
+		<h2 id="contact-form-title" class="text-small font-medium text-text">Send a message</h2>
+		@csrfField(v.CSRFToken)
+		if v.Error != "" {
+			<div role="alert" data-testid="contact-error" class="mt-3 rounded-md border border-error bg-error-bg p-3 text-error">{ v.Error }</div>
+		}
+		if v.HasFieldErrors() {
+			<div role="alert" id="contact-error-summary" data-testid="contact-error-summary" class="mt-3 rounded-md border border-error bg-error-bg p-3 text-error">
+				<p class="font-medium">Please fix the following:</p>
+				<ul class="mt-1 list-disc pl-5">
+					for field, msg := range v.FieldErrors {
+						<li><a class="underline" href={ templ.SafeURL("#contact-" + field) }>{ msg }</a></li>
+					}
+				</ul>
+			</div>
+		}
+		<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+			@contactField(v, "name", "Name", "text", v.PrefillName)
+			@contactField(v, "email", "Email", "email", v.PrefillEmail)
+		</div>
+		<div class="mt-3">
+			@contactFieldInner(v, "subject", "Subject", "text", v.PrefillSubject)
+		</div>
+		<div class="mt-3">
+			<label for="contact-message" class="block text-small font-medium text-text">Message</label>
+			<textarea
+				id="contact-message"
+				name="message"
+				rows="6"
+				required
+				if v.FieldErr("message") != "" {
+					aria-invalid="true"
+					aria-describedby="contact-message-error"
+				}
+				data-testid="contact-input-message"
+				class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+			>{ v.PrefillMessage }</textarea>
+			if v.FieldErr("message") != "" {
+				<p id="contact-message-error" class="mt-1 text-caption text-error">{ v.FieldErr("message") }</p>
+			}
+		</div>
+		if v.RecaptchaKey != "" {
+			<input type="hidden" name="recaptcha_token" data-testid="contact-recaptcha-token" data-recaptcha-key={ v.RecaptchaKey }/>
+		}
+		<button
+			type="submit"
+			data-testid="contact-submit"
+			class="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+		>Send message</button>
+	</form>
+}
+
+// contactField wraps contactFieldInner in a grid cell.
+templ contactField(v ContactFormView, name, label, inputType, value string) {
+	<div>
+		@contactFieldInner(v, name, label, inputType, value)
+	</div>
+}
+
+// contactFieldInner renders one labeled input with a11y error wiring.
+templ contactFieldInner(v ContactFormView, name, label, inputType, value string) {
+	<label for={ "contact-" + name } class="block text-small font-medium text-text">{ label }</label>
+	<input
+		id={ "contact-" + name }
+		name={ name }
+		type={ inputType }
+		value={ value }
+		if name == "name" || name == "email" {
+			required
+		}
+		if v.FieldErr(name) != "" {
+			aria-invalid="true"
+			aria-describedby={ "contact-" + name + "-error" }
+		}
+		data-testid={ "contact-input-" + name }
+		class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+	/>
+	if v.FieldErr(name) != "" {
+		<p id={ "contact-" + name + "-error" } class="mt-1 text-caption text-error">{ v.FieldErr(name) }</p>
+	}
+}

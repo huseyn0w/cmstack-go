@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/contact"
 	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
@@ -24,6 +25,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
 	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
+	sitesettings "github.com/huseyn0w/cmstack-go/internal/settings"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 )
 
@@ -98,6 +100,17 @@ func run() error {
 		commentAdapters,
 		web.NewCommentNotifierAdapter(mailer.NewLogMailer(logger)),
 		cfg.BaseURL,
+	).Register(bus)
+
+	// The contact notify listener (M12) must likewise be on the WORKER bus so the
+	// relay dispatches the async contact.submitted events the server enqueued: it
+	// resolves the recipient (settings `contact_recipient` → ContactRecipient →
+	// AdminEmail) and sends the contact-notification email.
+	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
+	contact.NewNotifyListener(
+		logger,
+		web.NewContactRecipientResolver(settingsSvc, cfg.ContactRecipient, cfg.AdminEmail),
+		web.NewContactNotifierAdapter(mailer.NewLogMailer(logger)),
 	).Register(bus)
 
 	logger.Info("worker started", "env", cfg.AppEnv)

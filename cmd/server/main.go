@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/contact"
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
@@ -250,6 +251,20 @@ func run() error {
 	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
 	themeResolver := web.NewThemeResolver(settingsSvc)
 
+	// Contact (M12) wiring: the reCAPTCHA-protected public form. It reuses the
+	// shared reCAPTCHA verifier + a dedicated per-IP submit limiter (~8/min) and
+	// publishes the async contact.submitted event to the outbox (no contact table).
+	// The recipient is resolved settings(`contact_recipient`) → ContactRecipient →
+	// AdminEmail. The notify listener is registered on the server bus so the event
+	// is enqueued in-tx; the worker drains + sends it.
+	contactLimiter := ratelimit.New(8.0/60.0, 8)
+	contactSvc := contact.NewService(pool, recaptchaVerifier, contactLimiter, bus)
+	contact.NewNotifyListener(
+		logger,
+		web.NewContactRecipientResolver(settingsSvc, cfg.ContactRecipient, cfg.AdminEmail),
+		web.NewContactNotifierAdapter(mailer.NewLogMailer(logger)),
+	).Register(bus)
+
 	// Plugin core (M10-1): an in-process hook registry over the bundled first-party
 	// plugin catalogue. Per-plugin enabled state is persisted via a settings-backed
 	// EnabledStore ("plugin:<id>" keys), reusing the M9 settings store — no new
@@ -307,6 +322,9 @@ func run() error {
 		CommentPublicSvc:  commentSvc,
 		CommentAdminSvc:   commentSvc,
 		CommentPostTitler: commentAdapters,
+
+		// Contact (M12).
+		ContactSvc: contactSvc,
 
 		// Search (M6).
 		SearchSvc: searchSvc,

@@ -23,7 +23,8 @@ func NewLogMailer(log *slog.Logger) *LogMailer {
 
 // SendVerificationEmail logs the verification link.
 func (m *LogMailer) SendVerificationEmail(_ context.Context, to, name, verifyURL string) error {
-	m.log.Info("dev mailer: verification email",
+	m.log.Info(
+		"dev mailer: verification email",
 		"to", to,
 		"name", name,
 		"verify_url", verifyURL,
@@ -33,7 +34,8 @@ func (m *LogMailer) SendVerificationEmail(_ context.Context, to, name, verifyURL
 
 // SendPasswordResetEmail logs the password-reset link.
 func (m *LogMailer) SendPasswordResetEmail(_ context.Context, to, resetURL string) error {
-	m.log.Info("dev mailer: password reset email",
+	m.log.Info(
+		"dev mailer: password reset email",
 		"to", to,
 		"reset_url", resetURL,
 	)
@@ -52,12 +54,29 @@ func (m *LogMailer) SendPasswordResetEmail(_ context.Context, to, resetURL strin
 // signature matches comments.CommentNotifier via a thin wrapper in wiring, but
 // is also directly usable.
 func (m *LogMailer) SendCommentNotification(_ context.Context, to []string, postTitle, authorName, excerpt, moderateURL string) error {
-	m.log.Info("dev mailer: comment notification email",
+	m.log.Info(
+		"dev mailer: comment notification email",
 		"to", to,
 		"post_title", postTitle,
 		"author", authorName,
 		"excerpt", excerpt,
 		"moderate_url", moderateURL,
+	)
+	return nil
+}
+
+// SendContactNotification logs the public contact-form notification (dev). The
+// recipient + submitter details are visible in development without SMTP. The
+// signature matches contact.Notifier via a thin wrapper in wiring, but is
+// also directly usable.
+func (m *LogMailer) SendContactNotification(_ context.Context, to, fromEmail, fromName, subject, message string) error {
+	m.log.Info(
+		"dev mailer: contact notification email",
+		"to", to,
+		"from_email", fromEmail,
+		"from_name", fromName,
+		"subject", subject,
+		"message", message,
 	)
 	return nil
 }

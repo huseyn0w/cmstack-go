@@ -93,6 +93,11 @@ type Config struct {
 	// IP (M5). Defaults to 8/min (ts parity).
 	CommentRateLimitPerMinute float64 `env:"COMMENT_RATE_LIMIT_PER_MINUTE" envDefault:"8"`
 
+	// ContactRecipient is the fallback recipient for the public contact form (M12)
+	// when the settings key `contact_recipient` is unset/empty. When this is also
+	// empty the notifier falls back to AdminEmail.
+	ContactRecipient string `env:"CONTACT_RECIPIENT" envDefault:""`
+
 	// SEO / site identity (M8). All optional with sensible defaults so the app
 	// runs without any of these set; they enrich the document head + (later)
 	// JSON-LD Organization. SiteName is also passed as a router Dep today; it is

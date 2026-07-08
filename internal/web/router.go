@@ -104,6 +104,13 @@ type Deps struct {
 	CommentAdminSvc   CommentsAdminService
 	CommentPostTitler CommentPostTitler
 
+	// Contact (M12). ContactSvc backs the public reCAPTCHA-protected /contact form
+	// (GET renders it, POST submits it). The form emails a settings-driven
+	// recipient via the async contact.submitted outbox event. Public, no auth;
+	// the POST is rate-limited. Optional so reduced-Deps tests keep working — the
+	// area is mounted only when the service is wired.
+	ContactSvc ContactPublicService
+
 	// Search (M6). SearchSvc backs the public /search results page (FTS with an
 	// ILIKE fallback across published posts/pages/services). Public, GET-only,
 	// no auth. Optional so reduced-Deps tests keep working.
@@ -340,6 +347,20 @@ func Router(d Deps) http.Handler {
 				sp.WithSite(d.Site)
 				pr.Get("/services", sp.Index)
 				pr.Get("/services/{slug}", sp.Show)
+			}
+
+			// Public contact form (M12, no auth). GET /contact renders the
+			// reCAPTCHA-protected form; POST /contact submits it (validated,
+			// spam-checked, rate-limited inside the service; the route adds a per-IP
+			// limiter for defense-in-depth). The recaptcha site key is reused from
+			// config (same v3 hook as comments).
+			if d.ContactSvc != nil {
+				cc := NewContactPublicHandler(d.ContactSvc, d.SiteName, d.Config.BaseURL, d.CSRFFunc, d.Config.RecaptchaSiteKey)
+				cc.WithSite(d.Site)
+				pr.Get("/contact", cc.Show)
+				// ~8/min per IP (mirrors the comment submit budget).
+				contactLimiter := ratelimit.New(8.0/60.0, 8)
+				pr.With(contactLimiter.Middleware).Post("/contact", cc.Submit)
 			}
 
 			// Public search (M6, no auth). GET /search renders the results page (FTS
