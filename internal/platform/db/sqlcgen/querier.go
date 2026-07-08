@@ -45,6 +45,8 @@ type Querier interface {
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
+	CreateMenu(ctx context.Context, arg CreateMenuParams) (Menu, error)
+	CreateMenuItem(ctx context.Context, arg CreateMenuItemParams) (MenuItem, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
@@ -60,6 +62,8 @@ type Querier interface {
 	DeleteCategoryTranslation(ctx context.Context, arg DeleteCategoryTranslationParams) error
 	DeleteComment(ctx context.Context, id pgtype.UUID) error
 	DeleteMedia(ctx context.Context, id pgtype.UUID) error
+	DeleteMenu(ctx context.Context, id pgtype.UUID) error
+	DeleteMenuItem(ctx context.Context, id pgtype.UUID) error
 	DeletePageTranslation(ctx context.Context, arg DeletePageTranslationParams) error
 	DeletePostTranslation(ctx context.Context, arg DeletePostTranslationParams) error
 	// Remove every FAQ translation row for a service's FAQs in one locale — used when
@@ -111,6 +115,10 @@ type Querier interface {
 	GetCommentByID(ctx context.Context, id pgtype.UUID) (Comment, error)
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetMediaByID(ctx context.Context, id pgtype.UUID) (Medium, error)
+	GetMenu(ctx context.Context, id pgtype.UUID) (Menu, error)
+	// Public resolve entry: the single menu assigned to a location (partial-unique
+	// guarantees at most one). Unassigned menus (location = '') are never returned.
+	GetMenuByLocation(ctx context.Context, location string) (Menu, error)
 	GetOAuthAccount(ctx context.Context, arg GetOAuthAccountParams) (OauthAccount, error)
 	GetPageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	GetPageTranslation(ctx context.Context, arg GetPageTranslationParams) (PageTranslation, error)
@@ -180,6 +188,17 @@ type Querier interface {
 	ListCommentsForModeration(ctx context.Context, arg ListCommentsForModerationParams) ([]Comment, error)
 	ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
+	ListMenuItemTranslationLocales(ctx context.Context, itemID pgtype.UUID) ([]string, error)
+	ListMenuItemTranslations(ctx context.Context, itemID pgtype.UUID) ([]ListMenuItemTranslationsRow, error)
+	// Every item in a menu, ordered by position (then created_at as a stable
+	// tiebreak). Structural read — labels are the base default-locale values.
+	ListMenuItems(ctx context.Context, menuID pgtype.UUID) ([]MenuItem, error)
+	// Overlay read for the public resolve: every item in a menu with its LABEL
+	// overlaid by the given locale's translation where present, falling back to the
+	// base item label for any empty/absent translation. All other columns are
+	// structural and come straight from the base item row. Ordered by position.
+	ListMenuItemsInLocale(ctx context.Context, arg ListMenuItemsInLocaleParams) ([]MenuItem, error)
+	ListMenus(ctx context.Context) ([]Menu, error)
 	// The set of locales that already have a translation row for a page — used to
 	// mark "has translation" indicators on the editor's locale tabs.
 	ListPageTranslationLocales(ctx context.Context, pageID pgtype.UUID) ([]string, error)
@@ -263,6 +282,9 @@ type Querier interface {
 	// bound as a parameter (never interpolated). Ranking degrades to a title-first,
 	// recency tie-break since there is no ts_rank here.
 	SearchILIKE(ctx context.Context, arg SearchILIKEParams) ([]SearchILIKERow, error)
+	// Assign a single item's position; used in a loop within one transaction to
+	// reorder a menu's items (position = index in the ordered id list).
+	SetMenuItemPosition(ctx context.Context, arg SetMenuItemPositionParams) error
 	SetPostLikeCount(ctx context.Context, postID pgtype.UUID) error
 	SetUserAvatarPath(ctx context.Context, arg SetUserAvatarPathParams) (User, error)
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error
@@ -280,6 +302,8 @@ type Querier interface {
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)
 	UpdateCommentStatus(ctx context.Context, arg UpdateCommentStatusParams) (Comment, error)
 	UpdateMediaMetadata(ctx context.Context, arg UpdateMediaMetadataParams) (Medium, error)
+	UpdateMenu(ctx context.Context, arg UpdateMenuParams) (Menu, error)
+	UpdateMenuItem(ctx context.Context, arg UpdateMenuItemParams) (MenuItem, error)
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
@@ -289,6 +313,9 @@ type Querier interface {
 	// NON-default locale (en content lives on the base categories row). Description
 	// is sanitized by the service before it reaches here.
 	UpsertCategoryTranslation(ctx context.Context, arg UpsertCategoryTranslationParams) (CategoryTranslation, error)
+	// Insert or update the per-locale label for (item_id, locale). Callers pass a
+	// NON-default locale (the base item row holds the default-locale label).
+	UpsertMenuItemTranslation(ctx context.Context, arg UpsertMenuItemTranslationParams) error
 	// Insert or update the translation row for (page_id, locale). Callers pass a
 	// NON-default locale (en content lives on the base pages row). Body is sanitized
 	// by the service before it reaches here.

@@ -78,6 +78,36 @@ type Medium struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Menu struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Location  string             `json:"location"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MenuItem struct {
+	ID        pgtype.UUID        `json:"id"`
+	MenuID    pgtype.UUID        `json:"menu_id"`
+	ParentID  pgtype.UUID        `json:"parent_id"`
+	Position  int32              `json:"position"`
+	Type      string             `json:"type"`
+	RefID     pgtype.UUID        `json:"ref_id"`
+	Url       string             `json:"url"`
+	Label     string             `json:"label"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MenuItemTranslation struct {
+	ID        pgtype.UUID        `json:"id"`
+	ItemID    pgtype.UUID        `json:"item_id"`
+	Locale    string             `json:"locale"`
+	Label     string             `json:"label"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type OauthAccount struct {
 	ID             pgtype.UUID        `json:"id"`
 	UserID         pgtype.UUID        `json:"user_id"`
