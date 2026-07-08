@@ -324,6 +324,7 @@ func run() error {
 		MenuPostListerSvc: postSvc,
 		MenuPageListerSvc: pageSvc,
 		MenuCatListerSvc:  categorySvc,
+		MenuPublicSvc:     menuSvc,
 
 		// Plugin core (M10-1).
 		Plugins: pluginManager,

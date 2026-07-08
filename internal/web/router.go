@@ -149,6 +149,10 @@ type Deps struct {
 	MenuPostListerSvc menuPostLister
 	MenuPageListerSvc menuPageLister
 	MenuCatListerSvc  menuCategoryLister
+	// MenuPublicSvc backs the public header/footer menu rendering (M11-3): the
+	// layout resolves the menu assigned to each location for the active locale.
+	// Optional; nil leaves the header/footer without managed menus.
+	MenuPublicSvc MenuPublicService
 
 	// AppearanceSvc backs the gated /admin/appearance theme switcher (M9-2): it
 	// reads and persists the active theme id. *settings.Service satisfies it.
@@ -173,6 +177,13 @@ func Router(d Deps) http.Handler {
 	// manager leaves the accessor unset (PluginRegion yields nothing).
 	if d.Plugins != nil {
 		webtempl.SetPluginSource(pluginRegionSource{mgr: d.Plugins})
+	}
+
+	// Register the public-menu source when the menu service is wired, so the
+	// layout renders the managed header/footer menus for the active locale. A nil
+	// service leaves the accessor unset (MenuForLocation yields nothing).
+	if d.MenuPublicSvc != nil {
+		webtempl.SetMenuSource(menuPublicSource{svc: d.MenuPublicSvc})
 	}
 
 	r := chi.NewRouter()

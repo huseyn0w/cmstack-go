@@ -46,6 +46,7 @@ templ Base(data LayoutData) {
 			<header class="border-b border-border bg-bg">
 				<nav aria-label="Primary" class="mx-auto flex h-16 max-w-screen-xl items-center px-4">
 					<a href="/" class="font-mono text-eyebrow uppercase tracking-widest text-text hover:text-muted">{ loc.T.T("site.name") }</a>
+					@headerMenu(MenuForLocation(ctx, "header"))
 					<div class="ml-auto flex items-center gap-3">
 						// Public search affordance (§5): a compact GET form to /search,
 						// labeled for screen readers, with a submit-icon button.
@@ -71,8 +72,9 @@ templ Base(data LayoutData) {
 				{ children... }
 			</main>
 			<footer class="border-t border-border bg-surface-2">
-				<div class="mx-auto max-w-screen-xl px-4 py-8 font-mono text-caption text-muted">
-					{ loc.T.T("footer.tagline") }
+				<div class="mx-auto max-w-screen-xl px-4 py-8">
+					@footerMenu(MenuForLocation(ctx, "footer"))
+					<p class="font-mono text-caption text-muted">{ loc.T.T("footer.tagline") }</p>
 				</div>
 			</footer>
 			// Plugin render-region: enabled plugins may inject trusted HTML just
@@ -96,6 +98,47 @@ templ pluginRegion(name string) {
 // title + description, canonical, robots, the Open Graph block, the Twitter Card
 // block, per-locale hreflang alternates (incl. x-default), and search-engine
 // verification tags. Text attributes auto-escape; hrefs use templ.SafeURL.
+// headerMenu renders the managed "header" navigation as an inline horizontal
+// list beside the brand. One level of nesting is supported: an item with
+// children renders its children as a hover/focus dropdown (Alpine). Empty menu
+// -> nothing rendered, so the header is unchanged when no menu is assigned.
+templ headerMenu(items []MenuLink) {
+	if len(items) > 0 {
+		<ul data-testid="header-menu" class="ml-8 hidden items-center gap-5 md:flex">
+			for _, it := range items {
+				if len(it.Children) > 0 {
+					<li class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+						<a href={ templ.SafeURL(it.URL) } @focus="open = true" class="text-small text-muted hover:text-text">{ it.Label }</a>
+						<ul x-show="open" x-cloak class="absolute left-0 top-full z-20 mt-1 min-w-40 rounded-md border border-border bg-surface p-1.5 shadow-md">
+							for _, c := range it.Children {
+								<li><a href={ templ.SafeURL(c.URL) } class="block rounded-md px-2.5 py-1.5 text-small text-text hover:bg-surface-2">{ c.Label }</a></li>
+							}
+						</ul>
+					</li>
+				} else {
+					<li><a href={ templ.SafeURL(it.URL) } class="text-small text-muted hover:text-text">{ it.Label }</a></li>
+				}
+			}
+		</ul>
+	}
+}
+
+// footerMenu renders the managed "footer" navigation as a wrapped inline list
+// above the tagline. Nesting is flattened (children render inline). Empty ->
+// nothing.
+templ footerMenu(items []MenuLink) {
+	if len(items) > 0 {
+		<ul data-testid="footer-menu" class="mb-4 flex flex-wrap gap-x-5 gap-y-2">
+			for _, it := range items {
+				<li><a href={ templ.SafeURL(it.URL) } class="text-small text-muted hover:text-text">{ it.Label }</a></li>
+				for _, c := range it.Children {
+					<li><a href={ templ.SafeURL(c.URL) } class="text-small text-muted hover:text-text">{ c.Label }</a></li>
+				}
+			}
+		</ul>
+	}
+}
+
 templ seoHead(s *SEOView) {
 	<title>{ s.DocTitle }</title>
 	<meta name="description" content={ s.Description }/>
