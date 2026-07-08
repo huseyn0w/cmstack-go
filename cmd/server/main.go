@@ -38,6 +38,8 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
 	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/cmstack-go/internal/plugin"
+	"github.com/huseyn0w/cmstack-go/internal/plugin/samples"
 	sitesettings "github.com/huseyn0w/cmstack-go/internal/settings"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
@@ -241,6 +243,16 @@ func run() error {
 	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
 	themeResolver := web.NewThemeResolver(settingsSvc)
 
+	// Plugin core (M10-1): an in-process hook registry over the bundled first-party
+	// plugin catalogue. Per-plugin enabled state is persisted via a settings-backed
+	// EnabledStore ("plugin:<id>" keys), reusing the M9 settings store — no new
+	// table. The manager is threaded into the router, which registers the templ
+	// render-region source and the public post "post_content" filter.
+	pluginManager := plugin.NewManager(
+		web.NewSettingsEnabledStore(settingsSvc),
+		samples.ReadingTime{},
+	).WithLogger(logger)
+
 	handler := web.Router(web.Deps{
 		Config:        cfg,
 		Health:        healthHandler,
@@ -298,6 +310,9 @@ func run() error {
 		// Public theme (M9-1) + admin theme switcher (M9-2).
 		Theme:         themeResolver,
 		AppearanceSvc: settingsSvc,
+
+		// Plugin core (M10-1).
+		Plugins: pluginManager,
 
 		// SEO crawler routes (M8): sitemap.xml / llms.txt enumerators. The
 		// content services satisfy SitemapEnumerator via SitemapItems; taxonomy

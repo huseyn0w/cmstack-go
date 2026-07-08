@@ -68,6 +68,51 @@ func TestLocaleMiddleware_AsNeededRouting(t *testing.T) {
 	}
 }
 
+func TestLocaleMiddleware_AdminCookieLocale(t *testing.T) {
+	cases := []struct {
+		name       string
+		url        string
+		cookie     string // "" = no admin_locale cookie
+		wantLocale i18n.Locale
+	}{
+		{"admin no cookie -> en", "/admin", "", i18n.LocaleEN},
+		{"admin de cookie", "/admin", "de", i18n.LocaleDE},
+		{"admin ru cookie", "/admin", "ru", i18n.LocaleRU},
+		{"admin subpath de cookie", "/admin/posts", "de", i18n.LocaleDE},
+		{"account de cookie", "/account", "de", i18n.LocaleDE},
+		{"account subpath ru cookie", "/account/password", "ru", i18n.LocaleRU},
+		{"invalid cookie falls back to en", "/admin", "fr", i18n.LocaleEN},
+		{"empty cookie falls back to en", "/admin", "", i18n.LocaleEN},
+		// The cookie must NOT bleed into public, unprefixed pages: they stay en.
+		{"public page ignores admin cookie", "/blog", "de", i18n.LocaleEN},
+		{"public root ignores admin cookie", "/", "ru", i18n.LocaleEN},
+		// An explicit URL prefix still wins over the admin cookie mechanism
+		// (there is no /de/admin route, but the prefix path must resolve de and
+		// not consult the cookie); admin cookie only applies to unprefixed admin.
+		{"de-prefixed public wins over cookie", "/de/blog", "ru", i18n.LocaleDE},
+	}
+	lr := newResolver(t)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cap := &captureHandler{}
+			h := lr.Middleware(cap)
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, c.url, nil)
+			if c.cookie != "" {
+				req.AddCookie(&http.Cookie{Name: "admin_locale", Value: c.cookie})
+			}
+			h.ServeHTTP(rec, req)
+
+			if cap.gotLocale != c.wantLocale {
+				t.Errorf("locale = %q, want %q", cap.gotLocale, c.wantLocale)
+			}
+			if !cap.gotTransOK {
+				t.Error("translator locale did not match context locale")
+			}
+		})
+	}
+}
+
 func TestLocaleMiddleware_ContextPropagatesQuery(t *testing.T) {
 	lr := newResolver(t)
 	var alts []i18n.Alternate

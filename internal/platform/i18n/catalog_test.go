@@ -24,15 +24,27 @@ func TestCatalogLookup(t *testing.T) {
 	}
 }
 
-func TestCatalogFallbackToEN(t *testing.T) {
+func TestCatalogRUHasNativeValues(t *testing.T) {
 	c := newCatalog(t)
-	// ru.json intentionally omits post.comments -> must fall back to en value.
-	if got := c.Translate(LocaleRU, "post.comments"); got != "Comments" {
-		t.Errorf("ru post.comments = %q, want fallback to en 'Comments'", got)
+	// ru.json now carries native translations for these keys (catalog parity).
+	if got := c.Translate(LocaleRU, "post.comments"); got != "Комментарии" {
+		t.Errorf("ru post.comments = %q, want Комментарии", got)
 	}
-	// pagination.next is also absent in ru -> falls back to en.
-	if got := c.Translate(LocaleRU, "pagination.next"); got != "Next" {
-		t.Errorf("ru pagination.next = %q, want fallback to en 'Next'", got)
+	if got := c.Translate(LocaleRU, "pagination.next"); got != "Вперёд" {
+		t.Errorf("ru pagination.next = %q, want Вперёд", got)
+	}
+}
+
+func TestCatalogFallbackToEN(t *testing.T) {
+	// A key present only in the default (en) table must fall back to en when
+	// requested for a non-default locale. We construct a catalog with a de table
+	// that omits the key to exercise the fallback path directly.
+	c := &Catalog{tables: map[Locale]map[string]string{
+		LocaleEN: {"only.en": "English only"},
+		LocaleDE: {},
+	}}
+	if got := c.Translate(LocaleDE, "only.en"); got != "English only" {
+		t.Errorf("de only.en = %q, want fallback to en 'English only'", got)
 	}
 }
 

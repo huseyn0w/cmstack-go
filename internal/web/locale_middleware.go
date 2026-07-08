@@ -3,9 +3,24 @@ package web
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
+
+// adminLocaleCookie is the cookie that carries the operator-chosen UI language
+// for the admin surfaces (dashboard, /account, ...). Public pages ignore it —
+// their locale comes only from the URL prefix ("as-needed" routing).
+const adminLocaleCookie = "admin_locale"
+
+// isAdminSurface reports whether the (locale-stripped) path belongs to an admin
+// surface, i.e. one that is served UNPREFIXED but should still honor the
+// operator's cookie-selected language. These are the authenticated back-office
+// routes: the admin area itself and the self-service account editor.
+func isAdminSurface(path string) bool {
+	return path == "/admin" || strings.HasPrefix(path, "/admin/") ||
+		path == "/account" || strings.HasPrefix(path, "/account/")
+}
 
 // LocaleResolver builds the public-locale middleware. It carries the shared
 // message catalog so the middleware can attach a locale-bound Translator to the
@@ -42,8 +57,10 @@ func NewLocaleResolver(cat *i18n.Catalog) *LocaleResolver {
 //
 // It wraps the whole chi router as an OUTER handler (see Router in router.go for
 // why chi's own middleware chain is too late for a prefix strip). Admin routes
-// are never prefixed, so they resolve to en with an unchanged path — the admin
-// area stays en (mirroring the reference stacks) without separate wiring.
+// are never prefixed, so they resolve to the default (en) from the URL alone;
+// for those unprefixed admin surfaces the middleware additionally honors the
+// operator-selected `admin_locale` cookie (see isAdminSurface below), so the
+// back-office UI can be switched to de/ru at runtime without prefixing its URLs.
 func (lr *LocaleResolver) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		loc, rest := i18n.SplitLocalePrefix(r.URL.Path)
@@ -54,6 +71,20 @@ func (lr *LocaleResolver) Middleware(next http.Handler) http.Handler {
 			// RawPath, when set, must stay consistent with Path; drop it so the
 			// stdlib recomputes escaping from the (now unprefixed) Path.
 			r.URL.RawPath = ""
+		}
+
+		// Admin surfaces are served UNPREFIXED (SplitLocalePrefix left the path
+		// intact and resolved en). Unlike the public site, the admin honors a
+		// cookie-selected language so an operator can switch the back-office UI at
+		// runtime. We only override when the path is an admin surface AND no URL
+		// prefix was present (loc is default) — a stray cookie must never bleed
+		// into public, unprefixed pages (those stay en).
+		if loc == i18n.Default() && isAdminSurface(rest) {
+			if c, err := r.Cookie(adminLocaleCookie); err == nil {
+				if parsed, ok := i18n.Parse(c.Value); ok {
+					loc = parsed
+				}
+			}
 		}
 
 		ctx := withLocale(r.Context(), localeState{

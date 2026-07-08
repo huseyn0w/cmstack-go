@@ -17,6 +17,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
 	"github.com/huseyn0w/cmstack-go/internal/platform/security"
 	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/cmstack-go/internal/plugin"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
 
@@ -144,6 +145,13 @@ type Deps struct {
 	// reads and persists the active theme id. *settings.Service satisfies it.
 	// Optional; when nil the appearance area is not mounted.
 	AppearanceSvc AppearanceSettings
+
+	// Plugins is the in-process plugin manager (M10-1). When non-nil, Router
+	// registers the templ render-region source (so the public layout injects
+	// enabled plugins' head/body_end fragments) and threads the manager into the
+	// public post handler (so the "post_content" filter runs over the rendered
+	// body). Optional; a nil manager is a no-op (no regions, no filtering).
+	Plugins *plugin.Manager
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -151,6 +159,13 @@ type Deps struct {
 // and recovery see them; security headers early; CSRF and session around the
 // dynamic routes.
 func Router(d Deps) http.Handler {
+	// Register the templ render-region source when a plugin manager is wired, so
+	// the public layout injects enabled plugins' head/body_end fragments. A nil
+	// manager leaves the accessor unset (PluginRegion yields nothing).
+	if d.Plugins != nil {
+		webtempl.SetPluginSource(pluginRegionSource{mgr: d.Plugins})
+	}
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -252,6 +267,9 @@ func Router(d Deps) http.Handler {
 			if d.PostPublicSvc != nil {
 				pub := NewPostPublicHandler(d.PostPublicSvc, d.Authors, d.SiteName, d.Config.BaseURL, d.CSRFFunc)
 				pub.WithSite(d.Site)
+				if d.Plugins != nil {
+					pub.WithPlugins(d.Plugins)
+				}
 				if d.CategoryPostSvc != nil || d.TagPostSvc != nil {
 					pub.WithTaxonomy(d.CategoryPostSvc, d.TagPostSvc)
 				}
@@ -410,6 +428,12 @@ func mountAdmin(gr chi.Router, d Deps) {
 		siteURL: d.Config.BaseURL,
 	}
 	gr.With(d.AuthMW.RequireAuth).Get("/admin", shell.dashboard)
+
+	// Admin UI language switch (cookie-based). Any authenticated operator may set
+	// their back-office language; it requires no special permission. The locale
+	// middleware reads the resulting `admin_locale` cookie for admin surfaces.
+	locale := NewAdminLocaleHandler(d.Config.IsProduction())
+	gr.With(d.AuthMW.RequireAuth).Get("/admin/locale/{code}", locale.Set)
 
 	mountPostsAdmin(gr, d, shell)
 	mountPagesAdmin(gr, d, shell)

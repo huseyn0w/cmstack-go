@@ -6,12 +6,13 @@ package templ
 // `.dark` to <html> so there is no light->dark flash. The Alpine topbar toggle
 // writes both stores so the choice persists across requests and tabs.
 templ AdminBase(s AdminShell) {
+	{{ loc := LocaleView(ctx) }}
 	<!DOCTYPE html>
-	<html lang="en" class="h-full">
+	<html lang={ loc.Active.String() } class="h-full">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<meta name="description" content="CMStack admin"/>
+			<meta name="description" content={ loc.T.T("admin.metaDescription") }/>
 			<title>{ s.Title } · CMStack-Go</title>
 			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="stylesheet" href="/static/app.css"/>
@@ -68,19 +69,22 @@ templ AdminBase(s AdminShell) {
 // an off-canvas, focus-trapped drawer toggled by `drawer`. Permission gating
 // already happened upstream (s.Nav is pre-filtered): the template only renders.
 templ adminSidebar(s AdminShell) {
+	{{ loc := LocaleView(ctx) }}
 	<aside
 		data-testid="admin-sidebar"
 		x-trap.noscroll="drawer"
 		:class="drawer ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
 		class="fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-border bg-surface transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0"
-		aria-label="Admin"
+		aria-label={ loc.T.T("admin.sidebar.label") }
 	>
 		<div class="flex h-14 shrink-0 items-center gap-2 border-b border-border px-5">
-			<span class="font-mono text-eyebrow uppercase tracking-widest text-text">CMStack</span>
+			<span class="font-mono text-eyebrow uppercase tracking-widest text-text">{ loc.T.T("admin.brand") }</span>
 		</div>
-		<nav class="flex-1 overflow-y-auto px-3 py-4" aria-label="Sections">
-			// Dashboard home (read any) is always available to authed admins.
-			@navLink(NavItem{Label: "Dashboard", Href: "/admin", Icon: "dashboard"}, s.ActivePath)
+		<nav class="flex-1 overflow-y-auto px-3 py-4" aria-label={ loc.T.T("admin.sidebar.sections") }>
+			// Dashboard home (read any) is always available to authed admins. The
+			// visible label is translated while the data-testid stays the stable
+			// English key (see navLink), so tests and JS hooks are locale-stable.
+			@navLink(NavItem{Label: "Dashboard", TransLabel: loc.T.T("admin.nav.dashboard"), Href: "/admin", Icon: "dashboard"}, s.ActivePath)
 			for _, group := range s.Nav {
 				<div class="mt-6" data-testid={ "nav-group-" + group.Label }>
 					<p class="px-3 pb-2 font-mono text-eyebrow uppercase tracking-widest text-subtle">{ group.Label }</p>
@@ -109,7 +113,7 @@ templ navLink(item NavItem, active string) {
 		}
 	>
 		@navIcon(item.Icon)
-		<span>{ item.Label }</span>
+		<span>{ item.displayLabel() }</span>
 		if item.Badge > 0 {
 			<span
 				data-testid={ "nav-badge-" + item.Label }
@@ -123,6 +127,7 @@ templ navLink(item NavItem, active string) {
 // button + section title on the left; theme toggle, "View site", and the user
 // avatar dropdown on the right.
 templ adminTopbar(s AdminShell) {
+	{{ loc := LocaleView(ctx) }}
 	<header
 		data-testid="admin-topbar"
 		class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 lg:px-8"
@@ -133,7 +138,7 @@ templ adminTopbar(s AdminShell) {
 				@click="drawer = true"
 				data-testid="drawer-open"
 				class="-ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
-				aria-label="Open navigation"
+				aria-label={ loc.T.T("admin.openNavigation") }
 				:aria-expanded="drawer.toString()"
 			>
 				@iconMenu()
@@ -146,28 +151,85 @@ templ adminTopbar(s AdminShell) {
 				@click="toggleTheme()"
 				data-testid="theme-toggle"
 				class="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-				:aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+				:aria-label={ "theme === 'dark' ? '" + loc.T.T("admin.themeToLight") + "' : '" + loc.T.T("admin.themeToDark") + "'" }
 				:aria-pressed="(theme === 'dark').toString()"
 			>
 				<span x-show="theme !== 'dark'">@iconSun()</span>
 				<span x-show="theme === 'dark'" x-cloak>@iconMoon()</span>
 			</button>
+			@adminLocaleSwitcher(loc, s.ActivePath)
 			<a
 				href={ templ.SafeURL(s.SiteURL) }
 				data-testid="view-site"
 				class="hidden items-center gap-1 rounded-md px-3 py-2 text-small font-medium text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"
 			>
-				View site <span aria-hidden="true">↗</span>
+				{ loc.T.T("admin.viewSite") } <span aria-hidden="true">↗</span>
 			</a>
 			@userMenu(s)
 		</div>
 	</header>
 }
 
+// adminLocaleSwitcher renders the back-office language selector: an Alpine
+// dropdown of the supported locales, each a GET link to /admin/locale/{code}
+// that sets the admin_locale cookie and returns to the current page. The active
+// locale is marked with aria-current. Mirrors the public localeSwitcher but is
+// cookie- rather than URL-prefix-based (admin surfaces are unprefixed). It works
+// without JS: the trigger is a details-free link list toggled by Alpine, and
+// each option is a plain anchor.
+templ adminLocaleSwitcher(loc LocaleViewData, activePath string) {
+	<div x-data="{ open: false }" class="relative" data-testid="admin-locale-switcher">
+		<button
+			type="button"
+			@click="open = !open"
+			@keydown.escape="open = false"
+			x-bind:aria-expanded="open ? 'true' : 'false'"
+			aria-haspopup="menu"
+			aria-label={ loc.T.T("localeSwitcher.label") }
+			data-testid="admin-locale-trigger"
+			class="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 font-mono text-eyebrow uppercase tracking-widest text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>
+			{ loc.Active.String() }
+		</button>
+		<div
+			x-show="open"
+			x-cloak
+			@click.outside="open = false"
+			role="menu"
+			aria-label={ loc.T.T("localeSwitcher.label") }
+			class="absolute right-0 z-30 mt-2 min-w-[8rem] rounded-md border border-border bg-surface py-1 shadow-lg"
+		>
+			for _, opt := range adminLocaleOptions(loc.Active, activePath) {
+				if opt.Active {
+					<a
+						href={ templ.SafeURL(opt.Href) }
+						role="menuitem"
+						aria-current="true"
+						data-testid={ "admin-locale-option-" + opt.Code }
+						class="block px-3 py-1.5 font-mono text-small text-text bg-surface-2"
+					>
+						{ loc.T.T("localeSwitcher." + opt.Code) }
+					</a>
+				} else {
+					<a
+						href={ templ.SafeURL(opt.Href) }
+						role="menuitem"
+						data-testid={ "admin-locale-option-" + opt.Code }
+						class="block px-3 py-1.5 font-mono text-small text-muted hover:bg-surface-2 hover:text-text"
+					>
+						{ loc.T.T("localeSwitcher." + opt.Code) }
+					</a>
+				}
+			}
+		</div>
+	</div>
+}
+
 // userMenu renders the avatar trigger + dropdown (DESIGN_SYSTEM §5 Dropdown):
 // aria-haspopup, aria-expanded, Esc closes, focus returns to the trigger. The
 // menu holds the role badge, a Profile link, and the sign-out form.
 templ userMenu(s AdminShell) {
+	{{ loc := LocaleView(ctx) }}
 	<div
 		class="relative"
 		x-data="{ open: false }"
@@ -191,7 +253,7 @@ templ userMenu(s AdminShell) {
 			x-transition
 			role="menu"
 			data-testid="user-menu"
-			aria-label="Account"
+			aria-label={ loc.T.T("admin.account") }
 			class="absolute right-0 z-30 mt-2 w-56 origin-top-right rounded-md border border-border bg-surface p-1.5 shadow-md"
 		>
 			<div class="px-2.5 py-2">
@@ -205,7 +267,7 @@ templ userMenu(s AdminShell) {
 				role="menuitem"
 				data-testid="menu-profile"
 				class="block rounded-md px-2.5 py-2 text-small text-text hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
-			>Profile</a>
+			>{ loc.T.T("admin.profile") }</a>
 			<form method="post" action="/logout" role="none">
 				@csrfField(s.CSRFToken)
 				<button
@@ -213,7 +275,7 @@ templ userMenu(s AdminShell) {
 					role="menuitem"
 					data-testid="menu-logout"
 					class="block w-full rounded-md px-2.5 py-2 text-left text-small text-error hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
-				>Sign out</button>
+				>{ loc.T.T("admin.signOut") }</button>
 			</form>
 		</div>
 	</div>
@@ -239,14 +301,15 @@ templ avatar(s AdminShell) {
 // AdminDashboard is the authed landing page (/admin). It uses the shell and
 // shows a welcome plus placeholder stat cards; real widgets arrive later.
 templ AdminDashboard(s AdminShell) {
+	{{ loc := LocaleView(ctx) }}
 	@AdminBase(s) {
 		<section data-testid="admin-dashboard">
-			<h2 class="text-h3 text-text">Welcome back, { s.UserName }</h2>
-			<p class="mt-2 text-body text-muted">This is your CMStack admin dashboard. Widgets arrive in later milestones.</p>
+			<h2 class="text-h3 text-text">{ loc.T.T("admin.welcomeBack", "name", s.UserName) }</h2>
+			<p class="mt-2 text-body text-muted">{ loc.T.T("admin.dashboard.intro") }</p>
 			<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				@statCard("Posts", "—", "Total published")
-				@statCard("Pages", "—", "Total published")
-				@statCard("Comments", "—", "Awaiting moderation")
+				@statCard(loc.T.T("admin.dashboard.posts"), "—", loc.T.T("admin.dashboard.totalPublished"))
+				@statCard(loc.T.T("admin.dashboard.pages"), "—", loc.T.T("admin.dashboard.totalPublished"))
+				@statCard(loc.T.T("admin.dashboard.comments"), "—", loc.T.T("admin.dashboard.awaitingModeration"))
 			</div>
 		</section>
 	}

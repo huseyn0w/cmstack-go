@@ -1,6 +1,11 @@
 package templ
 
-import "strconv"
+import (
+	"net/url"
+	"strconv"
+
+	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+)
 
 // navBadgeLabel caps a badge count for display ("99+" beyond 99).
 func navBadgeLabel(n int) string {
@@ -8,6 +13,34 @@ func navBadgeLabel(n int) string {
 		return "99+"
 	}
 	return strconv.Itoa(n)
+}
+
+// AdminLocaleOption is one entry in the admin topbar language switcher: the
+// locale code, whether it is the active one, and the href that sets the
+// admin_locale cookie and returns to the current admin page.
+type AdminLocaleOption struct {
+	Code   string // "en" / "de" / "ru"
+	Active bool
+	Href   string // "/admin/locale/{code}?next=<current path>"
+}
+
+// adminLocaleOptions builds the switcher entries for the supported locales,
+// marking active and wiring each href back to the current admin page so the
+// switch redirects in place. current is the AdminShell.ActivePath.
+func adminLocaleOptions(active i18n.Locale, current string) []AdminLocaleOption {
+	if current == "" {
+		current = "/admin"
+	}
+	next := url.QueryEscape(current)
+	opts := make([]AdminLocaleOption, 0, len(i18n.All()))
+	for _, l := range i18n.All() {
+		opts = append(opts, AdminLocaleOption{
+			Code:   l.String(),
+			Active: l == active,
+			Href:   "/admin/locale/" + l.String() + "?next=" + next,
+		})
+	}
+	return opts
 }
 
 // AdminShell carries everything the admin layout needs: the current user's
@@ -38,14 +71,27 @@ type NavGroup struct {
 // to SEE it; the builder hides items the user cannot access (hidden, not
 // disabled). Href may be "#" for milestones not built yet.
 type NavItem struct {
-	Label   string
-	Href    string
-	Icon    string // key into the icon set (see admin.templ navIcon)
-	Action  string
-	Subject string
+	Label string
+	// TransLabel is the locale-resolved display label. When empty the template
+	// falls back to Label. Keeping Label as the stable (English) key means
+	// data-testid / JS hooks stay locale-independent while the visible text is
+	// translated.
+	TransLabel string
+	Href       string
+	Icon       string // key into the icon set (see admin.templ navIcon)
+	Action     string
+	Subject    string
 	// Badge, when > 0, renders a small count pill next to the item (e.g. the
 	// number of comments awaiting moderation).
 	Badge int
+}
+
+// displayLabel returns the translated label when set, else the stable Label.
+func (n NavItem) displayLabel() string {
+	if n.TransLabel != "" {
+		return n.TransLabel
+	}
+	return n.Label
 }
 
 // navBlueprint is the full, unfiltered admin navigation. Each item declares the

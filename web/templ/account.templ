@@ -54,21 +54,22 @@ func socialLabel(key string) string {
 // §5 forms, Avatar, File upload). It groups the editor into cards: identity +
 // avatar, social links, and password change.
 templ AccountPage(f AccountForm) {
+	{{ loc := LocaleView(ctx) }}
 	@AdminBase(f.Shell) {
 		<div class="mx-auto max-w-2xl space-y-6" data-testid="account-page">
 			@accountBreadcrumb()
 			<div>
-				<h2 class="text-h3 text-text">Your profile</h2>
-				<p class="mt-1 text-body text-muted">Update how you appear across the site.</p>
+				<h2 class="text-h3 text-text">{ loc.T.T("admin.yourProfile") }</h2>
+				<p class="mt-1 text-body text-muted">{ loc.T.T("admin.profile.subtitle") }</p>
 			</div>
 			if f.Saved {
 				<div role="status" data-testid="account-saved" class="rounded-md border border-success bg-success-bg p-4 text-success">
-					<p>Profile saved.</p>
+					<p>{ loc.T.T("admin.profileSaved") }</p>
 				</div>
 			}
 			if f.hasErrors() {
 				<div role="alert" data-testid="account-error-summary" class="rounded-md border border-error bg-error-bg p-4 text-error">
-					<p class="font-medium">Please fix the following:</p>
+					<p class="font-medium">{ loc.T.T("admin.errors.fixFollowing") }</p>
 					<ul class="mt-2 list-disc pl-5">
 						for field, msg := range f.FieldErrors {
 							<li><a class="underline" href={ templ.SafeURL("#" + field) }>{ msg }</a></li>
@@ -85,11 +86,12 @@ templ AccountPage(f AccountForm) {
 
 // accountBreadcrumb renders the §5 Breadcrumbs nav for the account page.
 templ accountBreadcrumb() {
+	{{ loc := LocaleView(ctx) }}
 	<nav aria-label="Breadcrumb" data-testid="account-breadcrumb">
 		<ol class="flex items-center gap-2 font-mono text-caption text-muted">
-			<li><a class="hover:text-text" href="/admin">Dashboard</a></li>
+			<li><a class="hover:text-text" href="/admin">{ loc.T.T("admin.nav.dashboard") }</a></li>
 			<li aria-hidden="true">/</li>
-			<li aria-current="page" class="text-text">Account</li>
+			<li aria-current="page" class="text-text">{ loc.T.T("admin.account") }</li>
 		</ol>
 	</nav>
 }
@@ -98,8 +100,9 @@ templ accountBreadcrumb() {
 // It uses a native <input type=file> and a dropzone progressive-enhancement
 // wrapper (Alpine) so it works without JS (DESIGN_SYSTEM §5 File upload).
 templ avatarCard(f AccountForm) {
+	{{ loc := LocaleView(ctx) }}
 	<section class="rounded-lg border border-border bg-surface p-5" data-testid="avatar-card">
-		<h3 class="text-h4 text-text">Avatar</h3>
+		<h3 class="text-h4 text-text">{ loc.T.T("admin.avatar.title") }</h3>
 		<form method="post" action="/account/avatar" enctype="multipart/form-data" class="mt-4 flex items-start gap-5" data-testid="avatar-form">
 			@csrfField(f.CSRFToken)
 			<div class="shrink-0">
@@ -120,7 +123,7 @@ templ avatarCard(f AccountForm) {
 					class="rounded-md border border-dashed p-4 text-center transition-colors"
 				>
 					<label for="avatar" class="block cursor-pointer text-small font-medium text-text">
-						Choose an image
+						{ loc.T.T("admin.avatar.choose") }
 						<input
 							id="avatar"
 							x-ref="file"
@@ -133,12 +136,12 @@ templ avatarCard(f AccountForm) {
 							class="mt-2 block w-full text-caption text-muted file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-small file:text-text"
 						/>
 					</label>
-					<p class="mt-2 text-caption text-muted">PNG, JPEG, WebP or GIF up to 2 MB. <span x-text="name" class="text-text"></span></p>
+					<p class="mt-2 text-caption text-muted">{ loc.T.T("admin.avatar.hint") } <span x-text="name" class="text-text"></span></p>
 				</div>
 				if f.fieldErr("avatar") != "" {
 					<p id="avatar-error" class="mt-1 text-caption text-error" data-testid="avatar-field-error">{ f.fieldErr("avatar") }</p>
 				}
-				<button type="submit" data-testid="avatar-submit" class="mt-3 inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Upload avatar</button>
+				<button type="submit" data-testid="avatar-submit" class="mt-3 inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ loc.T.T("admin.avatar.upload") }</button>
 			</div>
 		</form>
 	</section>
@@ -147,20 +150,21 @@ templ avatarCard(f AccountForm) {
 // profileCard renders the name/bio/website/socials form (DESIGN_SYSTEM §5 forms:
 // label + helper + aria-invalid/aria-describedby wiring).
 templ profileCard(f AccountForm) {
+	{{ loc := LocaleView(ctx) }}
 	<section class="rounded-lg border border-border bg-surface p-5" data-testid="profile-card">
-		<h3 class="text-h4 text-text">Details</h3>
+		<h3 class="text-h4 text-text">{ loc.T.T("admin.details.title") }</h3>
 		<form method="post" action="/account" class="mt-4 space-y-4" data-testid="profile-form">
 			@csrfField(f.CSRFToken)
-			@accountField("name", "Name", "text", f.Name, "Your public display name.", f.fieldErr("name"))
-			@accountTextarea("bio", "Bio", f.Bio, "A short description shown on your author page.", f.fieldErr("bio"))
-			@accountField("website", "Website", "url", f.Website, "Your personal site (https://…).", f.fieldErr("website"))
+			@accountField("name", loc.T.T("admin.field.name"), "text", f.Name, loc.T.T("admin.field.name.help"), f.fieldErr("name"))
+			@accountTextarea("bio", loc.T.T("admin.field.bio"), f.Bio, loc.T.T("admin.field.bio.help"), f.fieldErr("bio"))
+			@accountField("website", loc.T.T("admin.field.website"), "url", f.Website, loc.T.T("admin.field.website.help"), f.fieldErr("website"))
 			<fieldset class="space-y-4">
-				<legend class="text-small font-medium text-text">Social links</legend>
+				<legend class="text-small font-medium text-text">{ loc.T.T("admin.socialLinks") }</legend>
 				for _, key := range f.SocialOrder {
 					@accountField("social_"+key, socialLabel(key), "url", f.socialVal(key), "", f.fieldErr("social_"+key))
 				}
 			</fieldset>
-			<button type="submit" data-testid="profile-submit" class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save profile</button>
+			<button type="submit" data-testid="profile-submit" class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ loc.T.T("admin.saveProfile") }</button>
 		</form>
 	</section>
 }
@@ -168,11 +172,12 @@ templ profileCard(f AccountForm) {
 // passwordCard renders the self-service password change form wired to the
 // existing ChangePassword service (current + new + confirm).
 templ passwordCard(f AccountForm) {
+	{{ loc := LocaleView(ctx) }}
 	<section class="rounded-lg border border-border bg-surface p-5" data-testid="password-card">
-		<h3 class="text-h4 text-text">Change password</h3>
+		<h3 class="text-h4 text-text">{ loc.T.T("admin.password.title") }</h3>
 		if f.PwdSaved {
 			<div role="status" data-testid="password-saved" class="mt-3 rounded-md border border-success bg-success-bg p-3 text-success">
-				<p>Password updated. You may need to sign in again.</p>
+				<p>{ loc.T.T("admin.password.saved") }</p>
 			</div>
 		}
 		if f.PwdError != "" {
@@ -182,10 +187,10 @@ templ passwordCard(f AccountForm) {
 		}
 		<form method="post" action="/account/password" class="mt-4 space-y-4" data-testid="password-form">
 			@csrfField(f.CSRFToken)
-			@accountField("current_password", "Current password", "password", "", "", "")
-			@accountField("new_password", "New password", "password", "", "At least 8 characters.", "")
-			@accountField("confirm_password", "Confirm new password", "password", "", "", "")
-			<button type="submit" data-testid="password-submit" class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Update password</button>
+			@accountField("current_password", loc.T.T("admin.field.currentPassword"), "password", "", "", "")
+			@accountField("new_password", loc.T.T("admin.field.newPassword"), "password", "", loc.T.T("admin.field.newPassword.help"), "")
+			@accountField("confirm_password", loc.T.T("admin.field.confirmPassword"), "password", "", "", "")
+			<button type="submit" data-testid="password-submit" class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ loc.T.T("admin.updatePassword") }</button>
 		</form>
 	</section>
 }

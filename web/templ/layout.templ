@@ -36,6 +36,10 @@ templ Base(data LayoutData) {
 			<link rel="stylesheet" href="/static/app.css"/>
 			<script src="/static/vendor/htmx.min.js" defer></script>
 			<script src="/static/vendor/alpine.min.js" defer></script>
+			// Plugin render-region: enabled plugins may inject trusted HTML into the
+			// document head (analytics snippets, meta tags, etc.). First-party Go code,
+			// so emitted verbatim via templ.Raw.
+			@pluginRegion("head")
 		</head>
 		<body class="h-full bg-bg text-text antialiased">
 			<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2">Skip to content</a>
@@ -71,8 +75,21 @@ templ Base(data LayoutData) {
 					{ loc.T.T("footer.tagline") }
 				</div>
 			</footer>
+			// Plugin render-region: enabled plugins may inject trusted HTML just
+			// before </body> (deferred scripts, widgets, etc.).
+			@pluginRegion("body_end")
 		</body>
 	</html>
+}
+
+// pluginRegion emits every trusted HTML fragment contributed by enabled plugins
+// for the named render-region, in registration order. Fragments are first-party
+// Go output (the plugin catalogue is compiled-in), so they are emitted verbatim
+// via templ.Raw. When no plugin source is wired PluginRegion yields nothing.
+templ pluginRegion(name string) {
+	for _, frag := range PluginRegion(ctx, name) {
+		@templ.Raw(frag)
+	}
 }
 
 // seoHead emits the full public document-head SEO block from a resolved SEOView:

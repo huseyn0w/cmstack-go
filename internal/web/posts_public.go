@@ -15,6 +15,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 	"github.com/huseyn0w/cmstack-go/internal/platform/render"
+	"github.com/huseyn0w/cmstack-go/internal/plugin"
 	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
 )
 
@@ -62,6 +63,15 @@ type PostPublicHandler struct {
 	baseURL    string
 	csrf       func(*http.Request) string
 	site       SiteConfig
+	plugins    *plugin.Manager // optional (M10-1): "post_content" filter
+}
+
+// WithPlugins attaches the plugin manager so the public detail runs the
+// "post_content" filter over the rendered body (M10-1). A nil manager skips
+// filtering. Returns the receiver for chaining.
+func (h *PostPublicHandler) WithPlugins(m *plugin.Manager) *PostPublicHandler {
+	h.plugins = m
+	return h
 }
 
 // WithSite attaches the resolved site-identity + SEO config (M8) so the handler
@@ -236,6 +246,15 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 		metaDesc = p.Excerpt
 	}
 	locale := LocaleFromContext(r.Context())
+	// Plugin "post_content" filter (M10-1): thread the rendered body HTML through
+	// enabled plugins before it reaches the view. A nil manager or a non-string
+	// result leaves the body unchanged.
+	bodyHTML := p.Body
+	if h.plugins != nil {
+		if filtered, ok := h.plugins.ApplyFilter(r.Context(), "post_content", bodyHTML).(string); ok {
+			bodyHTML = filtered
+		}
+	}
 	authorURL := "/authors/" + p.AuthorID.String()
 	crumbs := []webtempl.Breadcrumb{
 		{Name: h.siteName, URL: h.site.absolute(i18n.LocalizePath(locale, "/"))},
@@ -247,7 +266,7 @@ func (h *PostPublicHandler) detailView(r *http.Request, p posts.Post) webtempl.P
 		HomeURL:      "/",
 		Title:        p.Title,
 		Slug:         p.Slug,
-		BodyHTML:     p.Body,
+		BodyHTML:     bodyHTML,
 		Excerpt:      p.Excerpt,
 		AuthorID:     p.AuthorID.String(),
 		AuthorName:   h.authorName(r.Context(), p.AuthorID),
