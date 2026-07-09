@@ -2,14 +2,31 @@ package menus
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
+
+// menuCache is the narrow object-cache contract the service uses to memoize
+// ResolveForLocation. It is defined locally (not importing platform/cache) so
+// the content module stays decoupled; a thin adapter in the wiring layer
+// satisfies it from a cache.Cache. A nil menuCache disables caching entirely
+// (the pre-M13 behavior), so every existing menu test keeps passing untouched.
+type menuCache interface {
+	Get(ctx context.Context, key string) ([]byte, bool, error)
+	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
+	DeleteByPrefix(ctx context.Context, prefix string) error
+}
+
+// menuCachePrefix namespaces every resolved-menu cache entry so a single
+// DeleteByPrefix drops them all on any menu mutation.
+const menuCachePrefix = "menu:"
 
 // Domain errors carried to the handler's error summary.
 var (
@@ -39,11 +56,38 @@ type Service struct {
 	pool  Beginner
 	repo  Repository
 	authz Authorizer
+	// cache memoizes ResolveForLocation results keyed by location+locale. It is
+	// optional; a nil cache means no caching (the resolve queries the repo every
+	// call, the original behavior). Invalidated on any menu mutation.
+	cache menuCache
+	// cacheTTL bounds resolved-menu staleness as a backstop; mutations invalidate
+	// eagerly. Zero means the cache backend's own default (typically no expiry).
+	cacheTTL time.Duration
 }
 
 // NewService constructs the menu Service with explicit dependencies.
 func NewService(pool Beginner, repo Repository, authz Authorizer) *Service {
 	return &Service{pool: pool, repo: repo, authz: authz}
+}
+
+// WithCache attaches an object cache used to memoize ResolveForLocation, with
+// ttl as the staleness backstop. A nil cache leaves resolution uncached (the
+// default). It returns the service for chaining and is intended for wiring-time
+// use only (not concurrent with serving).
+func (s *Service) WithCache(c menuCache, ttl time.Duration) *Service {
+	s.cache = c
+	s.cacheTTL = ttl
+	return s
+}
+
+// invalidateCache drops every cached resolved menu. It is called after any menu
+// mutation. A nil cache or a backend error is ignored: an over-broad clear is
+// always safe (a miss re-queries), and a failed clear must not fail the write.
+func (s *Service) invalidateCache(ctx context.Context) {
+	if s.cache == nil {
+		return
+	}
+	_ = s.cache.DeleteByPrefix(ctx, menuCachePrefix)
 }
 
 // --- admin: menus ------------------------------------------------------------
@@ -66,7 +110,11 @@ func (s *Service) CreateMenu(ctx context.Context, actorID uuid.UUID, name, locat
 	if name == "" {
 		return Menu{}, ErrNameRequired
 	}
-	return s.repo.CreateMenu(ctx, name, strings.TrimSpace(location))
+	menu, err := s.repo.CreateMenu(ctx, name, strings.TrimSpace(location))
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return menu, err
 }
 
 // GetMenu returns a menu plus its items (ordered by position). Requires read:menu.
@@ -98,7 +146,11 @@ func (s *Service) RenameMenu(ctx context.Context, actorID, id uuid.UUID, name st
 	if err != nil {
 		return Menu{}, err
 	}
-	return s.repo.UpdateMenu(ctx, id, name, menu.Location)
+	updated, err := s.repo.UpdateMenu(ctx, id, name, menu.Location)
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return updated, err
 }
 
 // AssignLocation sets a menu's location (name unchanged). Passing "" unassigns
@@ -112,7 +164,11 @@ func (s *Service) AssignLocation(ctx context.Context, actorID, id uuid.UUID, loc
 	if err != nil {
 		return Menu{}, err
 	}
-	return s.repo.UpdateMenu(ctx, id, menu.Name, strings.TrimSpace(location))
+	updated, err := s.repo.UpdateMenu(ctx, id, menu.Name, strings.TrimSpace(location))
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return updated, err
 }
 
 // DeleteMenu removes a menu (items + translations cascade). Requires delete:menu.
@@ -123,7 +179,11 @@ func (s *Service) DeleteMenu(ctx context.Context, actorID, id uuid.UUID) error {
 	if _, err := s.repo.GetMenu(ctx, id); err != nil {
 		return err
 	}
-	return s.repo.DeleteMenu(ctx, id)
+	err := s.repo.DeleteMenu(ctx, id)
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return err
 }
 
 // --- admin: items ------------------------------------------------------------
@@ -156,7 +216,7 @@ func (s *Service) AddItem(ctx context.Context, actorID, menuID uuid.UUID, in Ite
 	if err != nil {
 		return Item{}, err
 	}
-	return s.repo.AddItem(ctx, CreateItemData{
+	item, err := s.repo.AddItem(ctx, CreateItemData{
 		MenuID:   menuID,
 		ParentID: in.ParentID,
 		Position: len(existing),
@@ -165,6 +225,10 @@ func (s *Service) AddItem(ctx context.Context, actorID, menuID uuid.UUID, in Ite
 		URL:      strings.TrimSpace(in.URL),
 		Label:    strings.TrimSpace(in.Label),
 	})
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return item, err
 }
 
 // UpdateItem writes an item's structural fields + label. Requires update:menu.
@@ -175,13 +239,17 @@ func (s *Service) UpdateItem(ctx context.Context, actorID, itemID uuid.UUID, in 
 	if !in.Type.Valid() {
 		return Item{}, ErrInvalidType
 	}
-	return s.repo.UpdateItem(ctx, itemID, UpdateItemData{
+	item, err := s.repo.UpdateItem(ctx, itemID, UpdateItemData{
 		ParentID: in.ParentID,
 		Type:     in.Type,
 		RefID:    in.RefID,
 		URL:      strings.TrimSpace(in.URL),
 		Label:    strings.TrimSpace(in.Label),
 	})
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return item, err
 }
 
 // DeleteItem removes an item (children + translations cascade). Requires update:menu.
@@ -189,7 +257,11 @@ func (s *Service) DeleteItem(ctx context.Context, actorID, itemID uuid.UUID) err
 	if !s.authz.Can(ctx, actorID, accounts.ActionUpdate, accounts.SubjectMenu) {
 		return ErrForbidden
 	}
-	return s.repo.DeleteItem(ctx, itemID)
+	err := s.repo.DeleteItem(ctx, itemID)
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return err
 }
 
 // Reorder assigns position = index for each id in orderedIDs (one transaction).
@@ -201,7 +273,11 @@ func (s *Service) Reorder(ctx context.Context, actorID, menuID uuid.UUID, ordere
 	if _, err := s.repo.GetMenu(ctx, menuID); err != nil {
 		return err
 	}
-	return s.repo.SetPositions(ctx, menuID, orderedIDs)
+	err := s.repo.SetPositions(ctx, menuID, orderedIDs)
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return err
 }
 
 // --- admin: per-locale labels ------------------------------------------------
@@ -219,7 +295,11 @@ func (s *Service) SaveItemTranslation(ctx context.Context, actorID, itemID uuid.
 	if locale.IsDefault() {
 		return ErrDefaultLocaleTranslation
 	}
-	return s.repo.UpsertItemTranslation(ctx, itemID, locale.String(), strings.TrimSpace(label))
+	err := s.repo.UpsertItemTranslation(ctx, itemID, locale.String(), strings.TrimSpace(label))
+	if err == nil {
+		s.invalidateCache(ctx)
+	}
+	return err
 }
 
 // ItemTranslatedLocales returns the NON-default locales that already have a label
@@ -255,6 +335,22 @@ func (s *Service) ResolveForLocation(ctx context.Context, location string, local
 	if location == "" {
 		return nil, nil
 	}
+
+	loc := locale
+	if !i18n.IsSupported(loc) {
+		loc = i18n.Default()
+	}
+	cacheKey := menuCachePrefix + location + ":" + loc.String()
+
+	if s.cache != nil {
+		if raw, ok, err := s.cache.Get(ctx, cacheKey); err == nil && ok {
+			var cached []ResolvedItem
+			if json.Unmarshal(raw, &cached) == nil {
+				return cached, nil
+			}
+		}
+	}
+
 	menu, err := s.repo.MenuByLocation(ctx, location)
 	if errors.Is(err, ErrNotFound) {
 		return nil, nil
@@ -263,17 +359,20 @@ func (s *Service) ResolveForLocation(ctx context.Context, location string, local
 		return nil, err
 	}
 
-	loc := locale
-	if !i18n.IsSupported(loc) {
-		loc = i18n.Default()
-	}
-
 	items, err := s.repo.ListItemsInLocale(ctx, menu.ID, loc.String())
 	if err != nil {
 		return nil, err
 	}
 
-	return buildTree(items, loc, nil), nil
+	resolved := buildTree(items, loc, nil)
+
+	if s.cache != nil {
+		if raw, err := json.Marshal(resolved); err == nil {
+			_ = s.cache.Set(ctx, cacheKey, raw, s.cacheTTL)
+		}
+	}
+
+	return resolved, nil
 }
 
 // buildTree assembles the nested ResolvedItem list under parent (nil == top

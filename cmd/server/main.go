@@ -27,6 +27,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/content/taxonomy"
 	"github.com/huseyn0w/cmstack-go/internal/health"
+	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db"
 	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
@@ -90,6 +91,27 @@ func run() error {
 	// async and enqueued in-tx; the worker drains and dispatches it.
 	postPublishListener := posts.NewPublishListener(logger, nil, nil)
 	postPublishListener.Register(bus)
+
+	// Shared object cache (M13-2). Selected by CacheDriver ("memory" default,
+	// "redis", "noop"). A construction error (e.g. an unreachable Redis) must not
+	// crash the process: fall back to Noop and log, so the site still serves
+	// (uncached) rather than failing to boot.
+	appCache, err := cache.New(ctx, cache.Config{
+		Driver:    cfg.CacheDriver,
+		RedisURL:  cfg.RedisURL,
+		KeyPrefix: cfg.CacheKeyPrefix,
+	})
+	if err != nil {
+		logger.Error("cache init failed; falling back to noop (caching disabled)", "err", err)
+		appCache = cache.NewNoop()
+	}
+
+	// Public-read cache invalidation (M13-2). A SYNCHRONOUS in-process listener on
+	// content.published: the bus runs sync listeners inside the publishing
+	// transaction, so this clears the page + sitemap caches in THIS server process
+	// (which owns the cache) the moment content is published. Unpublish/trash/
+	// silent-edit emit no event, so they are bounded by the page-cache TTL.
+	web.NewCacheInvalidator(appCache).Register(bus)
 
 	// Accounts (auth) wiring.
 	queries := sqlcgen.New(pool)
@@ -246,7 +268,9 @@ func run() error {
 	// the menu service. The admin builder reuses the post/page/category read
 	// services (via narrow listers) to resolve internal item slugs to URLs.
 	menuRepo := menus.NewRepoPG(pool, queries)
-	menuSvc := menus.NewService(pool, menuRepo, authz)
+	// The menu service memoizes ResolveForLocation in the shared cache ("menu:"
+	// prefix), invalidated on any menu mutation; the TTL is a backstop.
+	menuSvc := menus.NewService(pool, menuRepo, authz).WithCache(appCache, cfg.CacheMenuTTL)
 
 	settingsSvc := sitesettings.NewService(sitesettings.NewRepoPG(queries))
 	themeResolver := web.NewThemeResolver(settingsSvc)
@@ -331,6 +355,11 @@ func run() error {
 
 		// i18n (M7a).
 		Locale: localeResolver,
+
+		// Public read caches (M13-2): the anonymous page-response cache middleware
+		// and the shared object cache (threaded into the sitemap handler).
+		PageCache: web.NewPageCache(appCache, cfg.CachePageTTL),
+		Cache:     appCache,
 
 		// Public theme (M9-1) + admin theme switcher (M9-2).
 		Theme:         themeResolver,

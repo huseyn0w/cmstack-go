@@ -11,6 +11,7 @@ import (
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/health"
+	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
 	"github.com/huseyn0w/cmstack-go/internal/platform/config"
 	"github.com/huseyn0w/cmstack-go/internal/platform/events"
 	"github.com/huseyn0w/cmstack-go/internal/platform/ratelimit"
@@ -139,6 +140,22 @@ type Deps struct {
 	// Optional so reduced-Deps tests keep working (they then render as en).
 	Locale *LocaleResolver
 
+	// PageCache is the anonymous public page-response cache (M13-2). When wired,
+	// its middleware runs OUTERMOST on the public content group (but AFTER the
+	// locale + theme middleware, so the cache key sees the resolved locale/theme):
+	// a hit short-circuits before any rendering. It only ever caches complete,
+	// anonymous 200 text/html responses and bypasses any request that carries the
+	// session cookie, is an htmx partial, or has a query string. Optional; a nil
+	// PageCache disables caching (reduced-Deps tests keep working).
+	PageCache *PageCache
+
+	// Cache is the shared object cache (M13-2). It is threaded into the crawler
+	// handler so the rendered sitemap.xml is memoized (and invalidated on publish
+	// via the "sitemap:" prefix). Optional; a nil cache leaves the sitemap
+	// rendered per request (current behavior). The menu cache is wired directly
+	// into the menu service in cmd/server, not via Deps.
+	Cache cache.Cache
+
 	// Theme is the public-theme resolver (M9-1). When wired, its middleware runs
 	// on the PUBLIC route group only: it reads the active theme id from the
 	// settings store, validates it against the in-code registry, and stores the
@@ -242,6 +259,9 @@ func Router(d Deps) http.Handler {
 		d.SitemapPostSvc, d.SitemapPageSvc, d.SitemapServiceSvc,
 		d.SitemapCategorySvc, d.SitemapTagSvc,
 	)
+	if d.Cache != nil {
+		crawler.WithCache(d.Cache)
+	}
 	r.Get("/sitemap.xml", crawler.Sitemap)
 	r.Get("/robots.txt", crawler.Robots)
 	r.Get("/llms.txt", crawler.LLMs)
@@ -268,6 +288,14 @@ func Router(d Deps) http.Handler {
 		gr.Group(func(pr chi.Router) {
 			if d.Theme != nil {
 				pr.Use(d.Theme.Middleware)
+			}
+
+			// Anonymous page-response cache (M13-2). Placed AFTER the theme
+			// middleware so the cache key sees the resolved locale/theme, and
+			// outermost among the content handlers so a hit short-circuits before
+			// any render. It self-limits to anonymous, query-less, non-htmx GETs.
+			if d.PageCache != nil {
+				pr.Use(d.PageCache.Middleware)
 			}
 
 			// TODO(M1-ext): replace this inline closure with a real home handler in

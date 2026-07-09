@@ -30,6 +30,14 @@ type Config struct {
 	// CacheKeyPrefix namespaces every Redis cache key so a Redis instance can be
 	// shared safely; Clear/DeleteByPrefix stay scoped to this prefix.
 	CacheKeyPrefix string `env:"CACHE_KEY_PREFIX" envDefault:"cmstack:"`
+	// CachePageTTL bounds how long an anonymous public page response is cached
+	// (M13-2). It is a backstop: the page cache is also invalidated eagerly on
+	// content publish. A short default keeps silent edits (which emit no publish
+	// event) fresh within the window.
+	CachePageTTL time.Duration `env:"CACHE_PAGE_TTL" envDefault:"60s"`
+	// CacheMenuTTL bounds how long a resolved menu tree is cached (M13-2). It is a
+	// backstop: the menu cache is invalidated eagerly on any menu mutation.
+	CacheMenuTTL time.Duration `env:"CACHE_MENU_TTL" envDefault:"10m"`
 	// SessionKey is reserved for the future Postgres-backed session store and
 	// cookie signing. The current scs in-memory store does not consume it, so it
 	// is intentionally NOT required: a required-but-ignored secret is misleading.

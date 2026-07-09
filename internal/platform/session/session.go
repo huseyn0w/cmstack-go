@@ -10,13 +10,19 @@ import (
 	"github.com/alexedwards/scs/v2/memstore"
 )
 
+// CookieName is the name of the session cookie set by NewManager. It is exported
+// so out-of-band request inspection (e.g. the public page cache deciding whether
+// a request may be authenticated) can detect the cookie by its exact name
+// without importing scs.
+const CookieName = "cmstack_session"
+
 // NewManager builds an scs.SessionManager with the in-memory store. Cookies are
 // HttpOnly and Lax; Secure is enabled in production.
 func NewManager(production bool) *scs.SessionManager {
 	m := scs.New()
 	m.Store = memstore.New()
 	m.Lifetime = 24 * time.Hour
-	m.Cookie.Name = "cmstack_session"
+	m.Cookie.Name = CookieName
 	m.Cookie.HttpOnly = true
 	m.Cookie.SameSite = http.SameSiteLaxMode
 	m.Cookie.Secure = production

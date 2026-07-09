@@ -5,12 +5,23 @@ import (
 	"encoding/xml"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
 	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
 )
+
+// sitemapCacheKey is the single cache key under which the fully rendered
+// sitemap.xml document (including the XML header) is stored. It shares the
+// "sitemap:" prefix the invalidator clears on content publish.
+const sitemapCacheKey = "sitemap:xml"
+
+// sitemapCacheTTL bounds sitemap staleness as a backstop; publish-time
+// invalidation is the primary freshness mechanism.
+const sitemapCacheTTL = time.Hour
 
 // SitemapEnumerator is the narrow read contract the crawler routes (sitemap.xml,
 // llms.txt, llms-full.txt) depend on per content type. *posts.Service,
@@ -102,6 +113,18 @@ type CrawlerHandler struct {
 	services   SitemapEnumerator
 	categories TaxonomyEnumerator
 	tags       TaxonomyEnumerator
+	// cache, when non-nil, memoizes the rendered sitemap.xml under
+	// sitemapCacheKey. It is invalidated on content publish (the "sitemap:"
+	// prefix). A nil cache preserves the original render-every-request behavior.
+	cache cache.Cache
+}
+
+// WithCache attaches an object cache used to memoize the rendered sitemap.xml.
+// A nil cache leaves caching off (current behavior). It returns the handler for
+// chaining and is safe to call during wiring only (not concurrently).
+func (h *CrawlerHandler) WithCache(c cache.Cache) *CrawlerHandler {
+	h.cache = c
+	return h
 }
 
 // NewCrawlerHandler constructs the crawler handler. Any enumerator may be nil
@@ -195,6 +218,35 @@ func (h *CrawlerHandler) urlFor(rootedPath, lastmod string) siteURL {
 // remain listed.
 func (h *CrawlerHandler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Cache hit: replay the stored document (XML header included) verbatim.
+	if h.cache != nil {
+		if raw, ok, err := h.cache.Get(ctx, sitemapCacheKey); err == nil && ok {
+			w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(raw)
+			return
+		}
+	}
+
+	doc, ok := h.render(ctx)
+	if !ok {
+		http.Error(w, "sitemap error", http.StatusInternalServerError)
+		return
+	}
+
+	if h.cache != nil {
+		_ = h.cache.Set(ctx, sitemapCacheKey, doc, sitemapCacheTTL)
+	}
+
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(doc)
+}
+
+// render builds the complete sitemap document (XML header + marshaled urlset) as
+// a single byte slice. The boolean is false on an enumeration or marshal error.
+func (h *CrawlerHandler) render(ctx context.Context) ([]byte, bool) {
 	urls := make([]siteURL, 0, 16)
 
 	// Static hubs.
@@ -233,14 +285,13 @@ func (h *CrawlerHandler) Sitemap(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
-	ok := appendItems(h.posts, "/blog/") &&
+	enumerated := appendItems(h.posts, "/blog/") &&
 		appendItems(h.services, "/services/") &&
 		appendItems(h.pages, "/p/") &&
 		appendTaxonomy(h.categories, "/categories/") &&
 		appendTaxonomy(h.tags, "/tags/")
-	if !ok {
-		http.Error(w, "sitemap error", http.StatusInternalServerError)
-		return
+	if !enumerated {
+		return nil, false
 	}
 
 	doc := urlset{
@@ -250,12 +301,11 @@ func (h *CrawlerHandler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := xml.Marshal(doc)
 	if err != nil {
-		http.Error(w, "sitemap error", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(xml.Header))
-	_, _ = w.Write(out)
+	buf := make([]byte, 0, len(xml.Header)+len(out))
+	buf = append(buf, xml.Header...)
+	buf = append(buf, out...)
+	return buf, true
 }
