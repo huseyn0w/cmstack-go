@@ -7,6 +7,14 @@
 *.test
 *.out
 coverage.out
+# Compiled cmd binaries accidentally built at the repo root
+/apitoken
+/mcp
+/server
+/worker
+/migrate
+/seed
+/seedcontent
 
 # Local env
 .env
