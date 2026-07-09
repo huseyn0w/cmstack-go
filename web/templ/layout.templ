@@ -34,6 +34,9 @@ templ Base(data LayoutData) {
 			<link rel="preload" href="/static/fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="stylesheet" href="/static/app.css"/>
+			// RSS auto-discovery (M16): points feed readers at the site-wide feed. Its
+			// title reuses the site.name translation key shown in the header.
+			<link rel="alternate" type="application/rss+xml" title={ loc.T.T("site.name") } href="/rss.xml"/>
 			<script src="/static/vendor/htmx.min.js" defer></script>
 			<script src="/static/vendor/alpine.min.js" defer></script>
 			// Plugin render-region: enabled plugins may inject trusted HTML into the

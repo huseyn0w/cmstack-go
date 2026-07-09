@@ -430,6 +430,12 @@ func run() error {
 		SitemapServiceSvc:  serviceMgr,
 		SitemapCategorySvc: web.NewCategorySitemapAdapter(categorySvc),
 		SitemapTagSvc:      web.NewTagSitemapAdapter(tagSvc),
+
+		// RSS feeds (M16): the post service enumerates published posts for the
+		// site-wide + per-category feeds; the category namer resolves a slug to its
+		// display name for the per-category channel title.
+		FeedPostSvc:       postSvc,
+		FeedCategoryNamer: web.NewCategoryFeedNamer(categorySvc),
 	})
 
 	srv := &http.Server{

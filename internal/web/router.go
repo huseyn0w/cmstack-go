@@ -128,6 +128,16 @@ type Deps struct {
 	SitemapCategorySvc TaxonomyEnumerator
 	SitemapTagSvc      TaxonomyEnumerator
 
+	// RSS feeds (M16). FeedPostSvc enumerates published posts (optionally narrowed
+	// to a category slug) for the domain-root feeds (/rss.xml,
+	// /categories/{slug}/rss.xml), served UNPREFIXED + locale-agnostic on the root
+	// router like the sitemap. Optional: a nil FeedPostSvc simply leaves the feed
+	// routes unregistered. FeedCategoryNamer optionally resolves a category slug to
+	// its display name for the per-category channel title; nil falls back to the
+	// slug.
+	FeedPostSvc       FeedPostLister
+	FeedCategoryNamer feedCategoryNamer
+
 	// UploadsPrefix is the URL prefix the uploads handler is mounted at (e.g.
 	// "/uploads"); defaults to "/uploads".
 	UploadsPrefix string
@@ -291,6 +301,17 @@ func Router(d Deps) http.Handler {
 	r.Get("/robots.txt", crawler.Robots)
 	r.Get("/llms.txt", crawler.LLMs)
 	r.Get("/llms-full.txt", crawler.LLMsFull)
+
+	// RSS feeds (M16). Registered on the ROOT router (unprefixed, locale-agnostic)
+	// alongside the sitemap. Only wired when the post enumerator is present. The
+	// per-category path lives under /categories/{slug}/rss.xml on the root router;
+	// it does not collide with the localized public /categories/{slug} archive
+	// (a distinct router group — chi resolves them independently).
+	if d.FeedPostSvc != nil {
+		feed := NewFeedHandler(d.Site, d.FeedPostSvc, d.FeedCategoryNamer)
+		r.Get("/rss.xml", feed.Feed)
+		r.Get("/categories/{slug}/rss.xml", feed.CategoryFeed)
+	}
 
 	// Application routes carry session + CSRF.
 	r.Group(func(gr chi.Router) {
