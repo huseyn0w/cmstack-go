@@ -91,3 +91,26 @@ func TestSanitizeRichText_AddsSafeRelToLinks(t *testing.T) {
 		t.Errorf("link missing nofollow rel: %s", out)
 	}
 }
+
+func TestSanitizeRichText_KeepsImageDimensionsAndLazyLoading(t *testing.T) {
+	in := `<img src="https://cdn.example.com/x.png" alt="pic" width="800" height="600" loading="lazy">`
+	out := kernel.SanitizeRichText(in)
+	for _, want := range []string{`width="800"`, `height="600"`, `loading="lazy"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output dropped allowed img attr %q\ngot: %s", want, out)
+		}
+	}
+}
+
+func TestSanitizeRichText_StripsMaliciousImageAttrs(t *testing.T) {
+	// Non-integer dimensions and non-keyword loading values must be dropped, and
+	// an onerror handler must never survive.
+	in := `<img src="https://cdn.example.com/x.png" alt="p" width="1&quot;onerror=alert(1)" ` +
+		`height="junk" loading="javascript:alert(1)" onerror="alert(1)">`
+	out := kernel.SanitizeRichText(in)
+	for _, bad := range []string{"onerror", "javascript:", "junk", "alert(1)"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("output kept dangerous token %q\ngot: %s", bad, out)
+		}
+	}
+}

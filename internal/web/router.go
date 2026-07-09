@@ -269,10 +269,13 @@ func Router(d Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(security.Headers(d.Config.IsProduction()))
 
-	// Static assets — no CSRF/session needed.
+	// Static assets — no CSRF/session needed. A Cache-Control is set so browsers
+	// (and any CDN) cache the CSS/JS/fonts instead of re-fetching every load;
+	// http.FileServer still emits ETag/Last-Modified, so a changed asset is
+	// revalidated (304) within the window rather than served stale forever.
 	if d.StaticDir != "" {
 		fs := http.StripPrefix("/static/", http.FileServer(http.Dir(d.StaticDir)))
-		r.Handle("/static/*", fs)
+		r.Handle("/static/*", staticCacheControl(fs))
 	}
 
 	// User-uploaded files (avatars now). Served outside the CSRF/session group
@@ -981,4 +984,17 @@ func mountServicesAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 // directory, relative to the process working directory.
 func StaticDirDefault() string {
 	return "web/static"
+}
+
+// staticCacheControl advertises a one-day public cache policy for /static
+// assets, which browsers otherwise omit for a bare FileServer (a Lighthouse
+// "efficient cache policy" finding). A day (not a year) is used because the
+// assets are not content-fingerprinted; the underlying FileServer still emits
+// ETag/Last-Modified, so a changed asset is revalidated (304) at the window
+// edge instead of served stale indefinitely.
+func staticCacheControl(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		next.ServeHTTP(w, r)
+	})
 }

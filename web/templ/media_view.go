@@ -53,13 +53,17 @@ type MediaPickerView struct {
 }
 
 // MediaPickerItem is one selectable image in the picker grid. Src is the URL
-// inserted into the editor; Alt seeds the inserted img's alt text.
+// inserted into the editor; Alt seeds the inserted img's alt text. Width/Height
+// are the intrinsic pixel dimensions stamped onto the inserted <img> so content
+// images reserve layout space (avoiding CLS); 0 when unknown.
 type MediaPickerItem struct {
 	ID       string
 	Src      string // original/full URL used for the inserted <img src>
 	ThumbURL string // grid preview
 	Alt      string
 	Title    string
+	Width    int
+	Height   int
 }
 
 // MediaDetailView is the per-asset metadata edit panel (modal/detail), loaded

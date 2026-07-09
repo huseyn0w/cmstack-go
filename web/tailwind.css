@@ -30,6 +30,10 @@
   --color-error: var(--error);
   --color-error-bg: var(--error-bg);
   --color-on-primary: var(--primary-contrast);
+  /* Focus ring token (DESIGN_SYSTEM §8): without this mapping the `ring-ring`
+     / `border-ring` utilities used on every interactive element compile to
+     nothing and focus rings fall back to currentColor. */
+  --color-ring: var(--ring);
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

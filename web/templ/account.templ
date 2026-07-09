@@ -107,7 +107,7 @@ templ avatarCard(f AccountForm) {
 			@csrfField(f.CSRFToken)
 			<div class="shrink-0">
 				if f.AvatarURL != "" {
-					<img src={ f.AvatarURL } alt={ f.Name } data-testid="avatar-image" class="h-16 w-16 rounded-full object-cover"/>
+					<img src={ f.AvatarURL } alt={ f.Name } loading="lazy" data-testid="avatar-image" class="h-16 w-16 rounded-full object-cover"/>
 				} else {
 					<span data-testid="avatar-initials" class="flex h-16 w-16 items-center justify-center rounded-full bg-surface-2 text-h4 font-medium text-muted" aria-hidden="true">{ initials(f.Name, f.Shell.UserEmail) }</span>
 				}

@@ -259,13 +259,20 @@ func (h *MediaAdminHandler) Picker(w http.ResponseWriter, r *http.Request) {
 			continue // only raster images are insertable as <img>
 		}
 		card := h.card(m)
-		picks = append(picks, webtempl.MediaPickerItem{
+		pick := webtempl.MediaPickerItem{
 			ID:       card.ID,
 			Src:      card.FullURL,
 			ThumbURL: card.ThumbURL,
 			Alt:      card.Alt,
 			Title:    card.Title,
-		})
+		}
+		// IsImage() guarantees non-nil dimensions; carry them so the editor can
+		// stamp width/height onto the inserted <img> (CLS avoidance).
+		if m.Width != nil && m.Height != nil {
+			pick.Width = *m.Width
+			pick.Height = *m.Height
+		}
+		picks = append(picks, pick)
 	}
 	pages := (total + mediaPageSize - 1) / mediaPageSize
 	if pages < 1 {

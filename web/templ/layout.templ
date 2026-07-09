@@ -25,6 +25,8 @@ templ Base(data LayoutData) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="theme-color" content="#FBFAF7" media="(prefers-color-scheme: light)"/>
+			<meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)"/>
 			if data.SEO != nil {
 				@seoHead(data.SEO)
 			} else {

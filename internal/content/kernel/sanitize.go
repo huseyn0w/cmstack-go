@@ -1,10 +1,19 @@
 package kernel
 
 import (
+	"regexp"
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
 )
+
+// imgDimensionPattern restricts img width/height to plain integers (pixels), so
+// the attribute can carry layout dimensions (preventing CLS) without opening an
+// injection vector.
+var imgDimensionPattern = regexp.MustCompile(`^[0-9]{1,5}$`)
+
+// imgLoadingPattern restricts img loading to the two valid keywords.
+var imgLoadingPattern = regexp.MustCompile(`^(lazy|eager)$`)
 
 // sanitizerOnce builds the rich-text policy exactly once. The policy is
 // immutable and safe for concurrent use, so a single shared instance is reused
@@ -45,9 +54,14 @@ func richTextPolicy() *bluemonday.Policy {
 		p.AddTargetBlankToFullyQualifiedLinks(true)
 		p.RequireNoReferrerOnLinks(true)
 
-		// Images: src (http/https only via the URL scheme rule above) + alt.
+		// Images: src (http/https only via the URL scheme rule above) + alt, plus
+		// intrinsic dimensions and native lazy-loading so content images avoid
+		// layout shift and defer offscreen loads. width/height are integer-only and
+		// loading is keyword-only, so none can carry an injection payload.
 		p.AllowAttrs("src", "alt").OnElements("img")
 		p.AllowAttrs("alt").OnElements("img")
+		p.AllowAttrs("width", "height").Matching(imgDimensionPattern).OnElements("img")
+		p.AllowAttrs("loading").Matching(imgLoadingPattern).OnElements("img")
 
 		// Code blocks may carry a language-* class for syntax highlighting.
 		p.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("code", "pre")

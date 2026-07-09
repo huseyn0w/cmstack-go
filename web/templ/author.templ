@@ -38,7 +38,7 @@ templ AuthorPage(v AuthorPageView) {
 		<article class="mt-8" data-testid="author-article">
 			<header class="flex items-center gap-5">
 				if v.AvatarURL != "" {
-					<img src={ v.AvatarURL } alt={ v.Name } data-testid="author-avatar" class="h-20 w-20 rounded-full object-cover"/>
+					<img src={ v.AvatarURL } alt={ v.Name } loading="lazy" data-testid="author-avatar" class="h-20 w-20 rounded-full object-cover"/>
 				} else {
 					<span data-testid="author-initials" class="flex h-20 w-20 items-center justify-center rounded-full bg-surface-2 text-h3 font-medium text-muted" aria-hidden="true">{ initials(v.Name, "") }</span>
 				}

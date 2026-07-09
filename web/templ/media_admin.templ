@@ -321,6 +321,8 @@ templ MediaPickerGrid(v MediaPickerView) {
 							data-testid={ "media-pick-" + it.ID }
 							data-src={ it.Src }
 							data-alt={ it.Alt }
+							data-width={ fmt.Sprint(it.Width) }
+							data-height={ fmt.Sprint(it.Height) }
 							@click="pick($event)"
 							class="block w-full overflow-hidden rounded-md border border-border bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-primary"
 							title={ it.Title }

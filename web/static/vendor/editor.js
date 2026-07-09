@@ -103,11 +103,13 @@ document.addEventListener('alpine:init', () => {
       const btn = e.currentTarget;
       const src = btn.getAttribute('data-src');
       const alt = btn.getAttribute('data-alt') || '';
-      if (src) this.insertImageFromPicker(src, alt);
+      const width = parseInt(btn.getAttribute('data-width'), 10) || 0;
+      const height = parseInt(btn.getAttribute('data-height'), 10) || 0;
+      if (src) this.insertImageFromPicker(src, alt, width, height);
       this.closePicker();
     },
 
-    insertImageFromPicker(src, alt) {
+    insertImageFromPicker(src, alt, width, height) {
       this.$refs.surface.focus();
       // Restore the caret position captured when the picker opened so the image
       // is inserted in-place rather than at the start of the surface.
@@ -119,6 +121,11 @@ document.addEventListener('alpine:init', () => {
       const img = document.createElement('img');
       img.src = src;
       img.alt = alt;
+      // Intrinsic dimensions + native lazy-loading reserve layout space (no CLS)
+      // and defer offscreen loads. The sanitizer allow-lists these on save.
+      if (width > 0) img.setAttribute('width', String(width));
+      if (height > 0) img.setAttribute('height', String(height));
+      img.setAttribute('loading', 'lazy');
       if (sel && sel.rangeCount > 0) {
         const range = sel.getRangeAt(0);
         range.collapse(false);
