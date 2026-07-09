@@ -113,6 +113,21 @@ type Config struct {
 	// empty the notifier falls back to AdminEmail.
 	ContactRecipient string `env:"CONTACT_RECIPIENT" envDefault:""`
 
+	// Email / notifications (M14). MailDriver selects the transactional-email
+	// backend: "log" (default, dev — logs the links), "smtp" (real delivery) or
+	// "noop" (silent, for tests/CI). The SMTP_* vars configure the smtp driver;
+	// MailFrom defaults to AdminEmail when empty. SMTPTLS selects the transport
+	// security: "starttls" (default, upgrade on 587), "tls" (implicit TLS, 465)
+	// or "none" (unencrypted — dev/relay only).
+	MailDriver   string `env:"MAIL_DRIVER" envDefault:"log"`
+	SMTPHost     string `env:"SMTP_HOST" envDefault:""`
+	SMTPPort     int    `env:"SMTP_PORT" envDefault:"587"`
+	SMTPUsername string `env:"SMTP_USERNAME" envDefault:""`
+	SMTPPassword string `env:"SMTP_PASSWORD" envDefault:""`
+	MailFrom     string `env:"MAIL_FROM" envDefault:""`
+	MailFromName string `env:"MAIL_FROM_NAME" envDefault:"CMStack"`
+	SMTPTLS      string `env:"SMTP_TLS" envDefault:"starttls"`
+
 	// SEO / site identity (M8). All optional with sensible defaults so the app
 	// runs without any of these set; they enrich the document head + (later)
 	// JSON-LD Organization. SiteName is also passed as a router Dep today; it is

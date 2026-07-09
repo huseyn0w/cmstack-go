@@ -36,6 +36,35 @@ func main() {
 	}
 }
 
+// buildMailer selects the transactional-email backend from config (M14) and logs
+// the chosen driver. On an smtp construction error it falls back to the dev
+// LogMailer and logs, so the worker still boots. The returned instance is shared
+// by every listener the relay dispatches to (auth, comment, contact).
+func buildMailer(cfg config.Config, logger *slog.Logger) mailer.Mailer {
+	from := cfg.MailFrom
+	if from == "" {
+		from = cfg.AdminEmail
+	}
+	m, err := mailer.New(mailer.Config{
+		Driver: cfg.MailDriver,
+		SMTP: mailer.SMTPConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     from,
+			FromName: cfg.MailFromName,
+			TLS:      cfg.SMTPTLS,
+		},
+	}, logger)
+	if err != nil {
+		logger.Error("mailer init failed; falling back to log mailer", "driver", cfg.MailDriver, "err", err)
+		return mailer.NewLogMailer(logger)
+	}
+	logger.Info("mailer configured", "driver", cfg.MailDriver)
+	return m
+}
+
 func run() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -58,7 +87,13 @@ func run() error {
 	// rows to it after commit. The bus needs no outbox enqueuer here (the worker
 	// only dispatches; the server enqueues).
 	bus := events.NewBus(nil)
-	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
+
+	// Transactional email backend (M14). The worker drains the async outbox and
+	// actually sends, so it MUST use the same selected mailer as the server. On an
+	// smtp construction error it falls back to LogMailer so the worker still boots.
+	appMailer := buildMailer(cfg, logger)
+
+	emailListener := accounts.NewEmailListener(appMailer, cfg.BaseURL)
 	emailListener.Register(bus)
 	// The content publish listener must also be registered on the WORKER bus so
 	// the relay can dispatch the async content.published events the server
@@ -98,7 +133,7 @@ func run() error {
 	comments.NewNotificationListener(
 		logger,
 		commentAdapters,
-		web.NewCommentNotifierAdapter(mailer.NewLogMailer(logger)),
+		web.NewCommentNotifierAdapter(appMailer),
 		cfg.BaseURL,
 	).Register(bus)
 
@@ -110,7 +145,7 @@ func run() error {
 	contact.NewNotifyListener(
 		logger,
 		web.NewContactRecipientResolver(settingsSvc, cfg.ContactRecipient, cfg.AdminEmail),
-		web.NewContactNotifierAdapter(mailer.NewLogMailer(logger)),
+		web.NewContactNotifierAdapter(appMailer),
 	).Register(bus)
 
 	logger.Info("worker started", "env", cfg.AppEnv)

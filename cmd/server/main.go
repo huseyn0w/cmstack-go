@@ -55,6 +55,35 @@ func main() {
 	}
 }
 
+// buildMailer selects the transactional-email backend from config (M14) and logs
+// the chosen driver. On an smtp construction error it falls back to the dev
+// LogMailer and logs, so the process still boots. The returned instance is shared
+// by every listener that sends (auth, comment, contact).
+func buildMailer(cfg config.Config, logger *slog.Logger) mailer.Mailer {
+	from := cfg.MailFrom
+	if from == "" {
+		from = cfg.AdminEmail
+	}
+	m, err := mailer.New(mailer.Config{
+		Driver: cfg.MailDriver,
+		SMTP: mailer.SMTPConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     from,
+			FromName: cfg.MailFromName,
+			TLS:      cfg.SMTPTLS,
+		},
+	}, logger)
+	if err != nil {
+		logger.Error("mailer init failed; falling back to log mailer", "driver", cfg.MailDriver, "err", err)
+		return mailer.NewLogMailer(logger)
+	}
+	logger.Info("mailer configured", "driver", cfg.MailDriver)
+	return m
+}
+
 func run() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -83,7 +112,14 @@ func run() error {
 	// (enqueued in-tx); the worker process drains and dispatches them.
 	outbox := events.NewOutboxRepository()
 	bus := events.NewBus(outbox)
-	emailListener := accounts.NewEmailListener(mailer.NewLogMailer(logger), cfg.BaseURL)
+
+	// Transactional email backend (M14). Selected by MAIL_DRIVER ("log" default,
+	// "smtp", "noop"); the SAME instance is passed to every listener that sends
+	// (auth, comment, contact). An smtp construction error must not crash the
+	// process: log and fall back to the dev LogMailer so the app still boots.
+	appMailer := buildMailer(cfg, logger)
+
+	emailListener := accounts.NewEmailListener(appMailer, cfg.BaseURL)
 	emailListener.Register(bus)
 
 	// Content publish listener (async content.published -> cache invalidation +
@@ -242,7 +278,7 @@ func run() error {
 	comments.NewNotificationListener(
 		logger,
 		commentAdapters,
-		web.NewCommentNotifierAdapter(mailer.NewLogMailer(logger)),
+		web.NewCommentNotifierAdapter(appMailer),
 		cfg.BaseURL,
 	).Register(bus)
 
@@ -286,7 +322,7 @@ func run() error {
 	contact.NewNotifyListener(
 		logger,
 		web.NewContactRecipientResolver(settingsSvc, cfg.ContactRecipient, cfg.AdminEmail),
-		web.NewContactNotifierAdapter(mailer.NewLogMailer(logger)),
+		web.NewContactNotifierAdapter(appMailer),
 	).Register(bus)
 
 	// Plugin core (M10-1): an in-process hook registry over the bundled first-party
