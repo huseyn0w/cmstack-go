@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +67,20 @@ type fakePosts struct {
 	byID     map[uuid.UUID]posts.Post
 	getErr   error
 	getActor uuid.UUID
+
+	// write-path recording (M17-2).
+	createActor uuid.UUID
+	createIn    posts.CreateInput
+	createOut   posts.Post
+	updateActor uuid.UUID
+	updateID    uuid.UUID
+	updateIn    posts.UpdateInput
+	published   []uuid.UUID
+	unpublished []uuid.UUID
+	trashed     []uuid.UUID
+	restored    []uuid.UUID
+	revs        []kernel.Revision
+	writeErr    error
 }
 
 func (f *fakePosts) AdminList(_ context.Context, ff posts.ListFilter) ([]posts.Post, int, error) {
@@ -83,10 +99,76 @@ func (f *fakePosts) Get(_ context.Context, actorID, id uuid.UUID) (posts.Post, e
 	return posts.Post{}, posts.ErrNotFound
 }
 
+func (f *fakePosts) Revisions(_ context.Context, _, _ uuid.UUID) ([]kernel.Revision, error) {
+	if f.writeErr != nil {
+		return nil, f.writeErr
+	}
+	return f.revs, nil
+}
+
+func (f *fakePosts) Create(_ context.Context, actorID uuid.UUID, in posts.CreateInput) (posts.Post, error) {
+	f.createActor = actorID
+	f.createIn = in
+	if f.writeErr != nil {
+		return posts.Post{}, f.writeErr
+	}
+	return f.createOut, nil
+}
+
+func (f *fakePosts) Update(_ context.Context, actorID, id uuid.UUID, in posts.UpdateInput) (posts.Post, error) {
+	f.updateActor = actorID
+	f.updateID = id
+	f.updateIn = in
+	if f.writeErr != nil {
+		return posts.Post{}, f.writeErr
+	}
+	if p, ok := f.byID[id]; ok {
+		return p, nil
+	}
+	return f.createOut, nil
+}
+
+func (f *fakePosts) Publish(_ context.Context, _, id uuid.UUID) (posts.Post, error) {
+	f.published = append(f.published, id)
+	if f.writeErr != nil {
+		return posts.Post{}, f.writeErr
+	}
+	return f.byID[id], nil
+}
+
+func (f *fakePosts) Unpublish(_ context.Context, _, id uuid.UUID) (posts.Post, error) {
+	f.unpublished = append(f.unpublished, id)
+	if f.writeErr != nil {
+		return posts.Post{}, f.writeErr
+	}
+	return f.byID[id], nil
+}
+
+func (f *fakePosts) Trash(_ context.Context, _, id uuid.UUID) error {
+	f.trashed = append(f.trashed, id)
+	return f.writeErr
+}
+
+func (f *fakePosts) Restore(_ context.Context, _, id uuid.UUID) error {
+	f.restored = append(f.restored, id)
+	return f.writeErr
+}
+
 type fakePages struct {
 	list  []pages.Page
 	total int
 	byID  map[uuid.UUID]pages.Page
+
+	createActor uuid.UUID
+	createIn    pages.CreateInput
+	createOut   pages.Page
+	updateID    uuid.UUID
+	updateIn    pages.UpdateInput
+	published   []uuid.UUID
+	unpublished []uuid.UUID
+	trashed     []uuid.UUID
+	restored    []uuid.UUID
+	writeErr    error
 }
 
 func (f *fakePages) AdminList(_ context.Context, _ pages.ListFilter) ([]pages.Page, int, error) {
@@ -100,6 +182,53 @@ func (f *fakePages) Get(_ context.Context, _, id uuid.UUID) (pages.Page, error) 
 	return pages.Page{}, pages.ErrNotFound
 }
 
+func (f *fakePages) Create(_ context.Context, actorID uuid.UUID, in pages.CreateInput) (pages.Page, error) {
+	f.createActor = actorID
+	f.createIn = in
+	if f.writeErr != nil {
+		return pages.Page{}, f.writeErr
+	}
+	return f.createOut, nil
+}
+
+func (f *fakePages) Update(_ context.Context, _, id uuid.UUID, in pages.UpdateInput) (pages.Page, error) {
+	f.updateID = id
+	f.updateIn = in
+	if f.writeErr != nil {
+		return pages.Page{}, f.writeErr
+	}
+	if p, ok := f.byID[id]; ok {
+		return p, nil
+	}
+	return f.createOut, nil
+}
+
+func (f *fakePages) Publish(_ context.Context, _, id uuid.UUID) (pages.Page, error) {
+	f.published = append(f.published, id)
+	if f.writeErr != nil {
+		return pages.Page{}, f.writeErr
+	}
+	return f.byID[id], nil
+}
+
+func (f *fakePages) Unpublish(_ context.Context, _, id uuid.UUID) (pages.Page, error) {
+	f.unpublished = append(f.unpublished, id)
+	if f.writeErr != nil {
+		return pages.Page{}, f.writeErr
+	}
+	return f.byID[id], nil
+}
+
+func (f *fakePages) Trash(_ context.Context, _, id uuid.UUID) error {
+	f.trashed = append(f.trashed, id)
+	return f.writeErr
+}
+
+func (f *fakePages) Restore(_ context.Context, _, id uuid.UUID) error {
+	f.restored = append(f.restored, id)
+	return f.writeErr
+}
+
 // --- harness ----------------------------------------------------------------
 
 const testToken = "cmg_test"
@@ -107,20 +236,41 @@ const testToken = "cmg_test"
 // newServer mounts the /api/v1 group behind a real web.AuthMiddleware. The
 // bearer token maps to userID; grants controls which (action:subject) the user
 // holds ("read:post" etc.).
-func newServer(t *testing.T, userID uuid.UUID, grants map[string]bool, p PostReader, pg PageReader) http.Handler {
+func newServer(t *testing.T, userID uuid.UUID, grants map[string]bool, p PostService, pg PageService) http.Handler {
+	t.Helper()
+	return newServerDeps(t, userID, grants, Deps{Posts: p, Pages: pg})
+}
+
+// newServerDeps mounts the /api/v1 group with the supplied service deps behind a
+// real web.AuthMiddleware, so each resource test injects only the fakes it needs.
+func newServerDeps(t *testing.T, userID uuid.UUID, grants map[string]bool, d Deps) http.Handler {
 	t.Helper()
 	users := fakeUsers{users: map[uuid.UUID]accounts.User{userID: {ID: userID, Email: "a@b.com"}}}
 	mw := web.NewAuthMiddleware(fakeSession{vals: map[string]string{}}, users, fakeAuthz{allow: grants})
-	tokenAuth := mw.APITokenAuth(fakeVerifier{token: testToken, userID: userID})
+	d.Auth = mw
+	d.TokenAuth = mw.APITokenAuth(fakeVerifier{token: testToken, userID: userID})
 
 	r := chi.NewRouter()
-	Mount(r, Deps{Auth: mw, TokenAuth: tokenAuth, Posts: p, Pages: pg})
+	Mount(r, d)
 	return r
 }
 
 func authGet(path string) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("Authorization", "Bearer "+testToken)
+	return req
+}
+
+// authJSON builds an authenticated request carrying a raw JSON body for a write
+// verb (POST/PATCH/DELETE). body may be "" for a bodiless action.
+func authJSON(method, path, body string) *http.Request {
+	var r io.Reader
+	if body != "" {
+		r = strings.NewReader(body)
+	}
+	req := httptest.NewRequest(method, path, r)
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	req.Header.Set("Content-Type", "application/json")
 	return req
 }
 

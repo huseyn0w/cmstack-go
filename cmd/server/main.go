@@ -451,10 +451,14 @@ func run() error {
 		// hook keeps the dependency direction api -> web (web never imports api).
 		APIMounter: func(r chi.Router) {
 			api.Mount(r, api.Deps{
-				Auth:      authMW,
-				TokenAuth: apiTokenAuth,
-				Posts:     postSvc,
-				Pages:     pageSvc,
+				Auth:       authMW,
+				TokenAuth:  apiTokenAuth,
+				Posts:      postSvc,
+				Pages:      pageSvc,
+				Categories: categorySvc,
+				Tags:       tagSvc,
+				Media:      mediaSvc,
+				Comments:   commentSvc,
 			})
 		},
 	})
