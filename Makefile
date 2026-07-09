@@ -27,7 +27,7 @@ DEV_PORTS := 8090
 LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
 
 .DEFAULT_GOAL := help
-.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt
+.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt ci
 
 help: ## List the common targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -122,7 +122,7 @@ test: ## Run the test suite
 	go test ./...
 
 cover:
-	go test -coverprofile=coverage.out ./...
+	go test -p 2 -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
 lint:
@@ -131,5 +131,13 @@ lint:
 vet:
 	go vet ./...
 
-fmt:
-	gofumpt -w .
+fmt: ## Apply formatting via golangci-lint's pinned gofumpt (single source of truth)
+	golangci-lint fmt
+
+ci: generate ## Run the full CI pipeline locally (vet, lint, format, build, test+coverage)
+	go vet ./...
+	golangci-lint run
+	golangci-lint fmt --diff
+	go build ./...
+	go test -p 2 -timeout 20m -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out | tail -1

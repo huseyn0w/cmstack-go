@@ -5,9 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +28,7 @@ jobs:
           go install github.com/a-h/templ/cmd/templ@latest
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
-      - name: Generate
+      - name: Generate (templ + sqlc)
         run: make generate
 
       - name: Vet
@@ -33,8 +39,37 @@ jobs:
         with:
           version: v2.12.2
 
-      - name: Test
-        run: go test ./...
+      # Formatting is enforced through golangci-lint's own gofumpt formatter
+      # (pinned to the same version as the lint step) so the format gate can
+      # never drift from a separately-installed gofumpt. Fails if any file would
+      # be reformatted.
+      - name: Format check
+        run: golangci-lint fmt --diff
 
       - name: Build
         run: go build ./...
+
+      # Integration tests use testcontainers-go (Postgres). The ubuntu-latest
+      # runner ships Docker, so they run unmodified. -p 2 keeps concurrent
+      # container startup stable (matches the local convention).
+      - name: Test (with coverage)
+        run: go test -p 2 -timeout 20m -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage.out ]; then
+            total="$(go tool cover -func=coverage.out | tail -1)"
+            echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$total" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
