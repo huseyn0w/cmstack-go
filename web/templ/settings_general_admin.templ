@@ -1,0 +1,55 @@
+package templ
+
+// SettingsGeneralPage renders the General settings dashboard: the site-identity
+// form (site name, description, default OG image, Twitter handle, contact
+// recipient), each input pre-filled with its current effective value. An empty
+// field clears the override on save so the config default applies.
+templ SettingsGeneralPage(v SettingsGeneralView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="settings-general" class="mx-auto max-w-2xl">
+			<div class="mb-6">
+				<h2 class="text-h3 text-text">General</h2>
+				<p class="mt-1 text-small text-muted">Site identity used across the public site head and structured data. Leave a field empty to fall back to the configured default.</p>
+			</div>
+			if v.Saved {
+				<div role="status" data-testid="settings-saved" class="mb-4 rounded-md border border-primary bg-primary/10 p-3 text-small text-primary">Settings saved.</div>
+			}
+			if v.Error != "" {
+				<div role="alert" data-testid="settings-error" class="mb-4 rounded-md border border-error bg-error-bg p-3 text-small text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.SaveURL) } class="space-y-5" data-testid="settings-general-form">
+				@csrfField(v.CSRFToken)
+				@settingsTextField("site_name", "Site name", v.SiteName, "text", "The public site name.")
+				<div>
+					<label for="site_description" class="block text-small font-medium text-text">Site description</label>
+					<p class="mt-0.5 text-caption text-muted">Default meta description for pages without their own.</p>
+					<textarea
+						id="site_description" name="site_description" rows="3"
+						data-testid="field-site_description"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>{ v.SiteDescription }</textarea>
+				</div>
+				@settingsTextField("default_og_image", "Default OG image", v.DefaultOGImage, "text", "URL or rooted path used as the fallback Open Graph image.")
+				@settingsTextField("twitter_handle", "Twitter / X handle", v.TwitterHandle, "text", "e.g. @yoursite.")
+				@settingsTextField("contact_recipient", "Contact recipient email", v.ContactEmail, "email", "Where the contact form sends notifications. Must be a valid email.")
+				<button type="submit" data-testid="action-save-general" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save changes</button>
+			</form>
+		</section>
+	}
+}
+
+// settingsTextField renders a labeled text/email/url input with an optional
+// helper line, pre-filled with value.
+templ settingsTextField(name, label, value, inputType, help string) {
+	<div>
+		<label for={ name } class="block text-small font-medium text-text">{ label }</label>
+		if help != "" {
+			<p class="mt-0.5 text-caption text-muted">{ help }</p>
+		}
+		<input
+			id={ name } name={ name } type={ inputType } value={ value }
+			data-testid={ "field-" + name }
+			class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		/>
+	</div>
+}

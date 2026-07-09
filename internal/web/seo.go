@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -28,6 +29,13 @@ type SiteConfig struct {
 	// Organization JSON-LD (home page) and as the `publisher` node in
 	// BlogPosting. Rooted logo paths are absolutized against BaseURL.
 	Org webtempl.OrgIdentity
+
+	// overrides is the live admin-editable settings reader (M15-2). It is an
+	// interface (a reference under the hood), so every value-copy of this
+	// SiteConfig shares the same reader and reflects settings writes live. A nil
+	// reader means "no overrides" — the boot fields above are used verbatim,
+	// keeping the config-only path byte-identical.
+	overrides SiteOverrideReader
 }
 
 // NewSiteConfig builds the SiteConfig from the loaded app config, assembling the
@@ -79,29 +87,33 @@ func NewSiteConfig(cfg config.Config) SiteConfig {
 
 // OrganizationJSONLD returns the site publisher's Organization JSON-LD (empty
 // when no org name is configured — which cannot happen since Name falls back to
-// SiteName). Exposed so the home handler can emit it.
-func (s SiteConfig) OrganizationJSONLD() string {
-	if s.Org.Name == "" {
+// SiteName). The identity is resolved live from settings (override || config).
+// Exposed so the home handler can emit it.
+func (s SiteConfig) OrganizationJSONLD(ctx context.Context) string {
+	org := s.resolveOrg(ctx)
+	if org.Name == "" {
 		return ""
 	}
-	return webtempl.OrganizationJSONLD(s.Org)
+	return webtempl.OrganizationJSONLD(org)
 }
 
 // WebSiteJSONLD returns the WebSite JSON-LD for the home page, wiring the
-// Sitelinks SearchAction to the site's /search endpoint.
-func (s SiteConfig) WebSiteJSONLD() string {
+// Sitelinks SearchAction to the site's /search endpoint. The site name is
+// resolved live from settings (override || config).
+func (s SiteConfig) WebSiteJSONLD(ctx context.Context) string {
 	home := strings.TrimSuffix(s.BaseURL, "/")
-	name := s.SiteName
+	name := s.resolveSiteName(ctx)
 	if name == "" {
-		name = s.Org.Name
+		name = s.resolveOrg(ctx).Name
 	}
 	return webtempl.WebSiteJSONLD(name, home, home+"/search?q={search_term_string}")
 }
 
 // homeJSONLD returns the site-level JSON-LD blocks emitted on the home page:
-// Organization (publisher) + WebSite (with SearchAction).
-func (s SiteConfig) homeJSONLD() []string {
-	return []string{s.OrganizationJSONLD(), s.WebSiteJSONLD()}
+// Organization (publisher) + WebSite (with SearchAction). Both consult the live
+// settings overlay.
+func (s SiteConfig) homeJSONLD(ctx context.Context) []string {
+	return []string{s.OrganizationJSONLD(ctx), s.WebSiteJSONLD(ctx)}
 }
 
 // SEOInput is the per-page seed the caller passes to BuildSEO. Title/Description
@@ -123,15 +135,18 @@ type SEOInput struct {
 // Twitter Card blocks, the per-locale hreflang alternates (absolute, incl.
 // x-default), and the verification tags.
 func (s SiteConfig) BuildSEO(r *http.Request, in SEOInput) *webtempl.SEOView {
+	ctx := r.Context()
+	siteName := s.resolveSiteName(ctx)
+
 	title := in.Title
-	docTitle := s.SiteName
-	if title != "" && title != s.SiteName {
-		docTitle = title + " · " + s.SiteName
+	docTitle := siteName
+	if title != "" && title != siteName {
+		docTitle = title + " · " + siteName
 	}
 
 	description := in.Description
 	if description == "" {
-		description = s.SiteDescription
+		description = s.resolveSiteDescription(ctx)
 	}
 
 	canonical := in.CanonicalURL
@@ -142,7 +157,7 @@ func (s SiteConfig) BuildSEO(r *http.Request, in SEOInput) *webtempl.SEOView {
 	}
 
 	robots := "index, follow"
-	if in.NoIndex || s.GlobalNoindex {
+	if in.NoIndex || s.resolveGlobalNoindex(ctx) {
 		robots = "noindex, follow"
 	}
 
@@ -152,9 +167,9 @@ func (s SiteConfig) BuildSEO(r *http.Request, in SEOInput) *webtempl.SEOView {
 	}
 	ogTitle := title
 	if ogTitle == "" {
-		ogTitle = s.SiteName
+		ogTitle = siteName
 	}
-	ogImage := s.absolutizeIfRooted(s.DefaultOGImage)
+	ogImage := s.absolutizeIfRooted(s.resolveDefaultOGImage(ctx))
 
 	twitterCard := "summary"
 	if ogImage != "" {
@@ -171,11 +186,11 @@ func (s SiteConfig) BuildSEO(r *http.Request, in SEOInput) *webtempl.SEOView {
 		OGDescription: description,
 		OGImage:       ogImage,
 		OGURL:         canonical,
-		OGSiteName:    s.SiteName,
+		OGSiteName:    siteName,
 		TwitterCard:   twitterCard,
-		TwitterSite:   s.TwitterHandle,
+		TwitterSite:   s.resolveTwitterHandle(ctx),
 		Alternates:    s.alternates(r),
-		Verifications: s.Verifications,
+		Verifications: s.resolveVerifications(ctx),
 	}
 }
 

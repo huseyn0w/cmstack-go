@@ -23,11 +23,12 @@ var aiCrawlerAgents = []string{
 // admin/account/auth areas, advertises the sitemap, honors GlobalNoindex (a
 // staging gate that disallows everything), and — when AllowAICrawlers is false —
 // blocks the well-known AI crawlers. Content-Type text/plain; charset=utf-8.
-func (h *CrawlerHandler) Robots(w http.ResponseWriter, _ *http.Request) {
+func (h *CrawlerHandler) Robots(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var b strings.Builder
 
 	b.WriteString("User-agent: *\n")
-	if h.site.GlobalNoindex {
+	if h.site.resolveGlobalNoindex(ctx) {
 		// Staging gate: block everything for all crawlers.
 		b.WriteString("Disallow: /\n")
 	} else {
@@ -39,7 +40,7 @@ func (h *CrawlerHandler) Robots(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	// AI crawlers: default-allow unless explicitly disabled.
-	if !h.site.AllowAICrawlers {
+	if !h.site.resolveAllowAICrawlers(ctx) {
 		for _, ua := range aiCrawlerAgents {
 			b.WriteString("\nUser-agent: ")
 			b.WriteString(ua)

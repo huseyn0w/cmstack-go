@@ -405,6 +405,12 @@ func run() error {
 		// container ids read (and validated) from the settings store.
 		AnalyticsSvc: settingsSvc,
 
+		// Live site/SEO overlay + admin settings dashboards (M15-2). The same
+		// settings service backs the read-time overlay on SiteConfig and the
+		// General + SEO & GEO dashboards, so a save is reflected live on public
+		// pages (override || config default).
+		SettingsReader: settingsSvc,
+
 		// Menus (M11-2): the gated /admin/menus builder. The item picker + slug
 		// resolution reuse the post/page/category read services via narrow listers.
 		MenuAdminSvc:      menuSvc,

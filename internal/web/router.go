@@ -183,6 +183,14 @@ type Deps struct {
 	// Optional; when nil the appearance area is not mounted.
 	AppearanceSvc AppearanceSettings
 
+	// SettingsReader is the live admin-editable site/SEO override reader (M15-2).
+	// When non-nil, SiteConfig consults it at render time so the two admin
+	// dashboards' overrides take effect on public pages immediately (override ||
+	// config). *settings.Service satisfies it (reuse the same instance as
+	// AppearanceSvc/AnalyticsSvc). Optional; a nil reader leaves the config-only
+	// path byte-identical (no overlay).
+	SettingsReader SiteOverrideReader
+
 	// AnalyticsSvc backs the public GA4 + GTM snippet injection (M15-1): it reads
 	// the (settings-backed, admin-editable in a later slice) analytics container
 	// ids. *settings.Service satisfies it. When non-nil, AnalyticsMiddleware is
@@ -216,6 +224,15 @@ func Router(d Deps) http.Handler {
 	// service leaves the accessor unset (MenuForLocation yields nothing).
 	if d.MenuPublicSvc != nil {
 		webtempl.SetMenuSource(menuPublicSource{svc: d.MenuPublicSvc})
+	}
+
+	// Wire the live settings overlay onto the site config BEFORE any handler (or
+	// the crawler) copies it (M15-2). SiteConfig carries the reader as an
+	// interface value, so every downstream .WithSite(d.Site) copy shares it and
+	// reflects override writes live. A nil reader is a no-op (config-only path
+	// stays byte-identical).
+	if d.SettingsReader != nil {
+		d.Site = d.Site.WithOverrides(d.SettingsReader)
 	}
 
 	r := chi.NewRouter()
@@ -325,7 +342,7 @@ func Router(d Deps) http.Handler {
 					CanonicalPath: "/",
 					OGType:        "website",
 				})
-				if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeStructured(seo, d.Site.homeJSONLD())); err != nil {
+				if err := render.Component(req.Context(), w, http.StatusOK, webtempl.HomeStructured(seo, d.Site.homeJSONLD(req.Context()))); err != nil {
 					http.Error(w, "render error", http.StatusInternalServerError)
 				}
 			})
@@ -530,6 +547,7 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountMediaAdmin(gr, d, shell)
 	mountCommentsAdmin(gr, d, shell)
 	mountAppearanceAdmin(gr, d, shell)
+	mountSettingsAdmin(gr, d, shell)
 	mountMenusAdmin(gr, d, shell)
 	mountPluginsAdmin(gr, d, shell)
 	mountAccount(gr, d)
@@ -610,6 +628,39 @@ func mountAppearanceAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 			Get("/", h.Show)
 		ar.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectTheme)).
 			Post("/activate", h.Activate)
+	})
+}
+
+// mountSettingsAdmin wires the two gated admin settings dashboards (M15-2):
+// General (site identity) and SEO & GEO (indexing, verification, analytics,
+// Organization). Both read behind read:setting and write behind update:setting.
+// The SEO dashboard also edits the M15-1 analytics ids. Mounted only when the
+// settings service (SettingsReader) + authz are wired; the writes go through the
+// same *settings.Service that backs the live overlay, so a save is immediately
+// reflected on public pages.
+func mountSettingsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	store, ok := d.SettingsReader.(SettingsStore)
+	if !ok || d.Authz == nil {
+		return
+	}
+
+	general := NewSettingsGeneralHandler(store, d.Site, shell, d.CSRFFunc)
+	seo := NewSettingsSEOHandler(store, d.Site, shell, d.CSRFFunc)
+
+	gr.Route("/admin/settings/general", func(sr chi.Router) {
+		sr.Use(d.AuthMW.RequireAuth)
+		sr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectSetting)).
+			Get("/", general.Show)
+		sr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectSetting)).
+			Post("/", general.Save)
+	})
+
+	gr.Route("/admin/settings/seo", func(sr chi.Router) {
+		sr.Use(d.AuthMW.RequireAuth)
+		sr.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectSetting)).
+			Get("/", seo.Show)
+		sr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectSetting)).
+			Post("/", seo.Save)
 	})
 }
 

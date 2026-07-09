@@ -1,0 +1,103 @@
+package templ
+
+// SettingsSEOPage renders the SEO & GEO settings dashboard: indexing gates,
+// search-engine verification tokens, the analytics container ids, and the
+// Organization JSON-LD / GEO identity, grouped into eyebrow-labeled sections.
+// Each field is pre-filled with its current effective value; empty clears the
+// override.
+templ SettingsSEOPage(v SettingsSEOView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="settings-seo" class="mx-auto max-w-2xl">
+			<div class="mb-6">
+				<h2 class="text-h3 text-text">SEO &amp; GEO</h2>
+				<p class="mt-1 text-small text-muted">Indexing, search-engine verification, analytics, and your Organization identity for structured data. Leave a field empty to fall back to the configured default.</p>
+			</div>
+			if v.Saved {
+				<div role="status" data-testid="settings-saved" class="mb-4 rounded-md border border-primary bg-primary/10 p-3 text-small text-primary">Settings saved.</div>
+			}
+			if v.Error != "" {
+				<div role="alert" data-testid="settings-error" class="mb-4 rounded-md border border-error bg-error-bg p-3 text-small text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.SaveURL) } class="space-y-8" data-testid="settings-seo-form">
+				@csrfField(v.CSRFToken)
+
+				<div class="space-y-4">
+					@settingsSectionLabel("Indexing")
+					@settingsCheckbox("global_noindex", "Global noindex", v.GlobalNoindex, "Block all crawlers site-wide (staging gate).")
+					@settingsCheckbox("allow_ai_crawlers", "Allow AI crawlers", v.AllowAICrawlers, "Permit well-known AI crawlers (GPTBot, ClaudeBot, …) in robots.txt.")
+				</div>
+
+				<div class="space-y-4">
+					@settingsSectionLabel("Search-engine verification")
+					@settingsTextField("google_verification", "Google", v.GoogleVerification, "text", "")
+					@settingsTextField("bing_verification", "Bing", v.BingVerification, "text", "")
+					@settingsTextField("yandex_verification", "Yandex", v.YandexVerification, "text", "")
+					@settingsTextField("pinterest_verification", "Pinterest", v.PinterestVerification, "text", "")
+				</div>
+
+				<div class="space-y-4">
+					@settingsSectionLabel("Analytics")
+					@settingsTextField("ga4_id", "GA4 Measurement ID", v.GA4ID, "text", "e.g. G-XXXXXXX.")
+					@settingsTextField("gtm_id", "GTM Container ID", v.GTMID, "text", "e.g. GTM-XXXXXX.")
+				</div>
+
+				<div class="space-y-4">
+					@settingsSectionLabel("Organization (structured data / GEO)")
+					@settingsTextField("org_name", "Name", v.OrgName, "text", "")
+					@settingsTextField("org_legal_name", "Legal name", v.OrgLegalName, "text", "")
+					@settingsTextField("org_logo", "Logo URL", v.OrgLogo, "text", "URL or rooted path.")
+					@settingsTextField("org_email", "Email", v.OrgEmail, "text", "")
+					@settingsTextField("org_phone", "Phone", v.OrgPhone, "text", "")
+					@settingsTextField("org_street", "Street address", v.OrgStreet, "text", "")
+					@settingsTextField("org_locality", "Locality / city", v.OrgLocality, "text", "")
+					@settingsTextField("org_region", "Region / state", v.OrgRegion, "text", "")
+					@settingsTextField("org_postal_code", "Postal code", v.OrgPostalCode, "text", "")
+					@settingsTextField("org_country", "Country", v.OrgCountry, "text", "")
+					@settingsTextarea("org_same_as", "Same-as URLs", v.OrgSameAs, 4, "One profile URL per line.")
+					@settingsTextarea("org_geo_statement", "GEO statement", v.OrgGeoStatement, 3, "A short statement of who/where you serve (used as the Organization description).")
+				</div>
+
+				<button type="submit" data-testid="action-save-seo" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save changes</button>
+			</form>
+		</section>
+	}
+}
+
+// settingsSectionLabel renders a mono-uppercase eyebrow section label
+// (DESIGN_SYSTEM §5).
+templ settingsSectionLabel(label string) {
+	<h3 class="font-mono text-eyebrow uppercase tracking-widest text-muted">{ label }</h3>
+}
+
+// settingsCheckbox renders a labeled checkbox with a helper line. A checked box
+// posts its value; an unchecked one posts nothing (the handler maps that to "0").
+templ settingsCheckbox(name, label string, checked bool, help string) {
+	<label class="flex items-start gap-3">
+		<input
+			type="checkbox" id={ name } name={ name } value="1" checked?={ checked }
+			data-testid={ "field-" + name }
+			class="mt-0.5 h-4 w-4 rounded border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		/>
+		<span>
+			<span class="block text-small font-medium text-text">{ label }</span>
+			if help != "" {
+				<span class="block text-caption text-muted">{ help }</span>
+			}
+		</span>
+	</label>
+}
+
+// settingsTextarea renders a labeled multi-line field with an optional helper.
+templ settingsTextarea(name, label, value string, rows int, help string) {
+	<div>
+		<label for={ name } class="block text-small font-medium text-text">{ label }</label>
+		if help != "" {
+			<p class="mt-0.5 text-caption text-muted">{ help }</p>
+		}
+		<textarea
+			id={ name } name={ name } rows={ rows }
+			data-testid={ "field-" + name }
+			class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+		>{ value }</textarea>
+	</div>
+}
