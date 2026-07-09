@@ -55,6 +55,21 @@ func validateGTMID(id string) string {
 	return ""
 }
 
+// ValidateGA4ID reports whether id is a well-formed GA4 / gtag.js measurement or
+// tag id. It is the exported seam the REST API's SEO-profile PUT uses to reject a
+// malformed non-empty id before it is persisted, reusing the exact same pattern
+// the public middleware validates against.
+func ValidateGA4ID(id string) bool {
+	return ga4IDPattern.MatchString(id)
+}
+
+// ValidateGTMID reports whether id is a well-formed Google Tag Manager container
+// id. It is the exported seam the REST API's SEO-profile PUT uses (see
+// ValidateGA4ID).
+func ValidateGTMID(id string) bool {
+	return gtmIDPattern.MatchString(id)
+}
+
 // AnalyticsMiddleware builds the public analytics middleware (M15-1). It reads
 // the GA4 + GTM ids from the settings store, VALIDATES each against its strict
 // pattern (invalid/empty ids dropped = disabled), and stores the resulting

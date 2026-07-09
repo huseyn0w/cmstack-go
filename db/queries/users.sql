@@ -34,6 +34,18 @@ SET avatar_path = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: ListUsers :many
+SELECT * FROM users ORDER BY created_at, id LIMIT $1 OFFSET $2;
+
+-- name: CountUsers :one
+SELECT count(*) FROM users;
+
+-- name: UpdateUserAdmin :one
+UPDATE users
+SET name = $2, role_id = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: SetUserPassword :exec
 UPDATE users
 SET password_hash = $2, password_changed_at = now(), updated_at = now()

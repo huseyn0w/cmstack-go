@@ -15,6 +15,7 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/cmstack-go/internal/content/services"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 )
@@ -94,6 +95,34 @@ type CommentService interface {
 	Delete(ctx context.Context, actorID, id uuid.UUID) error
 }
 
+// SettingsService is the narrow settings surface the settings + SEO-profile
+// endpoints need. *settings.Service satisfies it.
+type SettingsService interface {
+	ActiveTheme(ctx context.Context) string
+	SetActiveTheme(ctx context.Context, id string) error
+	Get(ctx context.Context, key string) (string, bool, error)
+	Set(ctx context.Context, key, value string) error
+}
+
+// ServiceManager is the narrow surface the services (content type) + FAQ
+// endpoints need. *services.Manager satisfies it.
+type ServiceManager interface {
+	AdminList(ctx context.Context, f services.ListFilter) ([]services.Service, int, error)
+	Get(ctx context.Context, actorID, id uuid.UUID) (services.Service, error)
+	Create(ctx context.Context, actorID uuid.UUID, in services.CreateInput) (services.Service, error)
+	Update(ctx context.Context, actorID, id uuid.UUID, in services.UpdateInput) (services.Service, error)
+	Trash(ctx context.Context, actorID, id uuid.UUID) error
+}
+
+// UserAdminService is the narrow surface the users-admin endpoints need.
+// *accounts.UserAdminService satisfies it.
+type UserAdminService interface {
+	ListUsers(ctx context.Context, limit, offset int) ([]accounts.User, int, error)
+	ListRoles(ctx context.Context) ([]accounts.Role, error)
+	GetUser(ctx context.Context, id uuid.UUID) (accounts.User, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, name string, roleID uuid.UUID) (accounts.User, error)
+}
+
 // Deps are the explicit dependencies the API router needs. Auth is the shared
 // RBAC middleware (the single source of truth); TokenAuth is the bearer-token
 // authentication middleware that populates the request user; the remaining
@@ -108,6 +137,9 @@ type Deps struct {
 	Tags       TagService
 	Media      MediaService
 	Comments   CommentService
+	Settings   SettingsService
+	Services   ServiceManager
+	Users      UserAdminService
 }
 
 // handler holds the API's content services. It carries no state beyond them.
@@ -118,6 +150,9 @@ type handler struct {
 	tags       TagService
 	media      MediaService
 	comments   CommentService
+	settings   SettingsService
+	services   ServiceManager
+	users      UserAdminService
 }
 
 // Mount registers the /api/v1 group on r. The group runs the bearer-token auth
@@ -132,6 +167,9 @@ func Mount(r chi.Router, d Deps) {
 		tags:       d.Tags,
 		media:      d.Media,
 		comments:   d.Comments,
+		settings:   d.Settings,
+		services:   d.Services,
+		users:      d.Users,
 	}
 
 	r.Route("/api/v1", func(ar chi.Router) {
@@ -207,6 +245,44 @@ func Mount(r chi.Router, d Deps) {
 			ar.With(gate(accounts.ActionUpdate)).Post("/comments/{id}/spam", h.spamComment)
 			ar.With(gate(accounts.ActionUpdate)).Post("/comments/{id}/trash", h.trashComment)
 			ar.With(gate(accounts.ActionDelete)).Delete("/comments/{id}", h.deleteComment)
+		}
+
+		if d.Settings != nil {
+			gate := func(action string) func(http.Handler) http.Handler {
+				return d.Auth.RequirePermission(action, accounts.SubjectSetting)
+			}
+			ar.With(gate(accounts.ActionRead)).Get("/settings/theme", h.getTheme)
+			ar.With(gate(accounts.ActionUpdate)).Put("/settings/theme", h.updateTheme)
+			ar.With(gate(accounts.ActionRead)).Get("/seo/profile", h.getSEOProfile)
+			ar.With(gate(accounts.ActionUpdate)).Put("/seo/profile", h.updateSEOProfile)
+		}
+
+		if d.Services != nil {
+			gate := func(action string) func(http.Handler) http.Handler {
+				return d.Auth.RequirePermission(action, accounts.SubjectService)
+			}
+			ar.With(gate(accounts.ActionRead)).Get("/services", h.listServices)
+			ar.With(gate(accounts.ActionRead)).Get("/services/{id}", h.getService)
+			ar.With(gate(accounts.ActionCreate)).Post("/services", h.createService)
+			ar.With(gate(accounts.ActionUpdate)).Patch("/services/{id}", h.updateService)
+			ar.With(gate(accounts.ActionDelete)).Delete("/services/{id}", h.trashService)
+
+			ar.With(gate(accounts.ActionRead)).Get("/services/{id}/faqs", h.listServiceFAQs)
+			ar.With(gate(accounts.ActionUpdate)).Post("/services/{id}/faqs", h.createServiceFAQ)
+			ar.With(gate(accounts.ActionUpdate)).Patch("/services/{id}/faqs/{faqId}", h.updateServiceFAQ)
+			ar.With(gate(accounts.ActionUpdate)).Delete("/services/{id}/faqs/{faqId}", h.deleteServiceFAQ)
+		}
+
+		if d.Users != nil {
+			gate := func(action string) func(http.Handler) http.Handler {
+				return d.Auth.RequirePermission(action, accounts.SubjectUser)
+			}
+			ar.With(gate(accounts.ActionRead)).Get("/users", h.listUsers)
+			// /roles is a distinct top-level path so chi never treats "roles" as a
+			// {id} on /users/{id} (avoids the route collision entirely).
+			ar.With(gate(accounts.ActionRead)).Get("/roles", h.listRoles)
+			ar.With(gate(accounts.ActionRead)).Get("/users/{id}", h.getUser)
+			ar.With(gate(accounts.ActionUpdate)).Patch("/users/{id}", h.updateUser)
 		}
 	})
 }

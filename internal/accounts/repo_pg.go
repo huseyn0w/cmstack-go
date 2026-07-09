@@ -17,6 +17,9 @@ import (
 // locally keeps the repos honest about their data access and testable.
 type querier interface {
 	GetUserByID(ctx context.Context, id pgtype.UUID) (sqlcgen.User, error)
+	ListUsers(ctx context.Context, arg sqlcgen.ListUsersParams) ([]sqlcgen.User, error)
+	CountUsers(ctx context.Context) (int64, error)
+	UpdateUserAdmin(ctx context.Context, arg sqlcgen.UpdateUserAdminParams) (sqlcgen.User, error)
 	GetUserByEmail(ctx context.Context, email string) (sqlcgen.User, error)
 	GetUserByUsername(ctx context.Context, username *string) (sqlcgen.User, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
@@ -28,6 +31,7 @@ type querier interface {
 
 	GetRoleByKey(ctx context.Context, key string) (sqlcgen.Role, error)
 	GetRoleByID(ctx context.Context, id pgtype.UUID) (sqlcgen.Role, error)
+	ListRoles(ctx context.Context) ([]sqlcgen.Role, error)
 	ListRolePermissions(ctx context.Context) ([]sqlcgen.ListRolePermissionsRow, error)
 
 	CreateEmailVerificationToken(ctx context.Context, arg sqlcgen.CreateEmailVerificationTokenParams) (sqlcgen.EmailVerificationToken, error)
@@ -61,6 +65,41 @@ func NewUserRepoPG(q *sqlcgen.Queries) *UserRepoPG { return &UserRepoPG{q: q} }
 // GetByID loads a user by id, returning ErrNotFound when absent.
 func (r *UserRepoPG) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row, err := r.q.GetUserByID(ctx, toPgUUID(id))
+	return userFromRow(row), mapErr(err)
+}
+
+// List returns a page of users ordered by creation time (id as a stable
+// tie-break). It is the admin Users listing read path.
+func (r *UserRepoPG) List(ctx context.Context, limit, offset int) ([]User, error) {
+	rows, err := r.q.ListUsers(ctx, sqlcgen.ListUsersParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]User, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, userFromRow(row))
+	}
+	return out, nil
+}
+
+// Count returns the total number of users (for admin-list pagination).
+func (r *UserRepoPG) Count(ctx context.Context) (int, error) {
+	n, err := r.q.CountUsers(ctx)
+	return int(n), mapErr(err)
+}
+
+// UpdateAdmin persists the admin-editable fields (name, role) and returns the
+// updated user. It is the admin Users edit write path (distinct from the
+// self-service UpdateProfileTx).
+func (r *UserRepoPG) UpdateAdmin(ctx context.Context, id uuid.UUID, name string, roleID uuid.UUID) (User, error) {
+	row, err := r.q.UpdateUserAdmin(ctx, sqlcgen.UpdateUserAdminParams{
+		ID:     toPgUUID(id),
+		Name:   name,
+		RoleID: toPgUUID(roleID),
+	})
 	return userFromRow(row), mapErr(err)
 }
 
@@ -149,7 +188,7 @@ func (r *RoleRepoPG) GetByKey(ctx context.Context, key string) (Role, error) {
 	if err != nil {
 		return Role{}, mapErr(err)
 	}
-	return Role{ID: fromPgUUID(row.ID), Key: row.Key, Label: row.Label}, nil
+	return roleFromRow(row), nil
 }
 
 // GetByID loads a role by id.
@@ -158,7 +197,21 @@ func (r *RoleRepoPG) GetByID(ctx context.Context, id uuid.UUID) (Role, error) {
 	if err != nil {
 		return Role{}, mapErr(err)
 	}
-	return Role{ID: fromPgUUID(row.ID), Key: row.Key, Label: row.Label}, nil
+	return roleFromRow(row), nil
+}
+
+// List returns every role ordered by key. It is the admin Users area's role
+// picker source.
+func (r *RoleRepoPG) List(ctx context.Context) ([]Role, error) {
+	rows, err := r.q.ListRoles(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	out := make([]Role, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, roleFromRow(row))
+	}
+	return out, nil
 }
 
 // AllRolePermissions returns the role-key -> permissions map for the authorizer.
@@ -372,6 +425,10 @@ func userFromRow(u sqlcgen.User) User {
 		CreatedAt:         u.CreatedAt.Time,
 		UpdatedAt:         u.UpdatedAt.Time,
 	}
+}
+
+func roleFromRow(r sqlcgen.Role) Role {
+	return Role{ID: fromPgUUID(r.ID), Key: r.Key, Label: r.Label}
 }
 
 func tokenFromEmail(t sqlcgen.EmailVerificationToken) Token {

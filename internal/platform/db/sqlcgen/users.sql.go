@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUsers = `-- name: CountUsers :one
+SELECT count(*) FROM users
+`
+
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsersByEmail = `-- name: CountUsersByEmail :one
 SELECT count(*) FROM users WHERE email = $1
 `
@@ -161,6 +172,51 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User
 	return i, err
 }
 
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url FROM users ORDER BY created_at, id LIMIT $1 OFFSET $2
+`
+
+type ListUsersParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.PasswordHash,
+			&i.Name,
+			&i.EmailVerifiedAt,
+			&i.RoleID,
+			&i.Bio,
+			&i.AvatarPath,
+			&i.Website,
+			&i.SocialLinks,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PasswordChangedAt,
+			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markEmailVerified = `-- name: MarkEmailVerified :exec
 UPDATE users
 SET email_verified_at = now(), updated_at = now()
@@ -221,6 +277,42 @@ type SetUserPasswordParams struct {
 func (q *Queries) SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, setUserPassword, arg.ID, arg.PasswordHash)
 	return err
+}
+
+const updateUserAdmin = `-- name: UpdateUserAdmin :one
+UPDATE users
+SET name = $2, role_id = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, email, username, password_hash, name, email_verified_at, role_id, bio, avatar_path, website, social_links, created_at, updated_at, password_changed_at, avatar_url
+`
+
+type UpdateUserAdminParams struct {
+	ID     pgtype.UUID `json:"id"`
+	Name   string      `json:"name"`
+	RoleID pgtype.UUID `json:"role_id"`
+}
+
+func (q *Queries) UpdateUserAdmin(ctx context.Context, arg UpdateUserAdminParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAdmin, arg.ID, arg.Name, arg.RoleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Name,
+		&i.EmailVerifiedAt,
+		&i.RoleID,
+		&i.Bio,
+		&i.AvatarPath,
+		&i.Website,
+		&i.SocialLinks,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordChangedAt,
+		&i.AvatarUrl,
+	)
+	return i, err
 }
 
 const updateUserProfile = `-- name: UpdateUserProfile :one

@@ -39,6 +39,7 @@ type Querier interface {
 	CountTrashedPages(ctx context.Context) (int64, error)
 	CountTrashedPosts(ctx context.Context) (int64, error)
 	CountTrashedServices(ctx context.Context) (int64, error)
+	CountUsers(ctx context.Context) (int64, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
@@ -259,6 +260,7 @@ type Querier interface {
 	ListTrashedPages(ctx context.Context, arg ListTrashedPagesParams) ([]Page, error)
 	ListTrashedPosts(ctx context.Context, arg ListTrashedPostsParams) ([]Post, error)
 	ListTrashedServices(ctx context.Context, arg ListTrashedServicesParams) ([]Service, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	MarkEmailVerified(ctx context.Context, id pgtype.UUID) error
 	MarkOutboxProcessed(ctx context.Context, id int64) error
 	PermanentDeletePage(ctx context.Context, id pgtype.UUID) error
@@ -313,6 +315,7 @@ type Querier interface {
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateService(ctx context.Context, arg UpdateServiceParams) (Service, error)
 	UpdateTag(ctx context.Context, arg UpdateTagParams) (Tag, error)
+	UpdateUserAdmin(ctx context.Context, arg UpdateUserAdminParams) (User, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	// Insert or update the translation row for (category_id, locale). Callers pass a
 	// NON-default locale (en content lives on the base categories row). Description

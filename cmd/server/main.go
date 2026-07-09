@@ -185,6 +185,10 @@ func run() error {
 	}
 	profileSvc := accounts.NewProfileService(pool, userRepo, roleRepo, blobStore)
 
+	// Admin Users area (M17-3): thin list/read/edit over the existing user/role
+	// repos, backing the REST /users + /roles endpoints.
+	userAdminSvc := accounts.NewUserAdminService(userRepo, roleRepo)
+
 	// Idempotent seed: roles, permissions, mappings, default administrator.
 	seeder := accounts.NewSeeder(pool, queries, userRepo, roleRepo, hasher)
 	if err := seeder.Seed(ctx, accounts.AdminSeed{Email: cfg.AdminEmail, Password: cfg.AdminPassword}); err != nil {
@@ -459,6 +463,9 @@ func run() error {
 				Tags:       tagSvc,
 				Media:      mediaSvc,
 				Comments:   commentSvc,
+				Settings:   settingsSvc,
+				Services:   serviceMgr,
+				Users:      userAdminSvc,
 			})
 		},
 	})

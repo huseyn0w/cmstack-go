@@ -68,6 +68,70 @@ const (
 	keyOrgGeoStatement = "org_geo_statement"
 )
 
+// SiteProfileKeys is the stable set of settings keys backing the admin-editable
+// site/SEO/Org/GEO profile plus the two analytics container ids. It is the SINGLE
+// exported source of truth the REST API's SEO-profile endpoints read/write
+// through, so the API never hardcodes duplicate key literals that could drift
+// from the M15 dashboards. Each field mirrors the corresponding unexported key
+// constant (analytics ids come from analytics.go).
+type SiteProfileKeys struct {
+	SiteName                 string
+	SiteDescription          string
+	SiteDefaultOGImage       string
+	SiteTwitterHandle        string
+	SEOGlobalNoindex         string
+	SEOAllowAICrawlers       string
+	SEOGoogleVerification    string
+	SEOBingVerification      string
+	SEOYandexVerification    string
+	SEOPinterestVerification string
+	AnalyticsGA4ID           string
+	AnalyticsGTMID           string
+	OrgName                  string
+	OrgLegalName             string
+	OrgLogo                  string
+	OrgEmail                 string
+	OrgPhone                 string
+	OrgStreet                string
+	OrgLocality              string
+	OrgRegion                string
+	OrgPostalCode            string
+	OrgCountry               string
+	OrgSameAs                string
+	OrgGeoStatement          string
+}
+
+// ProfileKeys returns the site-profile settings key set. Callers (the REST API)
+// read/write settings through these values rather than re-declaring the literals.
+func ProfileKeys() SiteProfileKeys {
+	return SiteProfileKeys{
+		SiteName:                 keySiteName,
+		SiteDescription:          keySiteDescription,
+		SiteDefaultOGImage:       keySiteDefaultOGImage,
+		SiteTwitterHandle:        keySiteTwitterHandle,
+		SEOGlobalNoindex:         keySEOGlobalNoindex,
+		SEOAllowAICrawlers:       keySEOAllowAICrawlers,
+		SEOGoogleVerification:    keySEOGoogleVerification,
+		SEOBingVerification:      keySEOBingVerification,
+		SEOYandexVerification:    keySEOYandexVerification,
+		SEOPinterestVerification: keySEOPinterestVerification,
+		AnalyticsGA4ID:           keyAnalyticsGA4ID,
+		AnalyticsGTMID:           keyAnalyticsGTMID,
+		OrgName:                  keyOrgName,
+		OrgLegalName:             keyOrgLegalName,
+		OrgLogo:                  keyOrgLogo,
+		OrgEmail:                 keyOrgEmail,
+		OrgPhone:                 keyOrgPhone,
+		OrgStreet:                keyOrgStreet,
+		OrgLocality:              keyOrgLocality,
+		OrgRegion:                keyOrgRegion,
+		OrgPostalCode:            keyOrgPostalCode,
+		OrgCountry:               keyOrgCountry,
+		OrgSameAs:                keyOrgSameAs,
+		OrgGeoStatement:          keyOrgGeoStatement,
+	}
+}
+
 // WithOverrides returns a copy of the SiteConfig wired to the given override
 // reader. It mirrors the WithSite value-copy idiom: the reader is an interface
 // (a reference under the hood), so every downstream value-copy of the returned

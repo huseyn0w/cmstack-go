@@ -4,12 +4,16 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/huseyn0w/cmstack-go/internal/accounts"
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/comments"
 	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
 	"github.com/huseyn0w/cmstack-go/internal/content/media"
 	"github.com/huseyn0w/cmstack-go/internal/content/pages"
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/cmstack-go/internal/content/services"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
 )
 
@@ -89,6 +93,69 @@ func toPageDetailDTO(p pages.Page) pageDTO {
 	dto := toPageDTO(p)
 	dto.Body = p.Body
 	return dto
+}
+
+// serviceDTO is the stable, public JSON shape of a service page. As with the
+// post/page DTOs it exposes only the contract fields; Body + FAQs are populated
+// on detail reads only (list reads carry the summary projection).
+type serviceDTO struct {
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Slug        string     `json:"slug"`
+	Summary     string     `json:"summary"`
+	Body        string     `json:"body,omitempty"`
+	Status      string     `json:"status"`
+	PublishedAt *time.Time `json:"publishedAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	FAQs        []faqDTO   `json:"faqs,omitempty"`
+}
+
+// toServiceDTO maps a domain service onto the list DTO (no body, no FAQs).
+func toServiceDTO(s services.Service) serviceDTO {
+	return serviceDTO{
+		ID:          s.ID.String(),
+		Title:       s.Title,
+		Slug:        s.Slug,
+		Summary:     s.Summary,
+		Status:      s.Status.String(),
+		PublishedAt: s.PublishedAt,
+		UpdatedAt:   s.UpdatedAt,
+	}
+}
+
+// toServiceDetailDTO maps a domain service onto the detail DTO (body + FAQs).
+func toServiceDetailDTO(s services.Service) serviceDTO {
+	dto := toServiceDTO(s)
+	dto.Body = s.Body
+	dto.FAQs = toFaqDTOs(s.FAQs)
+	return dto
+}
+
+// faqDTO is the stable JSON shape of one ordered FAQ entry on a service.
+type faqDTO struct {
+	ID       string `json:"id"`
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+	Position int    `json:"position"`
+}
+
+// toFaqDTO maps one domain FAQ onto its DTO.
+func toFaqDTO(f services.FAQ) faqDTO {
+	return faqDTO{
+		ID:       f.ID.String(),
+		Question: f.Question,
+		Answer:   f.Answer,
+		Position: f.Position,
+	}
+}
+
+// toFaqDTOs maps a service's ordered FAQ list onto DTOs.
+func toFaqDTOs(faqs []services.FAQ) []faqDTO {
+	out := make([]faqDTO, 0, len(faqs))
+	for _, f := range faqs {
+		out = append(out, toFaqDTO(f))
+	}
+	return out
 }
 
 // listResponse is the paginated list payload nested under the "data" envelope
@@ -220,6 +287,51 @@ func toCommentDTO(c comments.Comment) commentDTO {
 		CreatedAt:   c.CreatedAt,
 		EditedAt:    c.EditedAt,
 	}
+}
+
+// userDTO is the stable, admin-only JSON shape of a user account. It DELIBERATELY
+// omits every sensitive field (passwordHash, passwordChangedAt, social links);
+// email is included because this is the gated, admin-only Users surface. roleName
+// is the resolved role label, populated when the caller has it.
+type userDTO struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	RoleID    string    `json:"roleId"`
+	RoleName  string    `json:"roleName,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// toUserDTO maps a domain user onto its admin DTO. roleName is resolved from the
+// supplied role-label lookup (empty when the role is unknown). The password hash
+// and other sensitive fields are never copied.
+func toUserDTO(u accounts.User, roleName func(id uuid.UUID) string) userDTO {
+	name := ""
+	if roleName != nil {
+		name = roleName(u.RoleID)
+	}
+	return userDTO{
+		ID:        u.ID.String(),
+		Email:     u.Email,
+		Username:  u.Username,
+		Name:      u.Name,
+		RoleID:    u.RoleID.String(),
+		RoleName:  name,
+		CreatedAt: u.CreatedAt,
+	}
+}
+
+// roleDTO is the stable JSON shape of a role (id + key + human label).
+type roleDTO struct {
+	ID    string `json:"id"`
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// toRoleDTO maps a domain role onto its DTO.
+func toRoleDTO(r accounts.Role) roleDTO {
+	return roleDTO{ID: r.ID.String(), Key: r.Key, Label: r.Label}
 }
 
 // revisionDTO is the stable JSON shape of a content revision. It exposes the
