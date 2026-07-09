@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/cmstack-go/internal/api"
+	"github.com/huseyn0w/cmstack-go/internal/apitoken"
 	"github.com/huseyn0w/cmstack-go/internal/contact"
 	"github.com/huseyn0w/cmstack-go/internal/content/categories"
 	"github.com/huseyn0w/cmstack-go/internal/content/comments"
@@ -190,6 +192,14 @@ func run() error {
 	}
 
 	authMW := web.NewAuthMiddleware(sess, userRepo, authz)
+
+	// REST API bearer tokens (M17-1): the token service over the shared querier,
+	// and the stateless bearer-auth middleware built on it. APITokenAuth resolves a
+	// token to a user and stores it with the SAME context key the session
+	// middleware uses, so RequirePermission is the single RBAC source of truth on
+	// API routes.
+	apiTokenSvc := apitoken.NewService(apitoken.NewRepoPG(queries))
+	apiTokenAuth := authMW.APITokenAuth(apiTokenSvc)
 
 	// Social login (OAuth). Providers are registered ONLY when their credentials
 	// are present; with none configured, enabled is empty and no buttons/routes
@@ -436,6 +446,17 @@ func run() error {
 		// display name for the per-category channel title.
 		FeedPostSvc:       postSvc,
 		FeedCategoryNamer: web.NewCategoryFeedNamer(categorySvc),
+
+		// REST API (M17-1): mounted on the root router, outside session/CSRF. The
+		// hook keeps the dependency direction api -> web (web never imports api).
+		APIMounter: func(r chi.Router) {
+			api.Mount(r, api.Deps{
+				Auth:      authMW,
+				TokenAuth: apiTokenAuth,
+				Posts:     postSvc,
+				Pages:     pageSvc,
+			})
+		},
 	})
 
 	srv := &http.Server{

@@ -215,6 +215,14 @@ type Deps struct {
 	// public post handler (so the "post_content" filter runs over the rendered
 	// body). Optional; a nil manager is a no-op (no regions, no filtering).
 	Plugins *plugin.Manager
+
+	// APIMounter mounts the stateless REST API group (M17-1) on the ROOT router,
+	// OUTSIDE the session/CSRF group, alongside the health/crawler routes. It is a
+	// hook (a closure the caller wires to api.Mount) so the direction of the
+	// dependency stays api -> web: internal/api imports internal/web, so
+	// internal/web must never import internal/api. Optional; a nil hook leaves the
+	// API unmounted (reduced-Deps tests keep working).
+	APIMounter func(chi.Router)
 }
 
 // Router builds the chi router with the full middleware chain and mounts all
@@ -311,6 +319,13 @@ func Router(d Deps) http.Handler {
 		feed := NewFeedHandler(d.Site, d.FeedPostSvc, d.FeedCategoryNamer)
 		r.Get("/rss.xml", feed.Feed)
 		r.Get("/categories/{slug}/rss.xml", feed.CategoryFeed)
+	}
+
+	// REST API (M17-1). Mounted on the ROOT router — OUTSIDE the session/CSRF
+	// group below — because bearer-token auth is stateless and CSRF-exempt. The
+	// hook wires api.Mount; the direction stays api -> web (web never imports api).
+	if d.APIMounter != nil {
+		d.APIMounter(r)
 	}
 
 	// Application routes carry session + CSRF.

@@ -41,6 +41,7 @@ type Querier interface {
 	CountTrashedServices(ctx context.Context) (int64, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
+	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
@@ -78,6 +79,7 @@ type Querier interface {
 	DetachAllPostTags(ctx context.Context, postID pgtype.UUID) error
 	EnqueueOutbox(ctx context.Context, arg EnqueueOutboxParams) error
 	FetchUnprocessedOutbox(ctx context.Context, limit int32) ([]Outbox, error)
+	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	GetActivePageByID(ctx context.Context, id pgtype.UUID) (Page, error)
 	// Load an ACTIVE (non-trashed) page by id with its title/body OVERLAID by the
 	// given locale's translation where present, falling back to the base row for any
@@ -172,6 +174,7 @@ type Querier interface {
 	GrantPermission(ctx context.Context, arg GrantPermissionParams) error
 	HasLiked(ctx context.Context, arg HasLikedParams) (bool, error)
 	LikePost(ctx context.Context, arg LikePostParams) (int64, error)
+	ListAPITokensByUser(ctx context.Context, userID pgtype.UUID) ([]ApiToken, error)
 	ListAllActivePages(ctx context.Context) ([]Page, error)
 	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListAllTags(ctx context.Context) ([]Tag, error)
@@ -265,6 +268,7 @@ type Querier interface {
 	RestorePage(ctx context.Context, id pgtype.UUID) error
 	RestorePost(ctx context.Context, id pgtype.UUID) error
 	RestoreService(ctx context.Context, id pgtype.UUID) error
+	RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) error
 	// M6 Search queries. A UNION across the three public content types (posts,
 	// pages, services), scoped to published + non-trashed rows. Two strategies:
 	//   1. SearchFTS  — websearch_to_tsquery match, ranked by ts_rank (title>body via
@@ -294,6 +298,7 @@ type Querier interface {
 	SitemapPosts(ctx context.Context) ([]SitemapPostsRow, error)
 	// Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
 	SitemapServices(ctx context.Context) ([]SitemapServicesRow, error)
+	TouchAPIToken(ctx context.Context, id pgtype.UUID) error
 	TrashPage(ctx context.Context, id pgtype.UUID) error
 	TrashPost(ctx context.Context, id pgtype.UUID) error
 	TrashService(ctx context.Context, id pgtype.UUID) error
