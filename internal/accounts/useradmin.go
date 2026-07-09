@@ -12,12 +12,18 @@ import (
 // error.
 var ErrRoleNotFound = errors.New("accounts: role not found")
 
+// ErrLastAdmin is returned when an update would demote the last remaining
+// administrator, which would lock every operator out of the admin surface. The
+// API layer maps it to a 409 conflict.
+var ErrLastAdmin = errors.New("accounts: cannot demote the last administrator")
+
 // userAdminUserRepo is the narrow user-repository surface the users-admin
 // service needs: paginated listing, count, single load, and the admin field
 // write. *UserRepoPG satisfies it.
 type userAdminUserRepo interface {
 	List(ctx context.Context, limit, offset int) ([]User, error)
 	Count(ctx context.Context) (int, error)
+	CountByRole(ctx context.Context, roleID uuid.UUID) (int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (User, error)
 	UpdateAdmin(ctx context.Context, id uuid.UUID, name string, roleID uuid.UUID) (User, error)
 }
@@ -70,13 +76,38 @@ func (s *UserAdminService) GetUser(ctx context.Context, id uuid.UUID) (User, err
 
 // UpdateUser applies the admin-editable fields (name, role) to a user. It
 // validates the role id exists first (returning ErrRoleNotFound otherwise) so an
-// unknown role never lands on the row.
+// unknown role never lands on the row, and refuses to demote the last remaining
+// administrator (ErrLastAdmin) so the admin surface can never be locked out.
 func (s *UserAdminService) UpdateUser(ctx context.Context, id uuid.UUID, name string, roleID uuid.UUID) (User, error) {
-	if _, err := s.roles.GetByID(ctx, roleID); err != nil {
+	newRole, err := s.roles.GetByID(ctx, roleID)
+	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return User{}, ErrRoleNotFound
 		}
 		return User{}, err
 	}
+
+	// Last-administrator guard: if this change would move the target OUT of the
+	// administrator role, ensure at least one other administrator remains.
+	if newRole.Key != RoleAdministrator {
+		target, err := s.users.GetByID(ctx, id)
+		if err != nil {
+			return User{}, err
+		}
+		curRole, err := s.roles.GetByID(ctx, target.RoleID)
+		if err != nil {
+			return User{}, err
+		}
+		if curRole.Key == RoleAdministrator {
+			admins, err := s.users.CountByRole(ctx, target.RoleID)
+			if err != nil {
+				return User{}, err
+			}
+			if admins <= 1 {
+				return User{}, ErrLastAdmin
+			}
+		}
+	}
+
 	return s.users.UpdateAdmin(ctx, id, name, roleID)
 }

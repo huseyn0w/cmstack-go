@@ -121,13 +121,16 @@ func (h *handler) roleNamer(r *http.Request) func(id uuid.UUID) string {
 }
 
 // writeUserError maps a users-admin error onto the uniform JSON envelope:
-// not-found -> 404, unknown-role -> 422, everything else -> 500.
+// not-found -> 404, unknown-role -> 422, last-admin demotion -> 409, everything
+// else -> 500.
 func writeUserError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, accounts.ErrNotFound):
 		Fail(w, http.StatusNotFound, "not_found", "user not found")
 	case errors.Is(err, accounts.ErrRoleNotFound):
 		FailValidation(w, map[string]string{"roleId": "unknown role"})
+	case errors.Is(err, accounts.ErrLastAdmin):
+		Fail(w, http.StatusConflict, "last_admin", "cannot demote the last administrator")
 	default:
 		Fail(w, http.StatusInternalServerError, "internal", "failed to process user")
 	}

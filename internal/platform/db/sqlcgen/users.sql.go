@@ -33,6 +33,17 @@ func (q *Queries) CountUsersByEmail(ctx context.Context, email string) (int64, e
 	return count, err
 }
 
+const countUsersByRole = `-- name: CountUsersByRole :one
+SELECT count(*) FROM users WHERE role_id = $1
+`
+
+func (q *Queries) CountUsersByRole(ctx context.Context, roleID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByRole, roleID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsersByUsername = `-- name: CountUsersByUsername :one
 SELECT count(*) FROM users WHERE username = $1
 `

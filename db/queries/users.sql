@@ -55,3 +55,6 @@ WHERE id = $1;
 UPDATE users
 SET email_verified_at = now(), updated_at = now()
 WHERE id = $1;
+
+-- name: CountUsersByRole :one
+SELECT count(*) FROM users WHERE role_id = $1;

@@ -19,6 +19,12 @@ var aiCrawlerAgents = []string{
 	"Amazonbot",
 }
 
+// stripLineBreaks removes CR and LF from s so a value written into a
+// line-oriented text response (robots.txt) can never inject an extra line.
+func stripLineBreaks(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+}
+
 // Robots serves GET /robots.txt: a dynamic policy that always disallows the
 // admin/account/auth areas, advertises the sitemap, honors GlobalNoindex (a
 // staging gate that disallows everything), and — when AllowAICrawlers is false —
@@ -43,7 +49,10 @@ func (h *CrawlerHandler) Robots(w http.ResponseWriter, r *http.Request) {
 	if !h.site.resolveAllowAICrawlers(ctx) {
 		for _, ua := range aiCrawlerAgents {
 			b.WriteString("\nUser-agent: ")
-			b.WriteString(ua)
+			// Defensive: strip CR/LF so a UA value can never inject an extra
+			// directive line. The list is a compiled-in constant today, but this
+			// keeps the output safe if it ever becomes settings-driven.
+			b.WriteString(stripLineBreaks(ua))
 			b.WriteString("\nDisallow: /\n")
 		}
 	}

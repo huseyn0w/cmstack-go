@@ -17,11 +17,21 @@ import (
 	"github.com/huseyn0w/cmstack-go/internal/content/posts"
 	"github.com/huseyn0w/cmstack-go/internal/content/services"
 	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/cmstack-go/internal/platform/ratelimit"
 	"github.com/huseyn0w/cmstack-go/internal/web"
 )
 
 // defaultPerPage is the page size used when none is supplied.
 const defaultPerPage = 20
+
+// apiRatePerSec / apiRateBurst bound the per-IP request rate on the whole
+// /api/v1 surface. Bearer tokens are 256-bit, so this is defense-in-depth
+// against token-guessing and DoS rather than a primary control; the ceiling is
+// generous enough for legitimate automation (~10 req/s sustained, 30 burst).
+const (
+	apiRatePerSec = 10.0
+	apiRateBurst  = 30
+)
 
 // maxPerPage caps the client-requested page size so a single call cannot pull an
 // unbounded result set.
@@ -173,6 +183,10 @@ func Mount(r chi.Router, d Deps) {
 	}
 
 	r.Route("/api/v1", func(ar chi.Router) {
+		// Per-IP throttle across the whole API surface (defense-in-depth against
+		// token brute-force and DoS), applied before auth so unauthenticated
+		// floods are shed cheaply.
+		ar.Use(ratelimit.New(apiRatePerSec, apiRateBurst).Middleware)
 		if d.TokenAuth != nil {
 			ar.Use(d.TokenAuth)
 		}

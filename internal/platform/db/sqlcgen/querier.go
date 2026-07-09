@@ -41,6 +41,7 @@ type Querier interface {
 	CountTrashedServices(ctx context.Context) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CountUsersByEmail(ctx context.Context, email string) (int64, error)
+	CountUsersByRole(ctx context.Context, roleID pgtype.UUID) (int64, error)
 	CountUsersByUsername(ctx context.Context, username *string) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)

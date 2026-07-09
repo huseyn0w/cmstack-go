@@ -91,6 +91,13 @@ func (r *UserRepoPG) Count(ctx context.Context) (int, error) {
 	return int(n), mapErr(err)
 }
 
+// CountByRole returns how many users hold the given role. It backs the
+// last-administrator guard on the admin user-edit path.
+func (r *UserRepoPG) CountByRole(ctx context.Context, roleID uuid.UUID) (int, error) {
+	n, err := r.q.CountUsersByRole(ctx, toPgUUID(roleID))
+	return int(n), mapErr(err)
+}
+
 // UpdateAdmin persists the admin-editable fields (name, role) and returns the
 // updated user. It is the admin Users edit write path (distinct from the
 // self-service UpdateProfileTx).
