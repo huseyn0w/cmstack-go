@@ -15,6 +15,7 @@ const (
 	userCtxKey ctxKey = iota
 	localeCtxKey
 	themeCtxKey
+	analyticsCtxKey
 )
 
 // withUser returns a copy of ctx carrying the authenticated user.
@@ -87,6 +88,23 @@ func ActiveThemeFromContext(ctx context.Context) string {
 	return ""
 }
 
+// withAnalytics returns a copy of ctx carrying the request's VALIDATED analytics
+// snippets (M15-1). Only the public analytics middleware calls this, so the value
+// is absent on admin routes and nothing is emitted there (public-only isolation).
+func withAnalytics(ctx context.Context, s webtempl.AnalyticsSnippets) context.Context {
+	return context.WithValue(ctx, analyticsCtxKey, s)
+}
+
+// analyticsFromContext returns the validated analytics snippets stored by the
+// public analytics middleware, or the zero value (both ids empty = disabled) when
+// the middleware did not run (admin routes, reduced-Deps renders).
+func analyticsFromContext(ctx context.Context) webtempl.AnalyticsSnippets {
+	if s, ok := ctx.Value(analyticsCtxKey).(webtempl.AnalyticsSnippets); ok {
+		return s
+	}
+	return webtempl.AnalyticsSnippets{}
+}
+
 // localeViewSource adapts the web package's context accessors to the templ
 // package's localeViewSource interface, so the public layout can read the active
 // locale/translator/alternates without importing web (which would cycle).
@@ -114,4 +132,5 @@ func (themeViewSource) ActiveTheme(ctx context.Context) string {
 func init() {
 	webtempl.SetLocaleViewSource(localeViewSource{})
 	webtempl.SetThemeSource(themeViewSource{})
+	webtempl.SetAnalyticsSource(analyticsViewSource{})
 }

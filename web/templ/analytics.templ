@@ -1,0 +1,28 @@
+package templ
+
+// analyticsHead emits the Google Tag Manager and/or GA4 (gtag.js) head snippets
+// for the request, reading the ALREADY-VALIDATED container ids from context via
+// AnalyticsHead. Each snippet is omitted when its id is empty (disabled). The ids
+// are validated to a strict allow-list charset in the web layer, so the assembled
+// <script> strings are injection-safe and emitted verbatim via templ.Raw. This
+// runs on PUBLIC pages only: admin routes never populate the analytics context,
+// so AnalyticsHead returns the zero value there and nothing is emitted.
+templ analyticsHead() {
+	{{ a := AnalyticsHead(ctx) }}
+	if a.GTMID != "" {
+		@templ.Raw(gtmHead(a.GTMID))
+	}
+	if a.GA4ID != "" {
+		@templ.Raw(ga4Head(a.GA4ID))
+	}
+}
+
+// analyticsBodyStart emits the Google Tag Manager <noscript> fallback iframe that
+// GTM requires as the first child of <body>. Omitted when GTM is disabled. Same
+// public-only + validated-id safety guarantees as analyticsHead.
+templ analyticsBodyStart() {
+	{{ a := AnalyticsHead(ctx) }}
+	if a.GTMID != "" {
+		@templ.Raw(gtmBodyStart(a.GTMID))
+	}
+}

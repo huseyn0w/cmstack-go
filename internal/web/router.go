@@ -183,6 +183,14 @@ type Deps struct {
 	// Optional; when nil the appearance area is not mounted.
 	AppearanceSvc AppearanceSettings
 
+	// AnalyticsSvc backs the public GA4 + GTM snippet injection (M15-1): it reads
+	// the (settings-backed, admin-editable in a later slice) analytics container
+	// ids. *settings.Service satisfies it. When non-nil, AnalyticsMiddleware is
+	// applied on the PUBLIC route group only, so the validated ids are injected on
+	// public pages while admin routes emit nothing (public-only isolation).
+	// Optional; a nil service leaves analytics disabled.
+	AnalyticsSvc AnalyticsSettings
+
 	// Plugins is the in-process plugin manager (M10-1). When non-nil, Router
 	// registers the templ render-region source (so the public layout injects
 	// enabled plugins' head/body_end fragments) and threads the manager into the
@@ -296,6 +304,16 @@ func Router(d Deps) http.Handler {
 			// any render. It self-limits to anonymous, query-less, non-htmx GETs.
 			if d.PageCache != nil {
 				pr.Use(d.PageCache.Middleware)
+			}
+
+			// Public analytics (M15-1). Reads + validates the GA4/GTM ids from
+			// settings and stores the validated snippets in context for the layout
+			// to emit. Runs on this PUBLIC group only, so admin routes (mounted on
+			// the outer group) emit no analytics. It is safe to run after the page
+			// cache: the ids are identical for all anonymous users, so caching the
+			// analytics-injected HTML is correct.
+			if d.AnalyticsSvc != nil {
+				pr.Use(AnalyticsMiddleware(d.AnalyticsSvc))
 			}
 
 			// TODO(M1-ext): replace this inline closure with a real home handler in

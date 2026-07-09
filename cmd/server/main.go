@@ -401,6 +401,10 @@ func run() error {
 		Theme:         themeResolver,
 		AppearanceSvc: settingsSvc,
 
+		// Public analytics (M15-1): GA4 + GTM snippet injection on public pages,
+		// container ids read (and validated) from the settings store.
+		AnalyticsSvc: settingsSvc,
+
 		// Menus (M11-2): the gated /admin/menus builder. The item picker + slug
 		// resolution reuse the post/page/category read services via narrow listers.
 		MenuAdminSvc:      menuSvc,
