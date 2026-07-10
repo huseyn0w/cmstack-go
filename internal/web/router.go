@@ -193,6 +193,11 @@ type Deps struct {
 	// Optional; when nil the appearance area is not mounted.
 	AppearanceSvc AppearanceSettings
 
+	// UserAdminSvc backs the gated /admin/users list + per-user name/role edit
+	// form. *accounts.UserAdminService satisfies it (reuse the same instance
+	// wired for the REST API). Optional; when nil the area is not mounted.
+	UserAdminSvc UsersAdminService
+
 	// SettingsReader is the live admin-editable site/SEO override reader (M15-2).
 	// When non-nil, SiteConfig consults it at render time so the two admin
 	// dashboards' overrides take effect on public pages immediately (override ||
@@ -587,6 +592,7 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountCommentsAdmin(gr, d, shell)
 	mountAppearanceAdmin(gr, d, shell)
 	mountSettingsAdmin(gr, d, shell)
+	mountUsersAdmin(gr, d, shell)
 	mountMenusAdmin(gr, d, shell)
 	mountPluginsAdmin(gr, d, shell)
 	mountAccount(gr, d)
@@ -700,6 +706,30 @@ func mountSettingsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 			Get("/", seo.Show)
 		sr.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectSetting)).
 			Post("/", seo.Save)
+	})
+}
+
+// mountUsersAdmin wires the gated admin users area: a list of every account
+// (with resolved role label) and a per-user name/role edit form. Read routes
+// require read:user; the edit POST requires update:user. There is no
+// create/delete surface here — accounts are provisioned through signup/invite,
+// and the admin surface only edits the two admin-owned fields (name, role);
+// role-existence validation and the last-administrator guard live in
+// UserAdminService. Mounted only when the user-admin service + authz are wired.
+func mountUsersAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
+	if d.UserAdminSvc == nil || d.Authz == nil {
+		return
+	}
+	h := NewUsersAdminHandler(d.UserAdminSvc, shell, d.CSRFFunc)
+
+	gr.Route("/admin/users", func(ur chi.Router) {
+		ur.Use(d.AuthMW.RequireAuth)
+		ur.With(d.AuthMW.RequirePermission(accounts.ActionRead, accounts.SubjectUser)).Group(func(rr chi.Router) {
+			rr.Get("/", h.List)
+			rr.Get("/{id}/edit", h.Edit)
+		})
+		ur.With(d.AuthMW.RequirePermission(accounts.ActionUpdate, accounts.SubjectUser)).
+			Post("/{id}", h.Update)
 	})
 }
 

@@ -128,7 +128,7 @@ func navBlueprint() []NavGroup {
 			Items: []NavItem{
 				{Label: "General", Href: "/admin/settings/general", Icon: "setting", Action: "read", Subject: "setting"},
 				{Label: "SEO & GEO", Href: "/admin/settings/seo", Icon: "seo", Action: "read", Subject: "setting"},
-				{Label: "Users", Href: "#", Icon: "user", Action: "read", Subject: "user"},
+				{Label: "Users", Href: "/admin/users", Icon: "user", Action: "read", Subject: "user"},
 			},
 		},
 	}

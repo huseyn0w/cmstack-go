@@ -419,6 +419,11 @@ func run() error {
 		// container ids read (and validated) from the settings store.
 		AnalyticsSvc: settingsSvc,
 
+		// Admin Users area (M17-3 web surface): the gated /admin/users list +
+		// per-user name/role edit form, reusing the same UserAdminService instance
+		// wired above for the REST API.
+		UserAdminSvc: userAdminSvc,
+
 		// Live site/SEO overlay + admin settings dashboards (M15-2). The same
 		// settings service backs the read-time overlay on SiteConfig and the
 		// General + SEO & GEO dashboards, so a save is reflected live on public

@@ -1,0 +1,115 @@
+package templ
+
+// UsersListPage renders the admin users table: name, email, username, resolved
+// role label, and an Edit link per row (DESIGN_SYSTEM §5 table styling). There
+// is no create/delete here — users are provisioned through signup/invite; this
+// surface only lists and edits name + role.
+templ UsersListPage(v UsersListView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="users-list">
+			<div class="mb-6">
+				<h2 class="text-h3 text-text">Users</h2>
+				<p class="mt-1 text-small text-muted">Every account with access to the admin. Edit a user to rename them or change their role.</p>
+			</div>
+			if len(v.Rows) == 0 {
+				<div class="rounded-lg border border-dashed border-border p-8 text-center" data-testid="users-empty">
+					<p class="text-small text-muted">No users yet.</p>
+				</div>
+			} else {
+				<div class="overflow-hidden rounded-lg border border-border bg-surface">
+					<div class="overflow-x-auto">
+						<table class="w-full text-left" data-testid="users-table">
+							<thead class="bg-surface-2">
+								<tr class="text-subtle">
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Name</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Email</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Username</th>
+									<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Role</th>
+									<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, row := range v.Rows {
+									<tr class="border-t border-border hover:bg-surface-2" data-testid={ "user-row-" + row.ID }>
+										<td class="px-4 py-3 text-small text-text">
+											<a href={ templ.SafeURL(row.EditURL) } class="font-medium hover:underline">{ row.Name }</a>
+										</td>
+										<td class="px-4 py-3 text-small text-muted">{ row.Email }</td>
+										<td class="px-4 py-3 font-mono text-caption text-muted">{ row.Username }</td>
+										<td class="px-4 py-3 text-small text-text">{ row.RoleLabel }</td>
+										<td class="px-4 py-3 text-right">
+											<a href={ templ.SafeURL(row.EditURL) } data-testid={ "edit-user-" + row.ID } class="inline-flex h-8 items-center rounded-md border border-border px-3 text-caption font-medium text-text hover:bg-surface-2">Edit</a>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+				@pagination(v.Pager)
+			}
+		</section>
+	}
+}
+
+// UserEditPage renders the per-user edit form: name (editable) and role
+// (editable select), with email/username shown read-only for identification.
+templ UserEditPage(v UserEditView) {
+	@AdminBase(v.Shell) {
+		<section data-testid="user-editor" class="mx-auto max-w-2xl">
+			<nav aria-label="Breadcrumb" data-testid="editor-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href={ templ.SafeURL(v.BackURL) }>Users</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">Edit</li>
+				</ol>
+			</nav>
+			<h2 class="mt-4 text-h3 text-text">Edit user</h2>
+			if v.Saved {
+				<div role="status" data-testid="user-saved" class="mt-4 rounded-md border border-primary bg-primary/10 p-3 text-small text-primary">User saved.</div>
+			}
+			if v.Error != "" {
+				<div role="alert" data-testid="editor-error" class="mt-4 rounded-md border border-error bg-error-bg p-4 text-error">{ v.Error }</div>
+			}
+			<form method="post" action={ templ.SafeURL(v.ActionURL) } class="mt-6 space-y-5" data-testid="user-form">
+				@csrfField(v.CSRFToken)
+				<div>
+					<label class="block text-small font-medium text-text">Email</label>
+					<p class="mt-1.5 text-body text-muted" data-testid="field-email">{ v.Email }</p>
+				</div>
+				if v.Username != "" {
+					<div>
+						<label class="block text-small font-medium text-text">Username</label>
+						<p class="mt-1.5 font-mono text-small text-muted" data-testid="field-username">{ v.Username }</p>
+					</div>
+				}
+				<div>
+					<label for="name" class="block text-small font-medium text-text">Name</label>
+					<input
+						id="name" name="name" type="text" value={ v.Name } required
+						data-testid="field-name"
+						class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
+					if msg, ok := v.FieldErrors["name"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="error-name">{ msg }</p>
+					}
+				</div>
+				<div>
+					<label for="roleId" class="block text-small font-medium text-text">Role</label>
+					<select id="roleId" name="roleId" data-testid="field-roleId" class="mt-1.5 block w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+						for _, opt := range v.Roles {
+							<option value={ opt.ID } selected?={ opt.Selected }>{ opt.Label }</option>
+						}
+					</select>
+					if msg, ok := v.FieldErrors["roleId"]; ok {
+						<p class="mt-1 text-caption text-error" data-testid="error-roleId">{ msg }</p>
+					}
+				</div>
+				<div class="flex items-center gap-3 border-t border-border pt-5">
+					<button type="submit" data-testid="action-save-user" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-small font-medium text-on-primary hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Save changes</button>
+					<a href={ templ.SafeURL(v.BackURL) } class="inline-flex h-9 items-center rounded-md border border-border px-4 text-small font-medium text-text hover:bg-surface-2">Cancel</a>
+				</div>
+			</form>
+		</section>
+	}
+}
