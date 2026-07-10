@@ -47,6 +47,53 @@ func (q *Queries) CountPostsBySlug(ctx context.Context, arg CountPostsBySlugPara
 	return count, err
 }
 
+const countPostsFiltered = `-- name: CountPostsFiltered :one
+SELECT count(*) FROM posts p
+WHERE p.deleted_at IS NULL
+  AND ($1::text IS NULL OR p.status = $1::text)
+  AND ($2::uuid IS NULL OR p.author_id = $2::uuid)
+  AND (
+    $3::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = $3::text
+    )
+  )
+  AND (
+    $4::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = $4::text
+    )
+  )
+  AND (
+    $5::text IS NULL
+    OR p.title ILIKE '%' || $5::text || '%'
+    OR p.excerpt ILIKE '%' || $5::text || '%'
+  )
+`
+
+type CountPostsFilteredParams struct {
+	Status       *string     `json:"status"`
+	AuthorID     pgtype.UUID `json:"author_id"`
+	CategorySlug *string     `json:"category_slug"`
+	TagSlug      *string     `json:"tag_slug"`
+	Q            *string     `json:"q"`
+}
+
+func (q *Queries) CountPostsFiltered(ctx context.Context, arg CountPostsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPostsFiltered,
+		arg.Status,
+		arg.AuthorID,
+		arg.CategorySlug,
+		arg.TagSlug,
+		arg.Q,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countPublishedPosts = `-- name: CountPublishedPosts :one
 SELECT count(*) FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL
 `
@@ -399,6 +446,99 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, e
 		arg.Offset,
 		arg.Status,
 		arg.AuthorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Post{}
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Slug,
+			&i.Excerpt,
+			&i.Body,
+			&i.Status,
+			&i.PublishedAt,
+			&i.ScheduledAt,
+			&i.AuthorID,
+			&i.ReadingTime,
+			&i.LikeCount,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SearchVector,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CanonicalUrl,
+			&i.Noindex,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostsFiltered = `-- name: ListPostsFiltered :many
+SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector, p.meta_title, p.meta_description, p.canonical_url, p.noindex FROM posts p
+WHERE p.deleted_at IS NULL
+  AND ($3::text IS NULL OR p.status = $3::text)
+  AND ($4::uuid IS NULL OR p.author_id = $4::uuid)
+  AND (
+    $5::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = $5::text
+    )
+  )
+  AND (
+    $6::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = $6::text
+    )
+  )
+  AND (
+    $7::text IS NULL
+    OR p.title ILIKE '%' || $7::text || '%'
+    OR p.excerpt ILIKE '%' || $7::text || '%'
+  )
+ORDER BY p.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListPostsFilteredParams struct {
+	Limit        int32       `json:"limit"`
+	Offset       int32       `json:"offset"`
+	Status       *string     `json:"status"`
+	AuthorID     pgtype.UUID `json:"author_id"`
+	CategorySlug *string     `json:"category_slug"`
+	TagSlug      *string     `json:"tag_slug"`
+	Q            *string     `json:"q"`
+}
+
+// Admin post listing (all statuses) narrowed by optional, combinable category
+// slug / tag slug / free-text `q` filters, in addition to the existing
+// status/author_id filters. A NULL narg means "no constraint on that axis";
+// multiple set filters intersect. Trashed posts are excluded (deleted_at IS
+// NULL) exactly like ListPosts — IncludeTrashed is handled by the separate
+// ListTrashedPosts path and is out of scope here. EXISTS subqueries (rather
+// than a JOIN) keep a post matching two tags/categories from being duplicated.
+func (q *Queries) ListPostsFiltered(ctx context.Context, arg ListPostsFilteredParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPostsFiltered,
+		arg.Limit,
+		arg.Offset,
+		arg.Status,
+		arg.AuthorID,
+		arg.CategorySlug,
+		arg.TagSlug,
+		arg.Q,
 	)
 	if err != nil {
 		return nil, err

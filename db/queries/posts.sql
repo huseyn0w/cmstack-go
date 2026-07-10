@@ -192,6 +192,65 @@ WHERE p.status = 'PUBLISHED'
     )
   );
 
+-- name: ListPostsFiltered :many
+-- Admin post listing (all statuses) narrowed by optional, combinable category
+-- slug / tag slug / free-text `q` filters, in addition to the existing
+-- status/author_id filters. A NULL narg means "no constraint on that axis";
+-- multiple set filters intersect. Trashed posts are excluded (deleted_at IS
+-- NULL) exactly like ListPosts — IncludeTrashed is handled by the separate
+-- ListTrashedPosts path and is out of scope here. EXISTS subqueries (rather
+-- than a JOIN) keep a post matching two tags/categories from being duplicated.
+SELECT p.* FROM posts p
+WHERE p.deleted_at IS NULL
+  AND (sqlc.narg('status')::text IS NULL OR p.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('author_id')::uuid IS NULL OR p.author_id = sqlc.narg('author_id')::uuid)
+  AND (
+    sqlc.narg('category_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = sqlc.narg('category_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('tag_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = sqlc.narg('tag_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('q')::text IS NULL
+    OR p.title ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR p.excerpt ILIKE '%' || sqlc.narg('q')::text || '%'
+  )
+ORDER BY p.created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountPostsFiltered :one
+SELECT count(*) FROM posts p
+WHERE p.deleted_at IS NULL
+  AND (sqlc.narg('status')::text IS NULL OR p.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('author_id')::uuid IS NULL OR p.author_id = sqlc.narg('author_id')::uuid)
+  AND (
+    sqlc.narg('category_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.post_id = p.id AND c.slug = sqlc.narg('category_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('tag_slug')::text IS NULL OR EXISTS (
+        SELECT 1 FROM post_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE pt.post_id = p.id AND t.slug = sqlc.narg('tag_slug')::text
+    )
+  )
+  AND (
+    sqlc.narg('q')::text IS NULL
+    OR p.title ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR p.excerpt ILIKE '%' || sqlc.narg('q')::text || '%'
+  );
+
 -- name: SitemapPosts :many
 -- Lightweight enumeration for the sitemap/llms indexes: no body/heavy fields.
 SELECT slug, title, meta_title, meta_description, excerpt, updated_at

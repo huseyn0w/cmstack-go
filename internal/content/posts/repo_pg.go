@@ -93,13 +93,18 @@ func (r *RepoPG) SlugTaken(ctx context.Context, slug string, excludeID uuid.UUID
 	return n > 0, mapErr(err)
 }
 
-// List returns a filtered, paginated active listing.
+// List returns a filtered, paginated active listing. CategorySlug/TagSlug/Q
+// combine with Status/AuthorID as an intersection; IncludeTrashed is a no-op
+// here (trashed posts are listed via the separate ListTrashed path).
 func (r *RepoPG) List(ctx context.Context, f ListFilter) ([]Post, error) {
-	rows, err := r.q.ListPosts(ctx, sqlcgen.ListPostsParams{
-		Limit:    int32(limitOrDefault(f.Limit)),
-		Offset:   int32(f.Offset),
-		Status:   statusFilter(f.Status),
-		AuthorID: authorFilter(f.AuthorID),
+	rows, err := r.q.ListPostsFiltered(ctx, sqlcgen.ListPostsFilteredParams{
+		Limit:        int32(limitOrDefault(f.Limit)),
+		Offset:       int32(f.Offset),
+		Status:       statusFilter(f.Status),
+		AuthorID:     authorFilter(f.AuthorID),
+		CategorySlug: slugFilter(f.CategorySlug),
+		TagSlug:      slugFilter(f.TagSlug),
+		Q:            textFilter(f.Q),
 	})
 	if err != nil {
 		return nil, mapErr(err)
@@ -109,9 +114,12 @@ func (r *RepoPG) List(ctx context.Context, f ListFilter) ([]Post, error) {
 
 // Count returns the total matching the filter (ignoring pagination).
 func (r *RepoPG) Count(ctx context.Context, f ListFilter) (int, error) {
-	n, err := r.q.CountPosts(ctx, sqlcgen.CountPostsParams{
-		Status:   statusFilter(f.Status),
-		AuthorID: authorFilter(f.AuthorID),
+	n, err := r.q.CountPostsFiltered(ctx, sqlcgen.CountPostsFilteredParams{
+		Status:       statusFilter(f.Status),
+		AuthorID:     authorFilter(f.AuthorID),
+		CategorySlug: slugFilter(f.CategorySlug),
+		TagSlug:      slugFilter(f.TagSlug),
+		Q:            textFilter(f.Q),
 	})
 	return int(n), mapErr(err)
 }
@@ -577,10 +585,17 @@ func postFromRow(p sqlcgen.Post) Post {
 // slugFilter maps an empty slug to a NULL narg ("no constraint") and a non-empty
 // slug to a pointer the filtered queries treat as a constraint.
 func slugFilter(slug string) *string {
-	if slug == "" {
+	return textFilter(slug)
+}
+
+// textFilter maps an empty string to a NULL narg ("no constraint") and a
+// non-empty string to a pointer the filtered queries treat as a constraint.
+// Used for the free-text `q` filter (and reused by slugFilter).
+func textFilter(s string) *string {
+	if s == "" {
 		return nil
 	}
-	return &slug
+	return &s
 }
 
 // relatedRowToPost maps the related-posts row (Post columns + shared_count) to a

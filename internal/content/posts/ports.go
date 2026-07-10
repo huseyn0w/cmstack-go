@@ -16,14 +16,21 @@ import (
 // service maps it to domain outcomes; handlers turn it into a 404.
 var ErrNotFound = errors.New("posts: not found")
 
-// ListFilter narrows an admin post listing. A nil pointer means "no constraint".
+// ListFilter narrows an admin post listing. A nil pointer means "no constraint";
+// an empty CategorySlug/TagSlug/Q means "no constraint on that axis" too. Set
+// filters combine as an intersection (AND).
 type ListFilter struct {
 	Status         *kernel.Status
 	AuthorID       *uuid.UUID
 	IncludeTrashed bool
 	Limit          int
 	Offset         int
-	// TODO(M3): full-text query `q` once search lands.
+	// CategorySlug narrows to posts assigned the category with this slug.
+	CategorySlug string
+	// TagSlug narrows to posts assigned the tag with this slug.
+	TagSlug string
+	// Q is a free-text filter matched against the post title/excerpt (ILIKE).
+	Q string
 }
 
 // CreatePostData is the fully-prepared row the repo inserts. The service has

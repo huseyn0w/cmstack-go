@@ -341,6 +341,42 @@ func TestListPostsEnvelopeAndPagination(t *testing.T) {
 	}
 }
 
+func TestListPostsForwardsCategoryTagQueryFilters(t *testing.T) {
+	userID := uuid.New()
+	fp := &fakePosts{}
+	srv := newServer(t, userID, map[string]bool{"read:post": true}, fp, nil)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, authGet("/api/v1/posts?categorySlug=go&tagSlug=news&q=hello"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if fp.gotF.CategorySlug != "go" {
+		t.Errorf("categorySlug not forwarded: got %q, want %q", fp.gotF.CategorySlug, "go")
+	}
+	if fp.gotF.TagSlug != "news" {
+		t.Errorf("tagSlug not forwarded: got %q, want %q", fp.gotF.TagSlug, "news")
+	}
+	if fp.gotF.Q != "hello" {
+		t.Errorf("q not forwarded: got %q, want %q", fp.gotF.Q, "hello")
+	}
+}
+
+func TestListPostsOmitsBlankCategoryTagQueryFilters(t *testing.T) {
+	userID := uuid.New()
+	fp := &fakePosts{}
+	srv := newServer(t, userID, map[string]bool{"read:post": true}, fp, nil)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, authGet("/api/v1/posts"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if fp.gotF.CategorySlug != "" || fp.gotF.TagSlug != "" || fp.gotF.Q != "" {
+		t.Errorf("filter fields should default empty, got %+v", fp.gotF)
+	}
+}
+
 func TestPerPageCappedAt100(t *testing.T) {
 	userID := uuid.New()
 	fp := &fakePosts{}

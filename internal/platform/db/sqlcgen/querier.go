@@ -24,6 +24,7 @@ type Querier interface {
 	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
 	CountPosts(ctx context.Context, arg CountPostsParams) (int64, error)
 	CountPostsBySlug(ctx context.Context, arg CountPostsBySlugParams) (int64, error)
+	CountPostsFiltered(ctx context.Context, arg CountPostsFilteredParams) (int64, error)
 	CountPublishedPages(ctx context.Context) (int64, error)
 	CountPublishedPosts(ctx context.Context) (int64, error)
 	CountPublishedPostsFiltered(ctx context.Context, arg CountPublishedPostsFilteredParams) (int64, error)
@@ -217,6 +218,14 @@ type Querier interface {
 	// All translation rows for a post (every non-default locale that has one).
 	ListPostTranslations(ctx context.Context, postID pgtype.UUID) ([]PostTranslation, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
+	// Admin post listing (all statuses) narrowed by optional, combinable category
+	// slug / tag slug / free-text `q` filters, in addition to the existing
+	// status/author_id filters. A NULL narg means "no constraint on that axis";
+	// multiple set filters intersect. Trashed posts are excluded (deleted_at IS
+	// NULL) exactly like ListPosts — IncludeTrashed is handled by the separate
+	// ListTrashedPosts path and is out of scope here. EXISTS subqueries (rather
+	// than a JOIN) keep a post matching two tags/categories from being duplicated.
+	ListPostsFiltered(ctx context.Context, arg ListPostsFilteredParams) ([]Post, error)
 	ListPublishedPages(ctx context.Context, arg ListPublishedPagesParams) ([]Page, error)
 	ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]Post, error)
 	ListPublishedPostsByAuthor(ctx context.Context, authorID pgtype.UUID) ([]Post, error)

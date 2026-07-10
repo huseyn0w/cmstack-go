@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -11,14 +12,17 @@ import (
 )
 
 // listPosts serves GET /api/v1/posts: a filtered, paginated post listing. The
-// categorySlug/tagSlug/q query params are accepted but not yet applied — the
-// admin ListFilter does not support them (deferred; see the slice report).
+// categorySlug/tagSlug/q query params narrow the (admin, all-statuses) listing
+// alongside the existing status/includeTrashed/pagination params.
 func (h *handler) listPosts(w http.ResponseWriter, r *http.Request) {
 	page, perPage := paginate(r)
 	f := posts.ListFilter{
 		IncludeTrashed: boolParam(r, "includeTrashed"),
 		Limit:          perPage,
 		Offset:         (page - 1) * perPage,
+		CategorySlug:   strings.TrimSpace(r.URL.Query().Get("categorySlug")),
+		TagSlug:        strings.TrimSpace(r.URL.Query().Get("tagSlug")),
+		Q:              strings.TrimSpace(r.URL.Query().Get("q")),
 	}
 	if s, ok := statusParam(r); ok {
 		f.Status = &s
