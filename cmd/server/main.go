@@ -363,6 +363,7 @@ func run() error {
 		Roles:         roleRepo,
 		OAuth:         oauthHandler,
 		Account:       accountHandler,
+		APITokenSvc:   apiTokenSvc,
 		Author:        authorHandler,
 		Uploads:       uploadsHandler,
 		UploadsPrefix: uploadsPrefix,

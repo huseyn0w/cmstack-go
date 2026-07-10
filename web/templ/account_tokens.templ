@@ -1,0 +1,130 @@
+package templ
+
+// AccountTokensPage renders the self-service /account/tokens area inside the
+// admin shell: a create form, a one-time plaintext reveal banner (shown only
+// on the response immediately after Create), and a table of the current
+// user's tokens with a revoke action per active row.
+templ AccountTokensPage(v TokensView) {
+	@AdminBase(v.Shell) {
+		<div class="mx-auto max-w-3xl space-y-6" data-testid="account-tokens-page">
+			<nav aria-label="Breadcrumb" data-testid="tokens-breadcrumb">
+				<ol class="flex items-center gap-2 font-mono text-caption text-muted">
+					<li><a class="hover:text-text" href="/account">Account</a></li>
+					<li aria-hidden="true">/</li>
+					<li aria-current="page" class="text-text">API tokens</li>
+				</ol>
+			</nav>
+			<div>
+				<h2 class="text-h3 text-text">API tokens</h2>
+				<p class="mt-1 text-body text-muted">Personal-access tokens authenticate REST API requests as you. Treat a token like a password: anyone who has it can act as you.</p>
+			</div>
+			if v.Revoked {
+				<div role="status" data-testid="token-revoked-banner" class="rounded-md border border-success bg-success-bg p-4 text-success">
+					<p>Token revoked.</p>
+				</div>
+			}
+			if v.Revealed != "" {
+				<div role="status" data-testid="token-reveal" class="rounded-md border border-primary bg-primary/10 p-4">
+					<p class="font-medium text-text">New token "{ v.RevealedName }" created. Copy it now — it will not be shown again.</p>
+					<code data-testid="token-plaintext" class="mt-2 block break-all rounded-md bg-surface-2 p-3 font-mono text-small text-text">{ v.Revealed }</code>
+				</div>
+			}
+			@tokenCreateCard(v)
+			@tokenListCard(v)
+		</div>
+	}
+}
+
+// tokenCreateCard renders the "create a new token" form: a name and an
+// optional expiry (in days; 0 or blank never expires).
+templ tokenCreateCard(v TokensView) {
+	<section class="rounded-lg border border-border bg-surface p-5" data-testid="token-create-card">
+		<h3 class="text-h4 text-text">Create a new token</h3>
+		<form method="post" action="/account/tokens" class="mt-4 space-y-4" data-testid="token-create-form">
+			@csrfField(v.CSRFToken)
+			<div>
+				<label for="name" class="block text-small font-medium text-text">Name</label>
+				<p id="name-help" class="mt-0.5 text-caption text-muted">A label to help you recognise this token later (e.g. "CI runner").</p>
+				<input
+					id="name"
+					name="name"
+					type="text"
+					required
+					maxlength="100"
+					aria-describedby="name-help"
+					data-testid="field-token-name"
+					class="mt-1 block w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+				/>
+				if v.NameError != "" {
+					<p class="mt-1 text-caption text-error" data-testid="token-name-error">{ v.NameError }</p>
+				}
+			</div>
+			<div>
+				<label for="expires_days" class="block text-small font-medium text-text">Expires in (days)</label>
+				<p id="expires-help" class="mt-0.5 text-caption text-muted">Leave blank or 0 for a token that never expires.</p>
+				<input
+					id="expires_days"
+					name="expires_days"
+					type="number"
+					min="0"
+					aria-describedby="expires-help"
+					data-testid="field-token-expires"
+					class="mt-1 block w-40 rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+				/>
+			</div>
+			<button type="submit" data-testid="token-create-submit" class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-small font-medium text-primary-contrast hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Generate token</button>
+		</form>
+	</section>
+}
+
+// tokenListCard renders the table of the current user's tokens with a revoke
+// action per active row. Revoked/expired tokens remain listed (for audit
+// visibility) but offer no revoke action.
+templ tokenListCard(v TokensView) {
+	<section class="rounded-lg border border-border bg-surface p-5" data-testid="token-list-card">
+		<h3 class="text-h4 text-text">Your tokens</h3>
+		if !v.hasTokens() {
+			<div class="mt-4 rounded-lg border border-dashed border-border p-8 text-center" data-testid="tokens-empty">
+				<p class="text-small text-muted">No API tokens yet.</p>
+			</div>
+		} else {
+			<div class="mt-4 overflow-hidden rounded-lg border border-border">
+				<div class="overflow-x-auto">
+					<table class="w-full text-left" data-testid="tokens-table">
+						<thead class="bg-surface-2">
+							<tr class="text-subtle">
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Name</th>
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Token</th>
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Status</th>
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Created</th>
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Last used</th>
+								<th class="px-4 py-3 font-mono text-eyebrow uppercase tracking-widest">Expires</th>
+								<th class="px-4 py-3 text-right font-mono text-eyebrow uppercase tracking-widest">Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, row := range v.Rows {
+								<tr class="border-t border-border" data-testid={ "token-row-" + row.ID }>
+									<td class="px-4 py-3 text-small text-text">{ row.Name }</td>
+									<td class="px-4 py-3 font-mono text-caption text-muted">…{ row.LastFour }</td>
+									<td class="px-4 py-3 text-small text-text" data-testid={ "token-status-" + row.ID }>{ row.Status }</td>
+									<td class="px-4 py-3 text-small text-muted">{ row.CreatedAt }</td>
+									<td class="px-4 py-3 text-small text-muted">{ row.LastUsedAt }</td>
+									<td class="px-4 py-3 text-small text-muted">{ row.ExpiresAt }</td>
+									<td class="px-4 py-3 text-right">
+										if row.Status == "active" {
+											<form method="post" action={ templ.SafeURL(row.RevokeURL) } data-testid={ "token-revoke-form-" + row.ID }>
+												@csrfField(v.CSRFToken)
+												<button type="submit" data-testid={ "token-revoke-" + row.ID } class="inline-flex h-8 items-center rounded-md border border-error px-3 text-caption font-medium text-error hover:bg-error-bg">Revoke</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+	</section>
+}

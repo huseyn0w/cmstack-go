@@ -57,6 +57,12 @@ type Deps struct {
 	Author  *AuthorHandler
 	Uploads http.Handler // mounted at UploadsPrefix when non-nil
 
+	// Account tokens (M17-4). APITokenSvc backs the self-service
+	// /account/tokens list/create/revoke area over the SAME apitoken.Service
+	// instance used by the REST bearer-auth middleware. Optional; nil leaves
+	// the area unmounted.
+	APITokenSvc APITokenService
+
 	// Posts (M2a). PostAdmin is the gated admin posts area; PostPublic is the
 	// public /blog. Authors resolves author display names for both. All optional.
 	PostAdminSvc  PostAdminService
@@ -595,7 +601,7 @@ func mountAdmin(gr chi.Router, d Deps) {
 	mountUsersAdmin(gr, d, shell)
 	mountMenusAdmin(gr, d, shell)
 	mountPluginsAdmin(gr, d, shell)
-	mountAccount(gr, d)
+	mountAccount(gr, d, shell)
 }
 
 // mountMenusAdmin wires the gated admin menu builder (M11-2). Read routes
@@ -858,24 +864,41 @@ func mountTagsAdmin(gr chi.Router, d Deps, shell adminShellDeps) {
 // mountAccount wires the self-service /account area behind RequireAuth. The
 // avatar upload and password change endpoints are additionally rate-limited
 // (they are expensive / security-sensitive) with a dedicated per-IP limiter.
-func mountAccount(gr chi.Router, d Deps) {
-	if d.Account == nil {
-		return
-	}
+// The /account/tokens area (list/create/revoke, M17-4) shares the SAME
+// limiter for its create endpoint and is mounted independently: it requires
+// only d.APITokenSvc, so it still mounts if d.Account happens to be nil.
+func mountAccount(gr chi.Router, d Deps, shell adminShellDeps) {
 	// 1 token/3s, burst 3 (~20/min) for the heavy/sensitive account POSTs.
 	limiter := ratelimit.New(1.0/3.0, 3)
 
-	gr.Group(func(g chi.Router) {
-		g.Use(d.AuthMW.RequireAuth)
-		g.Get("/account", d.Account.Show)
-		g.Post("/account", d.Account.SubmitProfile)
+	if d.Account != nil {
+		gr.Group(func(g chi.Router) {
+			g.Use(d.AuthMW.RequireAuth)
+			g.Get("/account", d.Account.Show)
+			g.Post("/account", d.Account.SubmitProfile)
 
-		g.Group(func(rl chi.Router) {
-			rl.Use(limiter.Middleware)
-			rl.Post("/account/avatar", d.Account.SubmitAvatar)
-			rl.Post("/account/password", d.Account.SubmitPassword)
+			g.Group(func(rl chi.Router) {
+				rl.Use(limiter.Middleware)
+				rl.Post("/account/avatar", d.Account.SubmitAvatar)
+				rl.Post("/account/password", d.Account.SubmitPassword)
+			})
 		})
-	})
+	}
+
+	if d.APITokenSvc != nil {
+		h := NewAccountTokensHandler(d.APITokenSvc, shell, d.CSRFFunc)
+
+		gr.Group(func(g chi.Router) {
+			g.Use(d.AuthMW.RequireAuth)
+			g.Get("/account/tokens", h.List)
+			g.Post("/account/tokens/{id}/revoke", h.Revoke)
+
+			g.Group(func(rl chi.Router) {
+				rl.Use(limiter.Middleware)
+				rl.Post("/account/tokens", h.Create)
+			})
+		})
+	}
 }
 
 // mountPostsAdmin wires the gated admin posts area. Read routes require
