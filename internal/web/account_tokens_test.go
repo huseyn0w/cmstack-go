@@ -166,6 +166,27 @@ func TestAccountTokensCreate_EmptyNameRejectedWithoutCallingGenerate(t *testing.
 	}
 }
 
+func TestAccountTokensCreate_InvalidExpiryDaysRejectedWithoutCallingGenerate(t *testing.T) {
+	for _, raw := range []string{"abc", "-5", "0"} {
+		u := authedUser(t)
+		svc := &fakeAPITokenService{}
+		h := NewAccountTokensHandler(svc, testTokensShell(), func(*http.Request) string { return "csrf-tok" })
+
+		req := httptest.NewRequest(http.MethodPost, "/account/tokens", strings.NewReader("name=ci&expires_days="+raw))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(withUser(req.Context(), u))
+		rec := httptest.NewRecorder()
+		h.Create(rec, req)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("expires_days=%q: code = %d, want 422\n%s", raw, rec.Code, rec.Body.String())
+		}
+		if svc.genCalled {
+			t.Errorf("expires_days=%q: Generate must not be called for an invalid expiry", raw)
+		}
+	}
+}
+
 func TestAccountTokensCreate_ExpiryDaysComputedFromInjectedClock(t *testing.T) {
 	u := authedUser(t)
 	svc := &fakeAPITokenService{genPlaintext: "cmg_x", genTok: apitoken.Token{ID: uuid.New(), UserID: u.ID}}

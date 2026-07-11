@@ -11,25 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countPosts = `-- name: CountPosts :one
-SELECT count(*) FROM posts
-WHERE deleted_at IS NULL
-  AND ($1::text IS NULL OR status = $1::text)
-  AND ($2::uuid IS NULL OR author_id = $2::uuid)
-`
-
-type CountPostsParams struct {
-	Status   *string     `json:"status"`
-	AuthorID pgtype.UUID `json:"author_id"`
-}
-
-func (q *Queries) CountPosts(ctx context.Context, arg CountPostsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPosts, arg.Status, arg.AuthorID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countPostsBySlug = `-- name: CountPostsBySlug :one
 SELECT count(*) FROM posts
 WHERE slug = $1 AND id <> $2
@@ -68,8 +49,8 @@ WHERE p.deleted_at IS NULL
   )
   AND (
     $5::text IS NULL
-    OR p.title ILIKE '%' || $5::text || '%'
-    OR p.excerpt ILIKE '%' || $5::text || '%'
+    OR p.title ILIKE $5::text
+    OR p.excerpt ILIKE $5::text
   )
 `
 
@@ -424,67 +405,6 @@ func (q *Queries) ListDueScheduledPostIDs(ctx context.Context, scheduledAt pgtyp
 	return items, nil
 }
 
-const listPosts = `-- name: ListPosts :many
-SELECT id, title, slug, excerpt, body, status, published_at, scheduled_at, author_id, reading_time, like_count, deleted_at, created_at, updated_at, search_vector, meta_title, meta_description, canonical_url, noindex FROM posts
-WHERE deleted_at IS NULL
-  AND ($3::text IS NULL OR status = $3::text)
-  AND ($4::uuid IS NULL OR author_id = $4::uuid)
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
-`
-
-type ListPostsParams struct {
-	Limit    int32       `json:"limit"`
-	Offset   int32       `json:"offset"`
-	Status   *string     `json:"status"`
-	AuthorID pgtype.UUID `json:"author_id"`
-}
-
-func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
-	rows, err := q.db.Query(ctx, listPosts,
-		arg.Limit,
-		arg.Offset,
-		arg.Status,
-		arg.AuthorID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Post{}
-	for rows.Next() {
-		var i Post
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
-			&i.Slug,
-			&i.Excerpt,
-			&i.Body,
-			&i.Status,
-			&i.PublishedAt,
-			&i.ScheduledAt,
-			&i.AuthorID,
-			&i.ReadingTime,
-			&i.LikeCount,
-			&i.DeletedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.SearchVector,
-			&i.MetaTitle,
-			&i.MetaDescription,
-			&i.CanonicalUrl,
-			&i.Noindex,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listPostsFiltered = `-- name: ListPostsFiltered :many
 SELECT p.id, p.title, p.slug, p.excerpt, p.body, p.status, p.published_at, p.scheduled_at, p.author_id, p.reading_time, p.like_count, p.deleted_at, p.created_at, p.updated_at, p.search_vector, p.meta_title, p.meta_description, p.canonical_url, p.noindex FROM posts p
 WHERE p.deleted_at IS NULL
@@ -506,8 +426,8 @@ WHERE p.deleted_at IS NULL
   )
   AND (
     $7::text IS NULL
-    OR p.title ILIKE '%' || $7::text || '%'
-    OR p.excerpt ILIKE '%' || $7::text || '%'
+    OR p.title ILIKE $7::text
+    OR p.excerpt ILIKE $7::text
   )
 ORDER BY p.created_at DESC
 LIMIT $1 OFFSET $2

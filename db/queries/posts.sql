@@ -38,20 +38,6 @@ WHERE slug = $1 AND status = 'PUBLISHED' AND deleted_at IS NULL;
 SELECT count(*) FROM posts
 WHERE slug = $1 AND id <> $2;
 
--- name: ListPosts :many
-SELECT * FROM posts
-WHERE deleted_at IS NULL
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
-  AND (sqlc.narg('author_id')::uuid IS NULL OR author_id = sqlc.narg('author_id')::uuid)
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2;
-
--- name: CountPosts :one
-SELECT count(*) FROM posts
-WHERE deleted_at IS NULL
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status')::text)
-  AND (sqlc.narg('author_id')::uuid IS NULL OR author_id = sqlc.narg('author_id')::uuid);
-
 -- name: ListTrashedPosts :many
 SELECT * FROM posts
 WHERE deleted_at IS NOT NULL
@@ -220,8 +206,8 @@ WHERE p.deleted_at IS NULL
   )
   AND (
     sqlc.narg('q')::text IS NULL
-    OR p.title ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR p.excerpt ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR p.title ILIKE sqlc.narg('q')::text
+    OR p.excerpt ILIKE sqlc.narg('q')::text
   )
 ORDER BY p.created_at DESC
 LIMIT $1 OFFSET $2;
@@ -247,8 +233,8 @@ WHERE p.deleted_at IS NULL
   )
   AND (
     sqlc.narg('q')::text IS NULL
-    OR p.title ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR p.excerpt ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR p.title ILIKE sqlc.narg('q')::text
+    OR p.excerpt ILIKE sqlc.narg('q')::text
   );
 
 -- name: SitemapPosts :many

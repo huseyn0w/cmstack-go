@@ -104,7 +104,7 @@ func (r *RepoPG) List(ctx context.Context, f ListFilter) ([]Post, error) {
 		AuthorID:     authorFilter(f.AuthorID),
 		CategorySlug: slugFilter(f.CategorySlug),
 		TagSlug:      slugFilter(f.TagSlug),
-		Q:            textFilter(f.Q),
+		Q:            qPattern(f.Q),
 	})
 	if err != nil {
 		return nil, mapErr(err)
@@ -119,7 +119,7 @@ func (r *RepoPG) Count(ctx context.Context, f ListFilter) (int, error) {
 		AuthorID:     authorFilter(f.AuthorID),
 		CategorySlug: slugFilter(f.CategorySlug),
 		TagSlug:      slugFilter(f.TagSlug),
-		Q:            textFilter(f.Q),
+		Q:            qPattern(f.Q),
 	})
 	return int(n), mapErr(err)
 }
@@ -583,19 +583,36 @@ func postFromRow(p sqlcgen.Post) Post {
 }
 
 // slugFilter maps an empty slug to a NULL narg ("no constraint") and a non-empty
-// slug to a pointer the filtered queries treat as a constraint.
+// slug to a pointer the filtered queries treat as an exact-match constraint.
+// Slugs are compared with `=`, so they are NOT escaped (unlike qPattern).
 func slugFilter(slug string) *string {
-	return textFilter(slug)
+	if slug == "" {
+		return nil
+	}
+	return &slug
 }
 
-// textFilter maps an empty string to a NULL narg ("no constraint") and a
-// non-empty string to a pointer the filtered queries treat as a constraint.
-// Used for the free-text `q` filter (and reused by slugFilter).
-func textFilter(s string) *string {
+// qPattern turns a free-text search term into a `%term%` ILIKE pattern with the
+// LIKE metacharacters (`\`, `%`, `_`) escaped, so a literal `%`/`_` typed by the
+// operator matches literally instead of acting as a wildcard. It mirrors the
+// search package's likePattern. An empty term yields nil (no `q` constraint).
+func qPattern(s string) *string {
 	if s == "" {
 		return nil
 	}
-	return &s
+	var b []byte
+	b = append(b, '%')
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\', '%', '_':
+			b = append(b, '\\', s[i])
+		default:
+			b = append(b, s[i])
+		}
+	}
+	b = append(b, '%')
+	p := string(b)
+	return &p
 }
 
 // relatedRowToPost maps the related-posts row (Post columns + shared_count) to a

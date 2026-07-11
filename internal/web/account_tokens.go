@@ -89,10 +89,15 @@ func (h *AccountTokensHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var expiresAt *time.Time
 	if raw := strings.TrimSpace(r.PostFormValue("expires_days")); raw != "" {
-		if days, convErr := strconv.Atoi(raw); convErr == nil && days > 0 {
-			t := h.now().Add(time.Duration(days) * 24 * time.Hour)
-			expiresAt = &t
+		days, convErr := strconv.Atoi(raw)
+		if convErr != nil || days <= 0 {
+			// Reject a malformed/negative value rather than silently minting a
+			// never-expiring token the user thought would expire.
+			h.renderCreateError(w, r, u.ID, "Expiry must be a positive number of days, or left blank for no expiry.")
+			return
 		}
+		t := h.now().Add(time.Duration(days) * 24 * time.Hour)
+		expiresAt = &t
 	}
 
 	plaintext, _, err := h.svc.Generate(r.Context(), u.ID, name, expiresAt)

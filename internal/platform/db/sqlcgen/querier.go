@@ -22,7 +22,6 @@ type Querier interface {
 	CountMedia(ctx context.Context) (int64, error)
 	CountPages(ctx context.Context, status *string) (int64, error)
 	CountPagesBySlug(ctx context.Context, arg CountPagesBySlugParams) (int64, error)
-	CountPosts(ctx context.Context, arg CountPostsParams) (int64, error)
 	CountPostsBySlug(ctx context.Context, arg CountPostsBySlugParams) (int64, error)
 	CountPostsFiltered(ctx context.Context, arg CountPostsFilteredParams) (int64, error)
 	CountPublishedPages(ctx context.Context) (int64, error)
@@ -217,7 +216,6 @@ type Querier interface {
 	ListPostTranslationLocales(ctx context.Context, postID pgtype.UUID) ([]string, error)
 	// All translation rows for a post (every non-default locale that has one).
 	ListPostTranslations(ctx context.Context, postID pgtype.UUID) ([]PostTranslation, error)
-	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
 	// Admin post listing (all statuses) narrowed by optional, combinable category
 	// slug / tag slug / free-text `q` filters, in addition to the existing
 	// status/author_id filters. A NULL narg means "no constraint on that axis";
