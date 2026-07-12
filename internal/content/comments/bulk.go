@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
 )
 
 // BulkResult is re-exported from kernel so handlers depend on the comments

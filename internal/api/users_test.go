@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
 )
 
 // fakeUserAdmin is an in-memory UserAdminService.

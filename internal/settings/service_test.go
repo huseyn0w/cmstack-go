@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/settings"
+	"github.com/huseyn0w/agentic-cms-go/internal/settings"
 )
 
 // fakeRepo is an in-memory settings.Repo that counts All() loads so the test can

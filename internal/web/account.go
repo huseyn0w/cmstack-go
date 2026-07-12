@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // maxAvatarFormBytes bounds the multipart parse for avatar uploads at the avatar

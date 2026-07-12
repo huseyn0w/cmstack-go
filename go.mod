@@ -1,4 +1,4 @@
-module github.com/huseyn0w/cmstack-go
+module github.com/huseyn0w/agentic-cms-go
 
 go 1.26
 

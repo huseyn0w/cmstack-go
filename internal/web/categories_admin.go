@@ -8,11 +8,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // CategoryAdminService is the subset of *categories.Service the admin handler

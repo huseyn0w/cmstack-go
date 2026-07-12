@@ -1,7 +1,7 @@
 # MCP Server (`cmd/mcp`)
 
 `cmd/mcp` is a standalone MCP (Model Context Protocol) server that exposes the
-CMStack-Go REST API (`/api/v1`) as **48 scoped tools** mapping 1:1 to the REST
+Agentic CMS-Go REST API (`/api/v1`) as **48 scoped tools** mapping 1:1 to the REST
 endpoints. It is a **thin, authenticated HTTP client** of the API, not a second
 source of truth.
 
@@ -63,7 +63,7 @@ A sample client config snippet (command + env):
 ```json
 {
   "mcpServers": {
-    "cmstack-go": {
+    "agentic-cms-go": {
       "command": "go",
       "args": ["run", "./cmd/mcp"],
       "env": {
@@ -81,7 +81,7 @@ binary path) so `go run ./cmd/mcp` resolves.
 
 ## The 48 tools
 
-Grouped by concern (all ids are prefixed `cmstack_go_`):
+Grouped by concern (all ids are prefixed `agentic_cms_go_`):
 
 - **content (23):** `list_posts`, `get_post`, `get_post_revisions`,
   `create_post`, `update_post`, `publish_post`, `unpublish_post`, `delete_post`,

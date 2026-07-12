@@ -1,0 +1,22 @@
+# air config for the dockerized background worker (docker-compose.dev.yml).
+# The worker needs no templ/tailwind — just recompile ./cmd/worker on .go changes.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/worker ./cmd/worker"
+  entrypoint = "./tmp/worker"
+  include_ext = ["go"]
+  exclude_regex = ["_templ\\.go$", "_test\\.go$"]
+  exclude_dir = ["tmp", "bin", "uploads", ".git", ".github", "docs", "e2e", "web"]
+  exclude_unchanged = true
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "2s"
+  delay = 300
+
+[log]
+  main_only = false
+
+[misc]
+  clean_on_exit = false

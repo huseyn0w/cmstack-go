@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
 )
 
 // allowAll is a `can` predicate granting every permission (Administrator).
@@ -38,7 +38,7 @@ func adminShell(can func(string, string) bool) AdminShell {
 }
 
 func TestAdminDashboardAdministratorSeesAllGroups(t *testing.T) {
-	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(allowAll)))
+	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(allowAll), DashboardStats{}))
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestAdminDashboardAdministratorSeesAllGroups(t *testing.T) {
 }
 
 func TestAdminDashboardMemberSeesOnlyPermittedItemsHidden(t *testing.T) {
-	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(memberCan)))
+	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(memberCan), DashboardStats{}))
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestAdminDashboardMemberSeesOnlyPermittedItemsHidden(t *testing.T) {
 }
 
 func TestAdminTopbarHasThemeToggleAndLogout(t *testing.T) {
-	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(allowAll)))
+	html, err := render.ToString(context.Background(), AdminDashboard(adminShell(allowAll), DashboardStats{}))
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestAdminTopbarHasThemeToggleAndLogout(t *testing.T) {
 
 func TestAdminShellAvatarFallsBackToInitials(t *testing.T) {
 	s := adminShell(allowAll) // no AvatarURL
-	html, err := render.ToString(context.Background(), AdminDashboard(s))
+	html, err := render.ToString(context.Background(), AdminDashboard(s, DashboardStats{}))
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}

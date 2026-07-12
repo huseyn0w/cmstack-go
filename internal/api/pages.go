@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/pages"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/pages"
 )
 
 // listPages serves GET /api/v1/pages: a filtered, paginated page listing.

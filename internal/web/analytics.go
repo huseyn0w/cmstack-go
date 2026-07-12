@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"regexp"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // Analytics settings keys (M15-1). The container ids are settings-backed

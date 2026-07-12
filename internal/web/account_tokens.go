@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/apitoken"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/apitoken"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // maxTokenNameLen caps the operator-supplied token label so a runaway input

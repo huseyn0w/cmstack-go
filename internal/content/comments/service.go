@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
 )
 
 // SelfEditWindow bounds how long after posting a signed-in author may edit or
@@ -359,6 +359,16 @@ func (s *Service) StatusCounts(ctx context.Context, actorID uuid.UUID) (map[Stat
 		out[c.Status] = c.Count
 	}
 	return out, nil
+}
+
+// CountPending returns the number of comments awaiting moderation, for the admin
+// dashboard stat card. Reuses StatusCounts so it inherits the read:comment gate.
+func (s *Service) CountPending(ctx context.Context, actorID uuid.UUID) (int, error) {
+	counts, err := s.StatusCounts(ctx, actorID)
+	if err != nil {
+		return 0, err
+	}
+	return counts[StatusPending], nil
 }
 
 // Approve / Spam / Trash set a comment's moderation status. They require

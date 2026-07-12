@@ -1,5 +1,5 @@
 /*
- * Repeatable FAQ section for the CMStack-Go service editor.
+ * Repeatable FAQ section for the Agentic CMS-Go service editor.
  *
  * A dependency-free Alpine.js component backing the editor's FAQ list. It seeds
  * its rows from the server-rendered JSON (so a no-JS visitor still gets the

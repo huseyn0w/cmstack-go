@@ -172,8 +172,8 @@ func itoa(n int) string {
 	return string(buf[i:])
 }
 
-// RegisterAll registers all 48 CMStack-Go MCP tools onto server, each backed by
-// client. The tools map 1:1 to the REST API; every id is prefixed cmstack_go_.
+// RegisterAll registers all 48 Agentic CMS-Go MCP tools onto server, each backed by
+// client. The tools map 1:1 to the REST API; every id is prefixed agentic_cms_go_.
 func RegisterAll(server *mcp.Server, client *APIClient) {
 	registerContentTools(server, client)
 	registerMediaTools(server, client)

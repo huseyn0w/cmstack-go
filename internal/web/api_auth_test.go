@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
 )
 
 // fakeVerifier is a table-driven APITokenVerifier: it maps a plaintext token to

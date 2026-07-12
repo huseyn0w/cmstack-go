@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/pages"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/pages"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // PagePublicService is the subset of *pages.Service the public handler calls.
@@ -42,7 +42,7 @@ func (h *PagePublicHandler) WithSite(s SiteConfig) *PagePublicHandler {
 // NewPagePublicHandler constructs the public pages handler.
 func NewPagePublicHandler(svc PagePublicService, siteName, baseURL string) *PagePublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &PagePublicHandler{svc: svc, siteName: siteName, baseURL: baseURL}
 }

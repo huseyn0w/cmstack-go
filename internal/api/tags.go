@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
 )
 
 // listTags serves GET /api/v1/tags: a paginated tag listing.

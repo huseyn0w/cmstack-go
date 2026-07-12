@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/httpx"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/httpx"
 )
 
 // APITokenVerifier resolves a presented plaintext bearer token to its owner's

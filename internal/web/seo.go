@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // SiteConfig is the site-identity + SEO configuration threaded to the public

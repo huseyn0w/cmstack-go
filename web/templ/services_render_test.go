@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func TestServiceList_TableAndEmpty(t *testing.T) {
@@ -137,7 +137,7 @@ func TestServiceEditor_LocaleTabStrip(t *testing.T) {
 
 func TestPublicServiceDetail_FactsAndAccessibleFAQ(t *testing.T) {
 	v := webtempl.PublicServiceView{
-		SiteName:   "CMStack",
+		SiteName:   "Agentic CMS",
 		HomeURL:    "/",
 		Title:      "SEO Audit",
 		Slug:       "seo-audit",
@@ -173,7 +173,7 @@ func TestPublicServiceDetail_FactsAndAccessibleFAQ(t *testing.T) {
 
 func TestPublicServiceIndex_CardsAndEmpty(t *testing.T) {
 	withCards := webtempl.PublicServiceIndexView{
-		SiteName: "CMStack",
+		SiteName: "Agentic CMS",
 		Cards: []webtempl.PublicServiceCard{
 			{Title: "SEO Audit", URL: "/services/seo-audit", Summary: "We audit.", Price: "From $499"},
 		},
@@ -182,7 +182,7 @@ func TestPublicServiceIndex_CardsAndEmpty(t *testing.T) {
 	html := renderStr(t, webtempl.PublicServiceIndex(withCards))
 	mustContain(t, html, `data-testid="services-grid"`, `data-testid="service-card"`, "SEO Audit", `data-testid="service-card-price"`)
 
-	empty := webtempl.PublicServiceIndexView{SiteName: "CMStack"}
+	empty := webtempl.PublicServiceIndexView{SiteName: "Agentic CMS"}
 	emptyHTML := renderStr(t, webtempl.PublicServiceIndex(empty))
 	mustContain(t, emptyHTML, `data-testid="services-index-empty"`, "No services yet")
 }

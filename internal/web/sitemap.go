@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
-	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/cache"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // sitemapCacheKey is the single cache key under which the fully rendered

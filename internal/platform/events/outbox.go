@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
 )
 
 // OutboxRepository persists async events to the outbox table inside a

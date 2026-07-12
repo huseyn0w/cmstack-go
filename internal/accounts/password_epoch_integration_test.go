@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
 )
 
 // TestPasswordChangeBumpsPasswordChangedAt guards Fix 3 at the DB level: both

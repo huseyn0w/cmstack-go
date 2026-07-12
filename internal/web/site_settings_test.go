@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // fakeOverrides is an in-memory SiteOverrideReader for the overlay tests. When
@@ -33,11 +33,11 @@ func TestOverlay_StringResolution(t *testing.T) {
 		resolver func(SiteConfig) string
 		want     string
 	}{
-		{"nil overrides falls back to config", base.overrides, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "CMStack"},
+		{"nil overrides falls back to config", base.overrides, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "Agentic CMS"},
 		{"override wins when set", fakeOverrides{values: map[string]string{keySiteName: "Overridden"}}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "Overridden"},
-		{"empty override falls back", fakeOverrides{values: map[string]string{keySiteName: "   "}}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "CMStack"},
-		{"unset key falls back", fakeOverrides{values: map[string]string{}}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "CMStack"},
-		{"read error falls back", fakeOverrides{err: errors.New("boom")}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "CMStack"},
+		{"empty override falls back", fakeOverrides{values: map[string]string{keySiteName: "   "}}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "Agentic CMS"},
+		{"unset key falls back", fakeOverrides{values: map[string]string{}}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "Agentic CMS"},
+		{"read error falls back", fakeOverrides{err: errors.New("boom")}, func(s SiteConfig) string { return s.resolveSiteName(ctx) }, "Agentic CMS"},
 		{"description override", fakeOverrides{values: map[string]string{keySiteDescription: "New desc"}}, func(s SiteConfig) string { return s.resolveSiteDescription(ctx) }, "New desc"},
 		{"twitter override", fakeOverrides{values: map[string]string{keySiteTwitterHandle: "@new"}}, func(s SiteConfig) string { return s.resolveTwitterHandle(ctx) }, "@new"},
 	}

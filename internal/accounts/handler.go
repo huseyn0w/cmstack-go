@@ -9,8 +9,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // Service is the subset of *AuthService the handler calls. Declaring it keeps

@@ -1,4 +1,4 @@
-// Command server is the CMStack-Go HTTP entrypoint. It loads config, builds the
+// Command server is the Agentic CMS-Go HTTP entrypoint. It loads config, builds the
 // pgx pool, wires services explicitly, and runs an http.Server with graceful
 // shutdown on SIGINT/SIGTERM.
 package main
@@ -14,40 +14,40 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/api"
-	"github.com/huseyn0w/cmstack-go/internal/apitoken"
-	"github.com/huseyn0w/cmstack-go/internal/contact"
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/comments"
-	"github.com/huseyn0w/cmstack-go/internal/content/media"
-	"github.com/huseyn0w/cmstack-go/internal/content/menus"
-	"github.com/huseyn0w/cmstack-go/internal/content/pages"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/content/search"
-	"github.com/huseyn0w/cmstack-go/internal/content/services"
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
-	"github.com/huseyn0w/cmstack-go/internal/content/taxonomy"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
-	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
-	"github.com/huseyn0w/cmstack-go/internal/platform/oauth"
-	"github.com/huseyn0w/cmstack-go/internal/platform/ratelimit"
-	"github.com/huseyn0w/cmstack-go/internal/platform/recaptcha"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
-	"github.com/huseyn0w/cmstack-go/internal/plugin/samples"
-	sitesettings "github.com/huseyn0w/cmstack-go/internal/settings"
-	"github.com/huseyn0w/cmstack-go/internal/web"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/api"
+	"github.com/huseyn0w/agentic-cms-go/internal/apitoken"
+	"github.com/huseyn0w/agentic-cms-go/internal/contact"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/comments"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/media"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/menus"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/pages"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/search"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/services"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/taxonomy"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/cache"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/logging"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/mailer"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/oauth"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/ratelimit"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/recaptcha"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin/samples"
+	sitesettings "github.com/huseyn0w/agentic-cms-go/internal/settings"
+	"github.com/huseyn0w/agentic-cms-go/internal/web"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func main() {
@@ -296,7 +296,7 @@ func run() error {
 		cfg.BaseURL,
 	).Register(bus)
 
-	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "CMStack", cfg.BaseURL)
+	authorHandler := web.NewAuthorHandler(profileSvc, postSvc, "Agentic CMS", cfg.BaseURL)
 
 	// Search (M6) wiring: the sqlc-backed search repo over the shared querier +
 	// the public search service (FTS with ILIKE fallback across published
@@ -397,6 +397,11 @@ func run() error {
 		CommentPublicSvc:  commentSvc,
 		CommentAdminSvc:   commentSvc,
 		CommentPostTitler: commentAdapters,
+
+		// Dashboard stat cards.
+		DashboardPostCounter:    postSvc,
+		DashboardPageCounter:    pageSvc,
+		DashboardCommentCounter: commentSvc,
 
 		// Contact (M12).
 		ContactSvc: contactSvc,

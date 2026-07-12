@@ -1,5 +1,5 @@
 // Command mcp is the standalone MCP (Model Context Protocol) server for
-// CMStack-Go. It exposes the REST API (/api/v1) as 48 scoped tools over stdio,
+// Agentic CMS-Go. It exposes the REST API (/api/v1) as 48 scoped tools over stdio,
 // acting as a THIN, authenticated HTTP client: it carries a service-account
 // bearer API token and calls the existing endpoints, so every tool invocation is
 // re-authorized SERVER-SIDE by the DB-backed RBAC on the REST routes. The MCP
@@ -24,7 +24,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/huseyn0w/cmstack-go/internal/mcpserver"
+	"github.com/huseyn0w/agentic-cms-go/internal/mcpserver"
 )
 
 // version is the reported MCP server version.
@@ -54,7 +54,7 @@ func run() error {
 	client := mcpserver.New(cfg.BaseURL, cfg.Token, nil)
 
 	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "cmstack-go-mcp",
+		Name:    "agentic-cms-go-mcp",
 		Version: version,
 	}, nil)
 	mcpserver.RegisterAll(server, client)

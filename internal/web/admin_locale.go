@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // AdminLocaleHandler sets the operator-chosen admin UI language via a cookie and

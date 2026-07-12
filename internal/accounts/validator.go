@@ -3,7 +3,7 @@ package accounts
 import (
 	"errors"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/validate"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/validate"
 )
 
 // NewValidator returns a Validator that runs struct-tag validation and maps

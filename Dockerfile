@@ -49,7 +49,47 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       go build -tags timetzdata -ldflags "-s -w" -o /out/migrate ./cmd/migrate; \
     mkdir -p /out/uploads
 
-# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+# ── Stage 2: dev ──────────────────────────────────────────────────────────────
+# Development image for `make dev` (docker-compose.dev.yml, `target: dev`). Unlike
+# the build/runtime stages it does NOT copy the source — the repo is bind-mounted
+# at /src by compose, so host edits are picked up live. It only carries the
+# hot-reload toolchain: the Go compiler, air (rebuild+restart on save), templ
+# (regenerate *_templ.go), and the standalone Tailwind CLI (rebuild app.css).
+# Placed BEFORE the runtime stage so `docker build .` (no --target) still yields
+# the production runtime image.
+FROM golang:1.26-bookworm AS dev
+
+# Re-declared here: ARG scope is per-stage.
+ARG TARGETARCH
+ARG TAILWIND_VERSION=v4.3.1
+
+# curl for the Tailwind download; git in case a tool build needs it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Dev tools into GOPATH/bin (/go/bin, already on PATH). Keep templ pinned to the
+# same version as go.mod / the Makefile `tools` target.
+RUN go install github.com/air-verse/air@v1.65.3 \
+ && go install github.com/a-h/templ/cmd/templ@v0.3.1020
+
+# Tailwind standalone CLI → /usr/local/bin/tailwindcss (same asset the build stage fetches).
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) tw_arch=x64 ;; \
+      arm64) tw_arch=arm64 ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/tailwindcss \
+      "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-${tw_arch}"; \
+    chmod +x /usr/local/bin/tailwindcss
+
+WORKDIR /src
+
+# Default to the web server under air; the worker service overrides the command.
+CMD ["air", "-c", ".air.toml"]
+
+# ── Stage 3: runtime ──────────────────────────────────────────────────────────
 # distroless/static: no shell, no package manager, includes CA certificates.
 # Runs as the unprivileged "nonroot" user (uid 65532).
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime

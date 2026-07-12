@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
 )
 
 // listUsers serves GET /api/v1/users: a paginated user listing (admin-only DTO,

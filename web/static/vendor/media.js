@@ -1,5 +1,5 @@
 /*
- * Media library island for CMStack-Go.
+ * Media library island for Agentic CMS-Go.
  *
  * A dependency-free Alpine.js component that PROGRESSIVELY ENHANCES the native
  * media upload form (DESIGN_SYSTEM §5 File-upload): without JS the form still

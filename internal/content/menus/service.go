@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // menuCache is the narrow object-cache contract the service uses to memoize

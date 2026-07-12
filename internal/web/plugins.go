@@ -3,8 +3,8 @@ package web
 import (
 	"context"
 
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
-	"github.com/huseyn0w/cmstack-go/internal/settings"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
+	"github.com/huseyn0w/agentic-cms-go/internal/settings"
 )
 
 // pluginRegionSource adapts a *plugin.Manager to the templ package's

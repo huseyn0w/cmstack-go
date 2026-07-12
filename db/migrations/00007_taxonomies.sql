@@ -69,7 +69,7 @@ CREATE INDEX post_tags_tag_idx ON post_tags (tag_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm3', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm3', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -91,5 +91,5 @@ DROP TABLE IF EXISTS categories;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm2', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm2', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
 )
 
 // compile-time assertion that the pg repo satisfies the domain interface.

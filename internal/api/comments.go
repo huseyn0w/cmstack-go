@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/comments"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/comments"
 )
 
 // listComments serves GET /api/v1/comments: a filtered, paginated moderation

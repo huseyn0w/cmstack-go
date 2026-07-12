@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // Domain errors carried to the handler's error summary.
@@ -625,6 +625,12 @@ func (s *Service) uniqueSlug(ctx context.Context, desired string, excludeID uuid
 	return kernel.UniqueSlug(ctx, desired, func(ctx context.Context, slug string) (bool, error) {
 		return s.repo.SlugTaken(ctx, slug, excludeID)
 	})
+}
+
+// CountPublished returns the total number of published pages, for the admin
+// dashboard stat card. Read-only aggregate over public content, not gated.
+func (s *Service) CountPublished(ctx context.Context) (int, error) {
+	return s.repo.CountPublished(ctx)
 }
 
 // emitPublished publishes the async content.published event inside tx.

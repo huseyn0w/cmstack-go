@@ -39,4 +39,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/huseyn0w/cmstack-go
+        - github.com/huseyn0w/agentic-cms-go

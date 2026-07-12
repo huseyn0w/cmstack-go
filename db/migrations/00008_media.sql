@@ -57,7 +57,7 @@ CREATE INDEX media_thumbnails_media_idx ON media_thumbnails (media_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm4', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm4', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -71,5 +71,5 @@ DROP TABLE IF EXISTS media;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm3', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm3', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

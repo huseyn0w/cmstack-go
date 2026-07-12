@@ -6,7 +6,7 @@
   "nav.signIn": "Sign in",
   "nav.account": "Account",
 
-  "site.name": "CMStack",
+  "site.name": "Agentic CMS",
   "site.tagline": "Server-rendered CMS",
 
   "localeSwitcher.label": "Language",
@@ -35,10 +35,10 @@
   "pagination.previous": "Previous",
   "pagination.next": "Next",
 
-  "footer.tagline": "CMStack-Go",
+  "footer.tagline": "Agentic CMS-Go",
 
-  "admin.metaDescription": "CMStack admin",
-  "admin.brand": "CMStack",
+  "admin.metaDescription": "Agentic CMS admin",
+  "admin.brand": "Agentic CMS",
   "admin.sidebar.label": "Admin",
   "admin.sidebar.sections": "Sections",
   "admin.openNavigation": "Open navigation",
@@ -50,7 +50,7 @@
   "admin.signOut": "Sign out",
   "admin.nav.dashboard": "Dashboard",
   "admin.welcomeBack": "Welcome back, {name}",
-  "admin.dashboard.intro": "This is your CMStack admin dashboard. Widgets arrive in later milestones.",
+  "admin.dashboard.intro": "This is your Agentic CMS admin dashboard. Widgets arrive in later milestones.",
   "admin.dashboard.posts": "Posts",
   "admin.dashboard.pages": "Pages",
   "admin.dashboard.comments": "Comments",

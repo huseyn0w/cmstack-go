@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // PluginCatalogue is the narrow plugin-manager surface the admin handler needs:

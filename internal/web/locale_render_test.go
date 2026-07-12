@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // renderHomeIn renders the public Home page through a locale-populated context,

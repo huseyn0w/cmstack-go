@@ -1,8 +1,8 @@
-# cmstack-go (CMStack-Go) — Build Plan
+# agentic-cms-go (Agentic CMS-Go) — Build Plan
 
-**Product:** CMStack-Go — the Go member of the cmstack CMS family. Same product as `cmstack-django` /
-`cmstack-laravel` / `cmstack-ts`, built clean from day one in idiomatic Go, server-rendered.
-**Module path:** `github.com/huseyn0w/cmstack-go`
+**Product:** Agentic CMS-Go — the Go member of the agentic-cms CMS family. Same product as `agentic-cms-django` /
+`agentic-cms-laravel` / `agentic-cms-ts`, built clean from day one in idiomatic Go, server-rendered.
+**Module path:** `github.com/huseyn0w/agentic-cms-go`
 **Canon (read-only, at repo root `../`):** `../FEATURE_MATRIX.md` (Target = what to build, Canonical =
 which project to mirror) · `../DESIGN_SYSTEM.md` (single UI source of truth).
 
@@ -36,7 +36,7 @@ service → event bus → observers/listeners (side effects: email, cache invali
 ### Project layout (idiomatic Go)
 
 ```
-cmstack-go/
+agentic-cms-go/
   cmd/
     server/        # main entrypoint: config load, pgx pool, wiring, http.Server, graceful shutdown
     migrate/       # goose migration runner (or invoked via Makefile)
@@ -152,7 +152,7 @@ Each feature names the **reference** project to mirror (from FEATURE_MATRIX Cano
 | M14 | **Email / Notifications** | Transactional email backend wired for auth+contact (django/laravel); comment-notification email (net-new) | Sonnet-sub | ✅ | SMTP backend (go-mail v0.8.0) behind existing mailer ifaces; `mailer.New` factory (log\|smtp\|noop) with log-fallback on init error; multipart text+html, HTML-escaped user data, Reply-To on contact; injectable `sender` seam (network-free tests); `buildMailer` wired in server+worker. Config MAIL_DRIVER/SMTP_HOST/PORT/USERNAME/PASSWORD/MAIL_FROM/MAIL_FROM_NAME/SMTP_TLS. build/vet/lint/test green. |
 | M15 | **Analytics & Settings** | GA4+GTM from settings, public-pages-only (django/laravel); general site settings (laravel); env secrets + `.env.example` (django) | Sonnet-sub | ✅ | M15-1: GA4/GTM injected on public pages only via context-source (regex-validated ids, settings keys `analytics_ga4_id`/`gtm_id`, admin routes emit nothing). M15-2: live settings OVERLAY on SiteConfig (config=default, settings=override, nil-safe, value-semantics preserved) + `/admin/settings/general` (site identity) & `/admin/settings/seo` (indexing/verification/analytics/Org-GEO) dashboards; nav links wired. build/vet/lint/full-test green. |
 | M16 | **RSS / Feeds** | `/rss.xml` + per-category feeds, published posts (net-new) | Sonnet-sub | ✅ | `internal/web/rss.go` `FeedHandler` — RSS 2.0 via encoding/xml (auto-escaped), root-router unprefixed `/rss.xml` + `/categories/{slug}/rss.xml`, reads live SiteConfig overlay + `PublicListFiltered`, RFC1123Z pubDate from PublishedAt (nil skipped), deterministic (no time.Now), atom:self link, head auto-discovery `<link>`. build/vet/lint/test green. |
-| M17 | **Public REST API + MCP** | Public read API + gated write API, validated (ts); MCP server OAuth 2.1 (laravel) porting ts 48-tool surface 1:1; health endpoints (ts) | Opus-sub | ✅ | 4 slices. M17-1: `/api/v1` foundation — `api_tokens` (sha256 PAT), `APITokenAuth` bearer mw reusing `withUser`+`RequirePermission` (single RBAC source), JSON envelope, `cmd/apitoken` CLI. M17-2: full CRUD posts/pages/categories/tags + media(list/get/update/delete) + comments moderation. M17-3: settings/theme + SEO site-profile (over M15 keys) + services/FAQ CRUD + new accounts users-admin. M17-4: `cmd/mcp` MCP server (official go-sdk, stdio) — 48 `cmstack_go_*` tools 1:1 with ts, thin bearer HTTP client over `/api/v1`, per-call server-side RBAC. Health `/health`+`/health/ready` pre-existing. OAuth 2.1 → deferred (bearer PAT floor, matches mature-stack reality). build/vet/lint/test green. |
+| M17 | **Public REST API + MCP** | Public read API + gated write API, validated (ts); MCP server OAuth 2.1 (laravel) porting ts 48-tool surface 1:1; health endpoints (ts) | Opus-sub | ✅ | 4 slices. M17-1: `/api/v1` foundation — `api_tokens` (sha256 PAT), `APITokenAuth` bearer mw reusing `withUser`+`RequirePermission` (single RBAC source), JSON envelope, `cmd/apitoken` CLI. M17-2: full CRUD posts/pages/categories/tags + media(list/get/update/delete) + comments moderation. M17-3: settings/theme + SEO site-profile (over M15 keys) + services/FAQ CRUD + new accounts users-admin. M17-4: `cmd/mcp` MCP server (official go-sdk, stdio) — 48 `agentic_cms_go_*` tools 1:1 with ts, thin bearer HTTP client over `/api/v1`, per-call server-side RBAC. Health `/health`+`/health/ready` pre-existing. OAuth 2.1 → deferred (bearer PAT floor, matches mature-stack reality). build/vet/lint/test green. |
 | M18 | **Security hardening (cross-cut)** | write-time sanitize, JSON-LD escape, SVG/polyglot reject, path-traversal guards, CSRF+secure cookies+HSTS+nosniff+frame-deny (django), reCAPTCHA graceful | Opus-sub | ✅ | 3 parallel adversarial audits (authz/API/token; injection/encoding/SSRF; uploads/traversal/prod-hardening). NO critical/high — canon controls all verified present (magic-byte SVG reject, single-chokepoint path containment, nosniff+sandbox+attachment on blobs, HSTS/frame-DENY/CSP prod, Secure/HttpOnly/SameSite cookies, deny-by-default RBAC, JSON-LD + analytics-id double-validated, sqlc-only). 3 LOW defensive fixes applied: per-IP rate-limit on /api/v1, last-administrator demotion guard (ErrLastAdmin→409), robots UA CR/LF strip. build/vet/lint/test green. |
 | M19 | **UI completeness pass** | Every public + admin surface to DESIGN_SYSTEM; Lighthouse ≥95 mobile (perf/SEO/a11y/best-practices); WCAG 2.1 AA; CWV budget; reduced-motion | lead+Opus-sub | ✅ | Code-level a11y/perf/SEO audit (no headless Lighthouse in env). Fixed: BLOCKER — `--color-ring` missing from `@theme` so every `ring-ring`/`border-ring` focus utility (24 templates) compiled to nothing → added mapping, rebuilt; MAJOR — darkened/lightened `--text-subtle` across all 6 theme×mode variants to ≥4.5:1 (WCAG 1.4.3); MAJOR — `/static/*` now sends `Cache-Control` (ETag revalidation retained); MAJOR — sanitizer now allow-lists integer `width`/`height` + keyword `loading` on `<img>` and the editor stamps intrinsic dims + `loading=lazy` from the media record (CLS fix); MINOR — `loading=lazy` on public avatars, `theme-color` meta. Already-good (verified, not touched): landmarks/labels/aria/skip-link/reduced-motion/hreflang/OG/canonical/noopener/deferred-JS/preloaded-fonts. build/vet/lint/test green. |
 | M20 | **Tests / Quality / CI** | unit+integration ≥80% services/repos, 100% critical paths; E2E browser canonical flows (auth, content create→publish, media upload, search, dashboard) public+admin; coverage report; CI lint→typecheck(vet)→test→build→e2e | lead+Opus-sub | ✅ | Comprehensive unit+integration suite already in place (every pkg tested, testcontainers for repos); business-logic pkgs 56–100% (services/api/accounts/web 64–94%), overall 49.6% (diluted by generated templ/sqlcgen + cmd wiring). Added taxonomy adapter tests (was 0%). CI (`.github/workflows/ci.yml`) rebuilt: generate→vet→lint(golangci-lint v2.12.2)→format-check(`golangci-lint fmt --diff`, single pinned source, no gofumpt version-drift)→build→test `-p 2` with coverage → summary + artifact. `make ci` mirrors it. **E2E (Playwright) DEFERRED** — no browser harness in the Go port (net-new; Go is statically typed so "typecheck"=vet+lint). build/vet/lint/fmt/test green. |
@@ -222,8 +222,8 @@ Recorded in Makefile `make tools`. **No build/test claims without showing real c
 ---
 
 ## 8. Open questions / decisions log
-- Module path `github.com/huseyn0w/cmstack-go` (from git remote). ✔
-- Product display name: **CMStack-Go** (per README). ✔
+- Module path `github.com/huseyn0w/agentic-cms-go` (from git remote). ✔
+- Product display name: **Agentic CMS-Go** (per README). ✔
 - Locales: en (default), de, ru — matches ts/django canon. ✔
 - Proceeding on stack choices per autonomy directive; will surface only genuinely irreversible/product
   decisions the canon doesn't answer.

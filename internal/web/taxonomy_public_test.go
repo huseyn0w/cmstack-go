@@ -10,15 +10,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 type stubCategoryPublic struct {
@@ -67,7 +67,7 @@ func buildArchiveEnv(t *testing.T, cat CategoryPublicService, tag TagPublicServi
 		AuthMW:            NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
 		CSRFFunc:          security.Token,
 		Authors:           fakeUsers{users: map[uuid.UUID]accounts.User{}},
-		SiteName:          "CMStack",
+		SiteName:          "Agentic CMS",
 		CategoryPublicSvc: cat,
 		TagPublicSvc:      tag,
 		PostHydrateSvc:    hyd,

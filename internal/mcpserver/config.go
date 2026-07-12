@@ -1,5 +1,5 @@
 // Package mcpserver is a standalone MCP (Model Context Protocol) server that
-// exposes the CMStack-Go REST API (/api/v1) as 48 scoped tools. It is a THIN,
+// exposes the Agentic CMS-Go REST API (/api/v1) as 48 scoped tools. It is a THIN,
 // authenticated HTTP client of the REST API, not a second source of truth: it
 // carries a service-account bearer API token and calls the existing endpoints,
 // so every tool invocation is re-authorized SERVER-SIDE by the DB-backed RBAC on

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
 )
 
 // taxonomyBulkFunc is the delete-only bulk operation shared by the category and

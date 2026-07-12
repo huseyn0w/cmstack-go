@@ -1,4 +1,4 @@
-// Command worker is the async background process for CMStack-Go. It hosts the
+// Command worker is the async background process for Agentic CMS-Go. It hosts the
 // outbox relay loop, honestly constructed over a real pgx pool, the sqlc
 // querier, and the wired event bus. Each tick claims unprocessed outbox rows
 // (FOR UPDATE SKIP LOCKED) inside a transaction, dispatches each to its
@@ -14,19 +14,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/contact"
-	"github.com/huseyn0w/cmstack-go/internal/content/comments"
-	"github.com/huseyn0w/cmstack-go/internal/content/media"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
-	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
-	"github.com/huseyn0w/cmstack-go/internal/platform/mailer"
-	sitesettings "github.com/huseyn0w/cmstack-go/internal/settings"
-	"github.com/huseyn0w/cmstack-go/internal/web"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/contact"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/comments"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/media"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/logging"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/mailer"
+	sitesettings "github.com/huseyn0w/agentic-cms-go/internal/settings"
+	"github.com/huseyn0w/agentic-cms-go/internal/web"
 )
 
 func main() {

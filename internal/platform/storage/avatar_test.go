@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 // pngMagic is a minimal valid PNG signature + IHDR so mimetype detects image/png.

@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/services"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/services"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // servicePublicPageSize is the public services index page size.
@@ -44,7 +44,7 @@ func (h *ServicePublicHandler) WithSite(s SiteConfig) *ServicePublicHandler {
 // NewServicePublicHandler constructs the public services handler.
 func NewServicePublicHandler(svc ServicePublicService, siteName, baseURL string) *ServicePublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &ServicePublicHandler{svc: svc, siteName: siteName, baseURL: baseURL}
 }

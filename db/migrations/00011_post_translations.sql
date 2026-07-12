@@ -30,7 +30,7 @@ CREATE INDEX post_translations_post_idx ON post_translations (post_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm7b', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm7b', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -40,5 +40,5 @@ DROP TABLE IF EXISTS post_translations;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm7a', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm7a', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func TestPageList_TreeIndentAndBadges(t *testing.T) {
@@ -145,7 +145,7 @@ func TestPageEditor_LocaleTabStrip(t *testing.T) {
 
 func TestPublicPage_TemplateAndBreadcrumbs(t *testing.T) {
 	v := webtempl.PublicPageView{
-		SiteName:    "CMStack",
+		SiteName:    "Agentic CMS",
 		HomeURL:     "/",
 		Title:       "Team",
 		Slug:        "team",

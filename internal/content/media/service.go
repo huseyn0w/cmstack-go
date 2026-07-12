@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 // Domain errors. ErrForbidden is the permission gate; the validation sentinels

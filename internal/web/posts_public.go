@@ -10,13 +10,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // publicPageSize is the public blog index page size.
@@ -84,7 +84,7 @@ func (h *PostPublicHandler) WithSite(s SiteConfig) *PostPublicHandler {
 // NewPostPublicHandler constructs the public posts handler.
 func NewPostPublicHandler(svc PostPublicService, authors AuthorNamer, siteName, baseURL string, csrf func(*http.Request) string) *PostPublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &PostPublicHandler{svc: svc, authors: authors, siteName: siteName, baseURL: baseURL, csrf: csrf}
 }

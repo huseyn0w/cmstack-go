@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
 )
 
 // TestDummyHashIsAValidVerifiableHash guards Fix 1: the anti-enumeration dummy

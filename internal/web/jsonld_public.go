@@ -1,8 +1,8 @@
 package web
 
 import (
-	"github.com/huseyn0w/cmstack-go/internal/content/services"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/services"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // serviceFAQItems converts the service JSON-LD seam's FAQ entries into the

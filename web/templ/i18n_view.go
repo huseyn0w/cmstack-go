@@ -3,7 +3,7 @@ package templ
 import (
 	"context"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // Alternate re-exports i18n.Alternate so templ components can reference it

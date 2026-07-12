@@ -9,25 +9,25 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // baseSite is a representative SiteConfig for the builder unit tests.
 func baseSite() SiteConfig {
 	return SiteConfig{
 		BaseURL:         "https://site.test/", // trailing slash exercises trimming
-		SiteName:        "CMStack",
+		SiteName:        "Agentic CMS",
 		SiteDescription: "A server-rendered CMS",
 		DefaultOGImage:  "/static/og.png",
-		TwitterHandle:   "@cmstack",
+		TwitterHandle:   "@agentic-cms",
 		Verifications:   []webtempl.MetaTag{{Name: "google-site-verification", Content: "tok"}},
 	}
 }
@@ -41,17 +41,17 @@ func seoReq() *http.Request {
 func TestBuildSEO_TitleSuffixing(t *testing.T) {
 	s := baseSite()
 	got := s.BuildSEO(seoReq(), SEOInput{Title: "Hello World"})
-	if got.DocTitle != "Hello World · CMStack" {
-		t.Errorf("DocTitle = %q, want %q", got.DocTitle, "Hello World · CMStack")
+	if got.DocTitle != "Hello World · Agentic CMS" {
+		t.Errorf("DocTitle = %q, want %q", got.DocTitle, "Hello World · Agentic CMS")
 	}
 
 	// Empty title collapses to just the site name.
-	if got := s.BuildSEO(seoReq(), SEOInput{Title: ""}); got.DocTitle != "CMStack" {
-		t.Errorf("empty-title DocTitle = %q, want %q", got.DocTitle, "CMStack")
+	if got := s.BuildSEO(seoReq(), SEOInput{Title: ""}); got.DocTitle != "Agentic CMS" {
+		t.Errorf("empty-title DocTitle = %q, want %q", got.DocTitle, "Agentic CMS")
 	}
-	// Title == SiteName collapses to just the site name (no "CMStack · CMStack").
-	if got := s.BuildSEO(seoReq(), SEOInput{Title: "CMStack"}); got.DocTitle != "CMStack" {
-		t.Errorf("sitename-title DocTitle = %q, want %q", got.DocTitle, "CMStack")
+	// Title == SiteName collapses to just the site name (no "Agentic CMS · Agentic CMS").
+	if got := s.BuildSEO(seoReq(), SEOInput{Title: "Agentic CMS"}); got.DocTitle != "Agentic CMS" {
+		t.Errorf("sitename-title DocTitle = %q, want %q", got.DocTitle, "Agentic CMS")
 	}
 }
 
@@ -115,7 +115,7 @@ func TestBuildSEO_TwitterCardByImage(t *testing.T) {
 	if got.OGImage != "https://site.test/static/og.png" {
 		t.Errorf("OGImage = %q, want absolute", got.OGImage)
 	}
-	if got.TwitterSite != "@cmstack" {
+	if got.TwitterSite != "@agentic-cms" {
 		t.Errorf("TwitterSite = %q", got.TwitterSite)
 	}
 	// No image -> plain summary card, empty image.
@@ -167,7 +167,7 @@ func TestBuildSEO_OGTypeAndVerifications(t *testing.T) {
 func TestNewSiteConfig_VerificationTags(t *testing.T) {
 	cfg := config.Config{
 		BaseURL:                "https://site.test",
-		SiteName:               "CMStack",
+		SiteName:               "Agentic CMS",
 		GoogleSiteVerification: "g",
 		YandexVerification:     "y",
 	}
@@ -198,12 +198,12 @@ func buildSEOEnv(t *testing.T, svc PostPublicService) http.Handler {
 		CSRFFunc:      security.Token,
 		PostPublicSvc: svc,
 		Authors:       fakeUsers{users: map[uuid.UUID]accounts.User{}},
-		SiteName:      "CMStack",
+		SiteName:      "Agentic CMS",
 		Site: SiteConfig{
 			BaseURL:        "https://site.test",
-			SiteName:       "CMStack",
+			SiteName:       "Agentic CMS",
 			DefaultOGImage: "/static/og.png",
-			TwitterHandle:  "@cmstack",
+			TwitterHandle:  "@agentic-cms",
 		},
 		Locale: NewLocaleResolver(cat),
 	})
@@ -260,12 +260,12 @@ func TestPublicPost_NoIndexHead(t *testing.T) {
 func TestNewSiteConfig_OrgIdentity(t *testing.T) {
 	sc := NewSiteConfig(config.Config{
 		BaseURL:     "https://site.test/",
-		SiteName:    "CMStack",
+		SiteName:    "Agentic CMS",
 		OrgLogo:     "/static/logo.png",
 		OrgLocality: "Berlin",
 		SameAs:      []string{"https://github.com/acme"},
 	})
-	if sc.Org.Name != "CMStack" {
+	if sc.Org.Name != "Agentic CMS" {
 		t.Errorf("Org.Name = %q, want fallback to SiteName", sc.Org.Name)
 	}
 	if sc.Org.URL != "https://site.test" {
@@ -279,7 +279,7 @@ func TestNewSiteConfig_OrgIdentity(t *testing.T) {
 	}
 
 	// Explicit OrgName wins over SiteName.
-	sc2 := NewSiteConfig(config.Config{BaseURL: "https://site.test", SiteName: "CMStack", OrgName: "Acme GmbH"})
+	sc2 := NewSiteConfig(config.Config{BaseURL: "https://site.test", SiteName: "Agentic CMS", OrgName: "Acme GmbH"})
 	if sc2.Org.Name != "Acme GmbH" {
 		t.Errorf("explicit OrgName should win, got %q", sc2.Org.Name)
 	}
@@ -296,10 +296,10 @@ func TestHomeRoute_EmitsOrganizationAndWebSite(t *testing.T) {
 		Session:  sess,
 		AuthMW:   NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
 		CSRFFunc: security.Token,
-		SiteName: "CMStack",
+		SiteName: "Agentic CMS",
 		Site: NewSiteConfig(config.Config{
 			BaseURL:      "https://site.test",
-			SiteName:     "CMStack",
+			SiteName:     "Agentic CMS",
 			OrgName:      "Acme GmbH",
 			OrgLocality:  "Berlin",
 			GeoStatement: "Serving Berlin.",

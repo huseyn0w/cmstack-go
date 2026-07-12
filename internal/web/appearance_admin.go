@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/theme"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/theme"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // AppearanceSettings is the narrow settings dependency the appearance switcher

@@ -48,7 +48,7 @@ CREATE INDEX comments_author_user_idx ON comments (author_user_id)
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm5', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm5', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -58,5 +58,5 @@ DROP TABLE IF EXISTS comments;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm4', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm4', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

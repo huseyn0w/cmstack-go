@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 // knownSocialNetworks is the allow-list of social keys a profile may carry. Any

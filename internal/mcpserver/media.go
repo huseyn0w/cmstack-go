@@ -26,7 +26,7 @@ type updateMediaInput struct {
 // NOT exposed over MCP (it needs a multipart file body and byte-level
 // validation); these list and manage existing assets and their metadata.
 func registerMediaTools(s *mcp.Server, client *APIClient) {
-	register(s, "cmstack_go_list_media", "List media",
+	register(s, "agentic_cms_go_list_media", "List media",
 		"List uploaded media assets with pagination. Returns { items, total, page, perPage }; each item includes its public url, dimensions, and metadata.",
 		readAnn, func(ctx context.Context, in listMediaInput) (json.RawMessage, error) {
 			q := url.Values{}
@@ -35,19 +35,19 @@ func registerMediaTools(s *mcp.Server, client *APIClient) {
 			return client.do(ctx, "GET", "/media", q, nil)
 		})
 
-	register(s, "cmstack_go_get_media", "Get a media asset",
+	register(s, "agentic_cms_go_get_media", "Get a media asset",
 		"Fetch a single media asset by id.",
 		readAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/media/"+in.ID, nil, nil)
 		})
 
-	register(s, "cmstack_go_update_media", "Update media metadata",
+	register(s, "agentic_cms_go_update_media", "Update media metadata",
 		"Update a media asset's editorial metadata by id. Any subset of: alt, title, caption. Returns the updated asset.",
 		updateAnn, func(ctx context.Context, in updateMediaInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/media/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_delete_media", "Delete a media asset",
+	register(s, "agentic_cms_go_delete_media", "Delete a media asset",
 		"Permanently delete a media asset (and its stored file) by id.",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/media/"+in.ID, nil, nil)

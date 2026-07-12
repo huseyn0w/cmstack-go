@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 // fakeThemeReader is a static ThemeReader returning a fixed stored theme id.
@@ -36,7 +36,7 @@ func buildThemedPublicEnv(t *testing.T, storedTheme string) http.Handler {
 		Session:  sess,
 		AuthMW:   NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
 		CSRFFunc: security.Token,
-		SiteName: "CMStack",
+		SiteName: "Agentic CMS",
 		Locale:   NewLocaleResolver(cat),
 		Theme:    NewThemeResolver(fakeThemeReader{id: storedTheme}),
 	})

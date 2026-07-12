@@ -10,14 +10,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 // stubPostPublic is a controllable PostPublicService.
@@ -86,7 +86,7 @@ func buildPublicEnv(t *testing.T, svc PostPublicService) http.Handler {
 		CSRFFunc:      security.Token,
 		PostPublicSvc: svc,
 		Authors:       fakeUsers{users: map[uuid.UUID]accounts.User{}},
-		SiteName:      "CMStack",
+		SiteName:      "Agentic CMS",
 		Locale:        NewLocaleResolver(cat), // M7a routing so /de/... resolves to de
 	})
 }

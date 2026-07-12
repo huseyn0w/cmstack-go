@@ -1,4 +1,4 @@
-// Package db provides a pgx connection pool wrapper used across CMStack-Go.
+// Package db provides a pgx connection pool wrapper used across Agentic CMS-Go.
 package db
 
 import (

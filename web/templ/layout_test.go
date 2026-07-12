@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
 )
 
 func TestHomeRendersLayout(t *testing.T) {
@@ -23,7 +23,7 @@ func TestHomeRendersLayout(t *testing.T) {
 		`lang="en"`,       // language attribute
 		"htmx.min.js",     // vendored htmx
 		"alpine.min.js",   // vendored alpine
-		"CMStack-Go",      // title
+		"Agentic CMS-Go",      // title
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered layout missing %q", want)

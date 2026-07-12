@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/media"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/media"
 )
 
 // listMedia serves GET /api/v1/media: a paginated asset listing (newest first).

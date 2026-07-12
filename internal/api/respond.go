@@ -12,7 +12,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/httpx"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/httpx"
 )
 
 // OK writes a success envelope: {"data": <data>} with the given status.

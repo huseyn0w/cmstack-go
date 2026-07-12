@@ -10,10 +10,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/media"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/media"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // mediaPageSize is the media library grid page size.

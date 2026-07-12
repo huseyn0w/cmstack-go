@@ -8,8 +8,8 @@ import (
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // OAuthService is the subset of *AuthService the OAuth handler calls. Declaring

@@ -3,9 +3,9 @@ package web
 import (
 	"context"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // ctxKey is an unexported context key type to avoid collisions.

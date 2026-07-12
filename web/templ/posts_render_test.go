@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func renderStr(t *testing.T, c webtempl.Component) string {
@@ -216,7 +216,7 @@ func TestPostEditor_EnTabShowsStructuralFields(t *testing.T) {
 
 func TestPublicPostDetail_ArticleProseBreadcrumbJSONLD(t *testing.T) {
 	v := webtempl.PublicPostView{
-		SiteName:     "CMStack",
+		SiteName:     "Agentic CMS",
 		HomeURL:      "/",
 		Title:        "Hello World",
 		Slug:         "hello-world",
@@ -262,7 +262,7 @@ func TestPublicPostDetail_JSONLDEscapesMarkup(t *testing.T) {
 
 func TestPublicPostIndex_CardsAndEmpty(t *testing.T) {
 	withCards := webtempl.PublicPostIndexView{
-		SiteName: "CMStack",
+		SiteName: "Agentic CMS",
 		Cards: []webtempl.PublicPostCard{
 			{Title: "Post A", URL: "/blog/post-a", Excerpt: "ex", AuthorName: "Ann", Date: "Jan 1, 2026", ReadingTime: 2},
 		},
@@ -271,7 +271,7 @@ func TestPublicPostIndex_CardsAndEmpty(t *testing.T) {
 	html := renderStr(t, webtempl.PublicPostIndex(withCards))
 	mustContain(t, html, `data-testid="blog-grid"`, `data-testid="blog-card"`, "Post A", "2 min")
 
-	empty := webtempl.PublicPostIndexView{SiteName: "CMStack"}
+	empty := webtempl.PublicPostIndexView{SiteName: "Agentic CMS"}
 	emptyHTML := renderStr(t, webtempl.PublicPostIndex(empty))
 	mustContain(t, emptyHTML, `data-testid="blog-empty"`, "No posts yet")
 }

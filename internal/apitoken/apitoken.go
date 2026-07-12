@@ -19,7 +19,7 @@ import (
 )
 
 // tokenPrefix is the human-recognisable, non-secret prefix every plaintext
-// token carries. It lets operators and log scrubbers spot a CMStack API token by
+// token carries. It lets operators and log scrubbers spot a Agentic CMS API token by
 // shape without revealing anything about its secret bytes.
 const tokenPrefix = "cmg_"
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/contact"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/contact"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
 )
 
 // stubContactPublic is a controllable ContactPublicService.
@@ -25,7 +25,7 @@ func (s *stubContactPublic) Submit(_ context.Context, in contact.Input) error {
 }
 
 func contactPublicHandler(svc ContactPublicService) *ContactPublicHandler {
-	return NewContactPublicHandler(svc, "CMStack", "https://cms.test", security.Token, "site-key")
+	return NewContactPublicHandler(svc, "Agentic CMS", "https://cms.test", security.Token, "site-key")
 }
 
 func contactPostReq(form url.Values) *http.Request {

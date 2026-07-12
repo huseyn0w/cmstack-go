@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
 )
 
 // memAvatarStore is an in-memory AvatarStore for the profile integration test.

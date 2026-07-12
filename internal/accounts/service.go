@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
 )
 
 // Token lifetimes.
@@ -32,7 +32,7 @@ var dummyHasher = security.NewPasswordHasher()
 // (rather than hardcoding a string) guarantees it is always a parseable hash so
 // Verify runs the full argon2 work and returns (false, nil) — never the fast
 // ErrInvalidHash path that would re-open the timing oracle.
-var dummyHash = mustHash(dummyHasher, "cmstack-dummy-password")
+var dummyHash = mustHash(dummyHasher, "agentic-cms-dummy-password")
 
 // mustHash computes an argon2id hash at init time, panicking only if hashing
 // fails (which would indicate a broken crypto runtime, not a recoverable error).

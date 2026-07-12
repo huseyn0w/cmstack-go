@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
 )
 
 func TestSlugify(t *testing.T) {

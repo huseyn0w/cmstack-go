@@ -5,7 +5,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 func decodeDims(t *testing.T, data []byte) (int, int) {

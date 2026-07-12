@@ -26,7 +26,7 @@ func TestNewDriverSelection(t *testing.T) {
 		{"empty defaults to memory", Config{Driver: ""}, "*cache.Memory", false},
 		{"memory", Config{Driver: "memory"}, "*cache.Memory", false},
 		{"noop", Config{Driver: "noop"}, "*cache.Noop", false},
-		{"redis", Config{Driver: "redis", RedisURL: redisURL, KeyPrefix: "cmstack:"}, "*cache.Redis", false},
+		{"redis", Config{Driver: "redis", RedisURL: redisURL, KeyPrefix: "agentic-cms:"}, "*cache.Redis", false},
 		{"unknown", Config{Driver: "bogus"}, "", true},
 		{"redis bad url", Config{Driver: "redis", RedisURL: "not-a-url"}, "", true},
 	}

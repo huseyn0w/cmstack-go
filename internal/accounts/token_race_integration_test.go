@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
 )
 
 // TestResetPasswordDoubleConsumeRace guards Fix 2: firing two concurrent

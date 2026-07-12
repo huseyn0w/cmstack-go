@@ -11,11 +11,11 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 // fakeRoles resolves a role label for the shell badge.
@@ -65,7 +65,7 @@ func mintSession(t *testing.T, sess *scs.SessionManager, mw *AuthMiddleware, use
 	rec := httptest.NewRecorder()
 	login.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/__login", nil))
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "cmstack_session" {
+		if c.Name == "agentic_cms_session" {
 			return c
 		}
 	}

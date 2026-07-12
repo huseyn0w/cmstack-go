@@ -15,11 +15,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
 )
 
 func migrationsDir(t *testing.T) string {
@@ -40,7 +40,7 @@ func startPostgres(t *testing.T) *pgxpool.Pool {
 	pgC, err := postgres.Run(
 		ctx,
 		"postgres:16-alpine",
-		postgres.WithDatabase("cmstack_test"),
+		postgres.WithDatabase("agentic_cms_test"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		testcontainers.WithWaitStrategy(
@@ -110,7 +110,7 @@ func newWiring(t *testing.T, settings accounts.SettingsProvider) *wiring {
 
 	// Seed so the Member role and admin exist.
 	seeder := accounts.NewSeeder(pool, q, users, roles, hasher)
-	if err := seeder.Seed(context.Background(), accounts.AdminSeed{Email: "admin@cmstack.local", Password: "admin-password-123"}); err != nil {
+	if err := seeder.Seed(context.Background(), accounts.AdminSeed{Email: "admin@agentic-cms.local", Password: "admin-password-123"}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -127,12 +127,12 @@ func TestSeedIsIdempotentAndPopulatesAuthz(t *testing.T) {
 	// Re-running the seed must not error or duplicate.
 	hasher := security.NewPasswordHasher()
 	seeder := accounts.NewSeeder(w.pool, w.queries, w.users, w.roles, hasher)
-	if err := seeder.Seed(ctx, accounts.AdminSeed{Email: "admin@cmstack.local", Password: "admin-password-123"}); err != nil {
+	if err := seeder.Seed(ctx, accounts.AdminSeed{Email: "admin@agentic-cms.local", Password: "admin-password-123"}); err != nil {
 		t.Fatalf("second seed: %v", err)
 	}
 
 	// Authorizer loads the seeded mappings from the DB.
-	admin, err := w.users.GetByEmail(ctx, "admin@cmstack.local")
+	admin, err := w.users.GetByEmail(ctx, "admin@agentic-cms.local")
 	if err != nil {
 		t.Fatalf("get admin: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestSeedIsIdempotentAndPopulatesAuthz(t *testing.T) {
 	}
 
 	// Exactly one admin user despite two seed runs (count via repo lookup).
-	if _, err := w.users.GetByEmail(ctx, "admin@cmstack.local"); err != nil {
+	if _, err := w.users.GetByEmail(ctx, "admin@agentic-cms.local"); err != nil {
 		t.Fatalf("admin should exist exactly once: %v", err)
 	}
 }

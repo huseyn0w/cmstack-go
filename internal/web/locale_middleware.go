@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // adminLocaleCookie is the cookie that carries the operator-chosen UI language

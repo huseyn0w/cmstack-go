@@ -41,7 +41,7 @@ type SEOView struct {
 	OGSiteName string
 	// TwitterCard is the Twitter card type ("summary_large_image" | "summary").
 	TwitterCard string
-	// TwitterSite is the site's Twitter/X handle (e.g. "@cmstack"); may be empty.
+	// TwitterSite is the site's Twitter/X handle (e.g. "@agentic-cms"); may be empty.
 	TwitterSite string
 	// Alternates lists the per-locale hreflang links (absolute hrefs, incl.
 	// x-default).

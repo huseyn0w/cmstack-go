@@ -17,7 +17,7 @@ type Config struct {
 	// RedisURL is the connection URL when Driver is "redis"
 	// (e.g. redis://localhost:6379/0).
 	RedisURL string
-	// KeyPrefix namespaces every Redis key (e.g. "cmstack:").
+	// KeyPrefix namespaces every Redis key (e.g. "agentic-cms:").
 	KeyPrefix string
 }
 

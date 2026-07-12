@@ -8,11 +8,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/content/tags"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/tags"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // CategoryPublicService is the subset of *categories.Service the archive needs.
@@ -55,7 +55,7 @@ func (h *TaxonomyPublicHandler) WithSite(s SiteConfig) *TaxonomyPublicHandler {
 // NewTaxonomyPublicHandler constructs the public taxonomy archive handler.
 func NewTaxonomyPublicHandler(cats CategoryPublicService, tagSvc TagPublicService, postSvc PostHydrator, authors AuthorNamer, siteName string) *TaxonomyPublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &TaxonomyPublicHandler{categories: cats, tags: tagSvc, posts: postSvc, authors: authors, siteName: siteName}
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 // makePNG encodes a solid w x h PNG — a real raster the validator can probe.

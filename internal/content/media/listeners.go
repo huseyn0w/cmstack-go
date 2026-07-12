@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
 )
 
 // UploadListener consumes the async media.uploaded events drained from the

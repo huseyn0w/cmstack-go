@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
 )
 
 // Service is the domain representation of a service page. publishedAt is stamped

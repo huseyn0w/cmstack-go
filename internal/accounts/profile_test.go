@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 // fakeAvatarStore is an in-memory AvatarStore for service tests.

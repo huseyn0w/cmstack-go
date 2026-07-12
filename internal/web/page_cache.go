@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/cache"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 // PageCache is an anonymous, full-response cache for the PUBLIC content group.

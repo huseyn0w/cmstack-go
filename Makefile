@@ -1,21 +1,24 @@
-# cmstack-go — local development helpers.
+# agentic-cms-go — local development helpers.
 #
-#   make dev     one command: .env + local Postgres + migrate + seed, then run
-#   make up      start the dockerized dependency (Postgres); the app runs natively
-#   make down    stop the Postgres container (keeps data)
+#   make dev         fully dockerized dev: Postgres + Redis + migrate/seed +
+#                    server + worker, all in Docker with hot-reload on file save
+#   make dev-logs    follow the dockerized server + worker logs
+#   make dev-down    stop the dockerized dev stack (keeps DB + Go caches)
+#   make dev-clean   stop the dev stack and drop its volumes (wipes DB + caches)
 #
-# NOTE: unlike the other stacks this one has no docker-compose — only Postgres runs
-# in Docker; the server/worker run natively via `go run`. The up/down/logs/clean
-# targets therefore operate on the single Postgres container.
+#   make dev-native  legacy flow: only Postgres in Docker, server runs via `go run`
+#                    (needs `make tools` + local templ/tailwind first)
 #
 # Run `make` (or `make help`) to list every target.
 
 SHELL := /bin/bash
-GOPATH_BIN := $(shell go env GOPATH)/bin
+# Only used by the native (dev-native/run/…) targets. Guarded so the fully
+# dockerized `make dev` works on a machine with no local Go toolchain.
+GOPATH_BIN := $(shell command -v go >/dev/null 2>&1 && echo "$$(go env GOPATH)/bin")
 export PATH := $(PATH):$(GOPATH_BIN)
 
 TAILWIND := ./bin/tailwindcss
-PG_CONTAINER := cmstack-go-db
+PG_CONTAINER := agentic-cms-go-db
 
 # Native HTTP port for `go run ./cmd/server` (matches HTTP_ADDR :8090 in .env.example).
 # `make kill` frees it from a server orphaned by a previous Ctrl-C (Postgres runs in
@@ -27,15 +30,30 @@ DEV_PORTS := 8090
 LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
 
 .DEFAULT_GOAL := help
-.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt ci docker-build docker-up docker-down docker-logs
+DEV_COMPOSE := docker compose -f docker-compose.dev.yml
+
+.PHONY: help dev dev-native dev-logs dev-down dev-clean up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt ci docker-build docker-up docker-down docker-logs
 
 help: ## List the common targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-dev: kill env db-up migrate-up seed ## One command: .env + local Postgres + migrate + seed, then run
+dev: env ## Fully dockerized dev: Postgres + Redis + migrate/seed + server + worker, with hot-reload
+	@echo "starting dockerized dev stack — server: http://localhost:8090"
+	$(DEV_COMPOSE) up --build
+
+dev-native: kill env db-up migrate-up seed ## Legacy: only Postgres in Docker, server runs natively via `go run`
 	@echo "server: http://localhost:8090"
 	@$(LOAD_ENV); go run ./cmd/server
+
+dev-logs: ## Follow the dockerized dev server + worker logs
+	$(DEV_COMPOSE) logs -f server worker
+
+dev-down: ## Stop the dockerized dev stack (keeps DB + Go caches)
+	$(DEV_COMPOSE) down
+
+dev-clean: ## Stop the dockerized dev stack and drop its volumes (wipes DB + caches)
+	$(DEV_COMPOSE) down -v
 
 up: db-up ## Start this stack's dockerized dependency (Postgres); run the app with `make dev`/`make run`
 
@@ -70,7 +88,7 @@ db-up: ## Start a local Postgres for this stack on :5434 (matches .env.example)
 	@if [ -z "$$(docker ps -q -f name=^$(PG_CONTAINER)$$)" ]; then \
 	  if [ -n "$$(docker ps -aq -f name=^$(PG_CONTAINER)$$)" ]; then docker start $(PG_CONTAINER) >/dev/null; \
 	  else docker run -d --name $(PG_CONTAINER) \
-	    -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=cmstack \
+	    -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=agentic-cms \
 	    -p 5434:5432 postgres:16-alpine >/dev/null; fi; \
 	fi
 	@echo "waiting for postgres…"; until docker exec $(PG_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done; echo "postgres ready on :5434"
@@ -142,8 +160,8 @@ ci: generate ## Run the full CI pipeline locally (vet, lint, format, build, test
 	go test -p 2 -timeout 20m -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
-docker-build: ## Build the production container image (cmstack-go:latest)
-	docker build -t cmstack-go:latest .
+docker-build: ## Build the production container image (agentic-cms-go:latest)
+	docker build -t agentic-cms-go:latest .
 
 docker-up: ## Start the full prod stack (needs .env.prod — cp from .env.prod.example)
 	docker compose --env-file .env.prod up -d --build

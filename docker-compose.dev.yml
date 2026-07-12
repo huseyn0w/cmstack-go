@@ -1,0 +1,101 @@
+# Fully dockerized DEV stack for Agentic CMS-Go — `make dev`.
+#
+# Everything (toolchain, server, worker, Postgres, Redis) runs in containers. The
+# repo is bind-mounted into the app containers, so editing + saving a file on the
+# host triggers an in-container rebuild via air (see .air.toml / .air.worker.toml).
+#
+#   make dev          build + start everything (server on http://localhost:8090)
+#   make dev-logs     follow server + worker logs
+#   make dev-down     stop the stack (keeps DB + caches)
+#   make dev-clean    stop and drop volumes (wipes DB + Go caches)
+#
+# Postgres data and the Go module/build caches live in named volumes so restarts
+# are fast and the DB survives `make dev-down`.
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: dev
+  image: agentic-cms-go-dev:latest
+  # DATABASE_URL/REDIS_URL point at the compose services (the .env values use
+  # localhost and would not resolve inside the network). `environment` overrides
+  # anything in .env for these keys.
+  environment:
+    APP_ENV: development
+    HTTP_ADDR: ":8090"
+    BASE_URL: http://localhost:8090
+    DATABASE_URL: postgres://postgres:postgres@postgres:5432/agentic-cms?sslmode=disable
+    REDIS_URL: redis://redis:6379
+    UPLOAD_DIR: ./uploads
+  volumes:
+    - .:/src                       # live source — edits on host are seen instantly
+    - gomod:/go/pkg/mod            # persisted Go module cache
+    - gocache:/root/.cache/go-build # persisted Go build cache (fast rebuilds)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agentic-cms
+    ports:
+      - "5434:5432"               # also reachable from host tools on :5434
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agentic-cms"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: apply migrations, then seed roles/admin + demo content, then exit 0.
+  # server/worker wait for this to complete successfully.
+  migrate:
+    <<: *app
+    command: >
+      sh -c "go run ./cmd/migrate up &&
+             go run ./cmd/seed &&
+             go run ./cmd/seedcontent"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    <<: *app
+    command: ["air", "-c", ".air.toml"]
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["air", "-c", ".air.worker.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  gomod:
+  gocache:

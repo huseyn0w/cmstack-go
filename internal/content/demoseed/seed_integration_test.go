@@ -15,11 +15,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/demoseed"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/demoseed"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
 )
 
 func migrationsDir(t *testing.T) string {
@@ -39,7 +39,7 @@ func startPostgres(t *testing.T) *pgxpool.Pool {
 	pgC, err := postgres.Run(
 		ctx,
 		"postgres:16-alpine",
-		postgres.WithDatabase("cmstack_test"),
+		postgres.WithDatabase("agentic_cms_test"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		testcontainers.WithWaitStrategy(
@@ -156,16 +156,58 @@ func TestIntegration_DemoSeed(t *testing.T) {
 		t.Error("expected a non-empty ru title overlay for introducing-the-cms")
 	}
 
+	// Menus: header + footer created, assigned to their locations, with items.
+	if res.MenusCreated != 2 {
+		t.Errorf("first run created menus=%d, want 2", res.MenusCreated)
+	}
+	var headerItems, footerItems int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM menu_items i JOIN menus m ON m.id=i.menu_id WHERE m.location='header'`).Scan(&headerItems); err != nil {
+		t.Fatalf("count header items: %v", err)
+	}
+	if headerItems != 4 {
+		t.Errorf("header items=%d, want 4 (Home/Blog/About/Contact)", headerItems)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM menu_items i JOIN menus m ON m.id=i.menu_id WHERE m.location='footer'`).Scan(&footerItems); err != nil {
+		t.Fatalf("count footer items: %v", err)
+	}
+	if footerItems != 3 {
+		t.Errorf("footer items=%d, want 3 (Blog/About/Contact)", footerItems)
+	}
+
+	// The Blog item carries de/ru label overlays.
+	var blogTr int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM menu_item_translations t JOIN menu_items i ON i.id=t.item_id
+		 JOIN menus m ON m.id=i.menu_id
+		 WHERE m.location='header' AND i.url='/blog' AND t.locale IN ('de','ru')`).Scan(&blogTr); err != nil {
+		t.Fatalf("count blog item translations: %v", err)
+	}
+	if blogTr != 2 {
+		t.Errorf("blog item translations=%d, want 2 (de+ru)", blogTr)
+	}
+
 	// Second run: idempotent — no new rows, everything updated in place.
 	res2, err := seeder.Seed(ctx, admin.ID)
 	if err != nil {
 		t.Fatalf("demo seed re-run: %v", err)
 	}
-	if res2.PostsCreated != 0 || res2.PagesCreated != 0 {
-		t.Errorf("re-run created posts=%d pages=%d, want 0/0", res2.PostsCreated, res2.PagesCreated)
+	if res2.PostsCreated != 0 || res2.PagesCreated != 0 || res2.MenusCreated != 0 {
+		t.Errorf("re-run created posts=%d pages=%d menus=%d, want 0/0/0", res2.PostsCreated, res2.PagesCreated, res2.MenusCreated)
 	}
-	if res2.PostsUpdated != 6 || res2.PagesUpdated != 2 {
-		t.Errorf("re-run updated posts=%d pages=%d, want 6/2", res2.PostsUpdated, res2.PagesUpdated)
+	if res2.PostsUpdated != 6 || res2.PagesUpdated != 2 || res2.MenusUpdated != 2 {
+		t.Errorf("re-run updated posts=%d pages=%d menus=%d, want 6/2/2", res2.PostsUpdated, res2.PagesUpdated, res2.MenusUpdated)
+	}
+
+	// Idempotent items: header still has exactly 4 (delete-then-recreate, no dupes).
+	var headerItemsAfter int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM menu_items i JOIN menus m ON m.id=i.menu_id WHERE m.location='header'`).Scan(&headerItemsAfter); err != nil {
+		t.Fatalf("recount header items: %v", err)
+	}
+	if headerItemsAfter != 4 {
+		t.Errorf("header items after re-run=%d, want 4 (idempotent)", headerItemsAfter)
 	}
 
 	var postCountAfter int

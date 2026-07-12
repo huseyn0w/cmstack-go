@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // LLMs serves GET /llms.txt: a concise Markdown overview of the site per the
@@ -31,7 +31,7 @@ func (h *CrawlerHandler) writeLLMs(w http.ResponseWriter, r *http.Request, withD
 
 	name := h.site.SiteName
 	if name == "" {
-		name = "CMStack"
+		name = "Agentic CMS"
 	}
 	b.WriteString("# ")
 	b.WriteString(name)

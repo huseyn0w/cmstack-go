@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
 )
 
 // Verifier verifies an OPTIONAL anti-spam token (reCAPTCHA v3). The platform

@@ -42,7 +42,7 @@ func (f AuthForm) hasFieldErrors() bool { return len(f.FieldErrors) > 0 }
 
 // authShell wraps an auth card in the base layout with a centered column.
 templ authShell(title string) {
-	@Base(LayoutData{Title: title + " · CMStack-Go", Description: title}) {
+	@Base(LayoutData{Title: title + " · Agentic CMS-Go", Description: title}) {
 		<section class="mx-auto w-full max-w-md">
 			<h1 class="text-h2 text-text">{ title }</h1>
 			{ children... }
@@ -255,7 +255,7 @@ templ MessagePage(title, heading, body string) {
 // AdminStub is the authenticated landing page after login. The full admin shell
 // is M1-ext.
 templ AdminStub(name, csrfToken string) {
-	@Base(LayoutData{Title: "Admin · CMStack-Go", Description: "Admin"}) {
+	@Base(LayoutData{Title: "Admin · Agentic CMS-Go", Description: "Admin"}) {
 		<section data-testid="admin-stub">
 			<h1 class="text-h1 text-text">Admin</h1>
 			<p class="mt-4 text-body text-muted">Signed in as { name }. The full admin shell arrives in M1-ext.</p>

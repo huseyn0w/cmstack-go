@@ -1,10 +1,10 @@
-# CMStack-Go
+# Agentic CMS-Go
 
 Analog of WordPress written in a Go stack — lighter, simpler, faster, and more secure. Server-rendered.
 
-The Go member of the **cmstack** CMS family: the same product as
-[`cmstack-django`](../cmstack-django), [`cmstack-laravel`](../cmstack-laravel), and
-[`cmstack-ts`](../cmstack-ts), built clean from day one in idiomatic Go.
+The Go member of the **agentic-cms** CMS family: the same product as
+[`agentic-cms-django`](../agentic-cms-django), [`agentic-cms-laravel`](../agentic-cms-laravel), and
+[`agentic-cms-ts`](../agentic-cms-ts), built clean from day one in idiomatic Go.
 
 It implements the shared canon at the repo root: the [Feature Matrix](../FEATURE_MATRIX.md)
 (what every stack must do) and the [Design System](../DESIGN_SYSTEM.md) (one visually identical,
@@ -74,7 +74,7 @@ The worker (outbox relay + scheduled publishing) runs as a separate process — 
 in a second terminal. Prefer your own Postgres? Point `DATABASE_URL` in `.env` at it and use
 `make migrate-up && make seed && make run` (skip `make db-up`).
 
-> **Ports.** This repo lives beside sibling `cmstack-*` stacks. Host ports are deduplicated
+> **Ports.** This repo lives beside sibling `agentic-cms-*` stacks. Host ports are deduplicated
 > so they can all run at once — this stack uses **server 8090 / postgres 5434** (`HTTP_ADDR` /
 > `DATABASE_URL` in `.env`). See [`../PORTS.md`](../PORTS.md) for the cross-stack allocation.
 

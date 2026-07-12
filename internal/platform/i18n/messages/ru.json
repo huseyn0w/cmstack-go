@@ -6,7 +6,7 @@
   "nav.signIn": "Войти",
   "nav.account": "Аккаунт",
 
-  "site.name": "CMStack",
+  "site.name": "Agentic CMS",
   "site.tagline": "CMS с серверным рендерингом",
 
   "localeSwitcher.label": "Язык",
@@ -35,10 +35,10 @@
   "pagination.previous": "Назад",
   "pagination.next": "Вперёд",
 
-  "footer.tagline": "CMStack-Go",
+  "footer.tagline": "Agentic CMS-Go",
 
-  "admin.metaDescription": "Панель управления CMStack",
-  "admin.brand": "CMStack",
+  "admin.metaDescription": "Панель управления Agentic CMS",
+  "admin.brand": "Agentic CMS",
   "admin.sidebar.label": "Администрирование",
   "admin.sidebar.sections": "Разделы",
   "admin.openNavigation": "Открыть навигацию",
@@ -50,7 +50,7 @@
   "admin.signOut": "Выйти",
   "admin.nav.dashboard": "Панель управления",
   "admin.welcomeBack": "С возвращением, {name}",
-  "admin.dashboard.intro": "Это ваша панель управления CMStack. Виджеты появятся в следующих этапах.",
+  "admin.dashboard.intro": "Это ваша панель управления Agentic CMS. Виджеты появятся в следующих этапах.",
   "admin.dashboard.posts": "Посты",
   "admin.dashboard.pages": "Страницы",
   "admin.dashboard.comments": "Комментарии",

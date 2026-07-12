@@ -74,7 +74,7 @@ func AdminBase(s AdminShell) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " · CMStack-Go</title><link rel=\"preload\" href=\"/static/fonts/inter-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script>\n\t\t\t\t(function () {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar t = localStorage.getItem('theme');\n\t\t\t\t\t\tif (!t) {\n\t\t\t\t\t\t\tvar m = document.cookie.match(/(?:^|; )theme=([^;]+)/);\n\t\t\t\t\t\t\tif (m) t = decodeURIComponent(m[1]);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif (t === 'dark') document.documentElement.classList.add('dark');\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t})();\n\t\t\t</script><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/alpine.min.js\" defer></script></head><body class=\"h-full bg-bg text-text antialiased\"><a href=\"#main\" class=\"sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-text\">Skip to content</a><div x-data=\"{ drawer: false, theme: (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),\n\t\t\t\t\ttoggleTheme() {\n\t\t\t\t\t\tthis.theme = this.theme === 'dark' ? 'light' : 'dark';\n\t\t\t\t\t\tdocument.documentElement.classList.toggle('dark', this.theme === 'dark');\n\t\t\t\t\t\ttry { localStorage.setItem('theme', this.theme); } catch (e) {}\n\t\t\t\t\t\tdocument.cookie = 'theme=' + this.theme + '; path=/; max-age=31536000; samesite=lax';\n\t\t\t\t\t} }\" @keydown.escape.window=\"drawer = false\" class=\"flex h-full\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " · Agentic CMS-Go</title><link rel=\"preload\" href=\"/static/fonts/inter-var.woff2\" as=\"font\" type=\"font/woff2\" crossorigin=\"anonymous\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script>\n\t\t\t\t(function () {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar t = localStorage.getItem('theme');\n\t\t\t\t\t\tif (!t) {\n\t\t\t\t\t\t\tvar m = document.cookie.match(/(?:^|; )theme=([^;]+)/);\n\t\t\t\t\t\t\tif (m) t = decodeURIComponent(m[1]);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif (t === 'dark') document.documentElement.classList.add('dark');\n\t\t\t\t\t} catch (e) {}\n\t\t\t\t})();\n\t\t\t</script><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/alpine.min.js\" defer></script></head><body class=\"h-full bg-bg text-text antialiased\"><a href=\"#main\" class=\"sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-text\">Skip to content</a><div x-data=\"{ drawer: false, theme: (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),\n\t\t\t\t\ttoggleTheme() {\n\t\t\t\t\t\tthis.theme = this.theme === 'dark' ? 'light' : 'dark';\n\t\t\t\t\t\tdocument.documentElement.classList.toggle('dark', this.theme === 'dark');\n\t\t\t\t\t\ttry { localStorage.setItem('theme', this.theme); } catch (e) {}\n\t\t\t\t\t\tdocument.cookie = 'theme=' + this.theme + '; path=/; max-age=31536000; samesite=lax';\n\t\t\t\t\t} }\" @keydown.escape.window=\"drawer = false\" class=\"flex h-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -878,8 +878,9 @@ func avatar(s AdminShell) templ.Component {
 }
 
 // AdminDashboard is the authed landing page (/admin). It uses the shell and
-// shows a welcome plus placeholder stat cards; real widgets arrive later.
-func AdminDashboard(s AdminShell) templ.Component {
+// shows a welcome plus stat cards populated with live published/pending counts
+// (an em dash when a stat is unavailable).
+func AdminDashboard(s AdminShell, stats DashboardStats) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -920,7 +921,7 @@ func AdminDashboard(s AdminShell) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(loc.T.T("admin.welcomeBack", "name", s.UserName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 307, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 308, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -933,7 +934,7 @@ func AdminDashboard(s AdminShell) templ.Component {
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(loc.T.T("admin.dashboard.intro"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 308, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 309, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -943,15 +944,15 @@ func AdminDashboard(s AdminShell) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.posts"), "—", loc.T.T("admin.dashboard.totalPublished")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.posts"), orDash(stats.PublishedPosts), loc.T.T("admin.dashboard.totalPublished")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.pages"), "—", loc.T.T("admin.dashboard.totalPublished")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.pages"), orDash(stats.PublishedPages), loc.T.T("admin.dashboard.totalPublished")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.comments"), "—", loc.T.T("admin.dashboard.awaitingModeration")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = statCard(loc.T.T("admin.dashboard.comments"), orDash(stats.PendingComments), loc.T.T("admin.dashboard.awaitingModeration")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -997,7 +998,7 @@ func statCard(label, value, hint string) templ.Component {
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 320, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 321, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {
@@ -1010,7 +1011,7 @@ func statCard(label, value, hint string) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 321, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 322, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -1023,7 +1024,7 @@ func statCard(label, value, hint string) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(hint)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 322, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templ/admin.templ`, Line: 323, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {

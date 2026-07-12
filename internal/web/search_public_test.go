@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/search"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/search"
 )
 
 // stubSearch is a scripted SearchService for the handler tests. It records the
@@ -37,7 +37,7 @@ func TestSearchHandler_RendersResults(t *testing.T) {
 			{Type: search.HitPost, Title: "PG Tuning", Slug: "pg-tuning", URL: "/blog/pg-tuning", Snippet: "fast <mark>pg</mark> queries", PublishedAt: &published},
 		},
 	}}
-	h := NewSearchPublicHandler(stub, "CMStack")
+	h := NewSearchPublicHandler(stub, "Agentic CMS")
 
 	req := httptest.NewRequest(http.MethodGet, "/search?q=postgresql", nil)
 	rec := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestSearchHandler_RendersResults(t *testing.T) {
 
 func TestSearchHandler_EmptyState(t *testing.T) {
 	stub := &stubSearch{res: search.Result{Total: 0, Hits: nil}}
-	h := NewSearchPublicHandler(stub, "CMStack")
+	h := NewSearchPublicHandler(stub, "Agentic CMS")
 
 	req := httptest.NewRequest(http.MethodGet, "/search?q=zzzznope", nil)
 	rec := httptest.NewRecorder()
@@ -83,7 +83,7 @@ func TestSearchHandler_EmptyState(t *testing.T) {
 
 func TestSearchHandler_BlankQueryPrompt(t *testing.T) {
 	stub := &stubSearch{res: search.Result{}}
-	h := NewSearchPublicHandler(stub, "CMStack")
+	h := NewSearchPublicHandler(stub, "Agentic CMS")
 
 	req := httptest.NewRequest(http.MethodGet, "/search", nil)
 	rec := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestSearchHandler_BlankQueryPrompt(t *testing.T) {
 
 func TestSearchHandler_PaginationParam(t *testing.T) {
 	stub := &stubSearch{res: search.Result{Total: 30, Hits: []search.Hit{{Type: search.HitPage, Slug: "p", URL: "/p/p"}}}}
-	h := NewSearchPublicHandler(stub, "CMStack")
+	h := NewSearchPublicHandler(stub, "Agentic CMS")
 
 	req := httptest.NewRequest(http.MethodGet, "/search?q=x&page=3", nil)
 	rec := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestSearchHandler_SanitizesSnippetToMarkOnly(t *testing.T) {
 			{Type: search.HitPost, Title: "T", Slug: "t", URL: "/blog/t", Snippet: `<script>alert(1)</script> keep <mark>hit</mark>`},
 		},
 	}}
-	h := NewSearchPublicHandler(stub, "CMStack")
+	h := NewSearchPublicHandler(stub, "Agentic CMS")
 
 	req := httptest.NewRequest(http.MethodGet, "/search?q=hit", nil)
 	rec := httptest.NewRecorder()

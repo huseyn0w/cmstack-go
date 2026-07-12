@@ -73,7 +73,7 @@ CREATE INDEX revisions_entity_idx ON revisions (entity_type, entity_id, created_
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm2', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm2', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -91,5 +91,5 @@ DROP TABLE IF EXISTS posts;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

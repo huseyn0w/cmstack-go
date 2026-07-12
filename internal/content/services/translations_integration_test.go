@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/services"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/services"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
 )
 
 // TestIntegration_ServiceTranslation_UpsertGetOverlayFallback exercises the

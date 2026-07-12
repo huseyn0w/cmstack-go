@@ -64,7 +64,7 @@ CREATE INDEX services_search_vector_idx ON services USING GIN (search_vector);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm6', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm6', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -94,5 +94,5 @@ ALTER TABLE posts DROP COLUMN IF EXISTS search_vector;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm5', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm5', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

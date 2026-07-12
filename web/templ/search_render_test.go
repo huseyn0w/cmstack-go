@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func TestPublicSearch_ResultsRenderCardsBadgesPagination(t *testing.T) {
 	v := webtempl.SearchView{
-		SiteName:  "CMStack",
+		SiteName:  "Agentic CMS",
 		HomeURL:   "/",
 		ActionURL: "/search",
 		Query:     "postgresql",
@@ -44,7 +44,7 @@ func TestPublicSearch_ResultsRenderCardsBadgesPagination(t *testing.T) {
 
 func TestPublicSearch_EmptyState(t *testing.T) {
 	v := webtempl.SearchView{
-		SiteName:  "CMStack",
+		SiteName:  "Agentic CMS",
 		HomeURL:   "/",
 		ActionURL: "/search",
 		Query:     "zzzznope",
@@ -61,7 +61,7 @@ func TestPublicSearch_EmptyState(t *testing.T) {
 
 func TestPublicSearch_BlankPrompt(t *testing.T) {
 	v := webtempl.SearchView{
-		SiteName:  "CMStack",
+		SiteName:  "Agentic CMS",
 		HomeURL:   "/",
 		ActionURL: "/search",
 		Query:     "",
@@ -75,7 +75,7 @@ func TestPublicSearch_BlankPrompt(t *testing.T) {
 }
 
 func TestPublicSearch_BoxAccessibility(t *testing.T) {
-	v := webtempl.SearchView{SiteName: "CMStack", HomeURL: "/", ActionURL: "/search"}
+	v := webtempl.SearchView{SiteName: "Agentic CMS", HomeURL: "/", ActionURL: "/search"}
 	html := renderStr(t, webtempl.PublicSearch(v))
 	mustContain(
 		t, html,

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // decodeLD unescapes and unmarshals a script-safe JSON-LD string into a map.
@@ -91,7 +91,7 @@ func TestOrganizationJSONLD_OmitsEmptySubObjects(t *testing.T) {
 }
 
 func TestWebSiteJSONLD_SearchAction(t *testing.T) {
-	doc := decodeLD(t, webtempl.WebSiteJSONLD("CMStack", "https://site.test", "https://site.test/search?q={search_term_string}"))
+	doc := decodeLD(t, webtempl.WebSiteJSONLD("Agentic CMS", "https://site.test", "https://site.test/search?q={search_term_string}"))
 	if doc["@type"] != "WebSite" {
 		t.Errorf("@type = %v", doc["@type"])
 	}
@@ -111,7 +111,7 @@ func TestWebSiteJSONLD_SearchAction(t *testing.T) {
 }
 
 func TestWebSiteJSONLD_SkipsSearchActionWhenEmpty(t *testing.T) {
-	doc := decodeLD(t, webtempl.WebSiteJSONLD("CMStack", "https://site.test", ""))
+	doc := decodeLD(t, webtempl.WebSiteJSONLD("Agentic CMS", "https://site.test", ""))
 	if _, ok := doc["potentialAction"]; ok {
 		t.Error("potentialAction should be omitted when template empty")
 	}
@@ -260,7 +260,7 @@ func TestJSONLDBuilders_XSSEscaped(t *testing.T) {
 
 func TestHomeStructured_EmitsOrganizationAndWebSite(t *testing.T) {
 	org := webtempl.OrganizationJSONLD(fullOrg())
-	site := webtempl.WebSiteJSONLD("CMStack", "https://site.test", "https://site.test/search?q={search_term_string}")
+	site := webtempl.WebSiteJSONLD("Agentic CMS", "https://site.test", "https://site.test/search?q={search_term_string}")
 	out, err := render.ToString(context.Background(), webtempl.HomeStructured(nil, []string{org, site}))
 	if err != nil {
 		t.Fatalf("render HomeStructured: %v", err)
@@ -275,13 +275,13 @@ func TestHomeStructured_EmitsOrganizationAndWebSite(t *testing.T) {
 
 func TestPublicServiceDetail_EmitsServiceAndFAQPage(t *testing.T) {
 	v := webtempl.PublicServiceView{
-		SiteName: "CMStack",
+		SiteName: "Agentic CMS",
 		HomeURL:  "/",
 		Title:    "SEO Audit",
 		Slug:     "seo-audit",
 		JSONLD: []string{
 			webtempl.BreadcrumbListJSONLD([]webtempl.Breadcrumb{
-				{Name: "CMStack", URL: "https://site.test/"},
+				{Name: "Agentic CMS", URL: "https://site.test/"},
 				{Name: "Services", URL: "https://site.test/services"},
 				{Name: "SEO Audit", URL: "https://site.test/services/seo-audit"},
 			}),

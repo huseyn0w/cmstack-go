@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // --- admin moderation render -------------------------------------------------
@@ -67,7 +67,7 @@ func TestAdminNav_CommentsBadge(t *testing.T) {
 	nav := webtempl.BuildAdminNav(func(string, string) bool { return true })
 	nav = webtempl.SetNavBadge(nav, "Comments", 5)
 	shell := webtempl.AdminShell{UserName: "Admin", CSRFToken: "c", SiteURL: "/", Title: "Dashboard", Nav: nav}
-	html := renderStr(t, webtempl.AdminDashboard(shell))
+	html := renderStr(t, webtempl.AdminDashboard(shell, webtempl.DashboardStats{}))
 	mustContain(t, html, `data-testid="nav-badge-Comments"`)
 }
 

@@ -13,11 +13,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/demoseed"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/logging"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/demoseed"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/logging"
 )
 
 func main() {
@@ -61,6 +61,8 @@ func run() error {
 		"posts_updated", res.PostsUpdated,
 		"pages_created", res.PagesCreated,
 		"pages_updated", res.PagesUpdated,
+		"menus_created", res.MenusCreated,
+		"menus_updated", res.MenusUpdated,
 		"locales", res.Locales,
 	)
 	return nil

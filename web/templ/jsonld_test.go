@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func sampleView() webtempl.ProfilePageView {
@@ -21,7 +21,7 @@ func sampleView() webtempl.ProfilePageView {
 		SocialOrder: []string{"github", "twitter"},
 		Socials:     map[string]string{"github": "https://github.com/grace", "twitter": "https://twitter.com/grace"},
 		RoleLabel:   "Author",
-		SiteName:    "CMStack",
+		SiteName:    "Agentic CMS",
 		HomeURL:     "https://example.com",
 	}
 }

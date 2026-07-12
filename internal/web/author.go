@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // PublicAuthorService is the subset of *accounts.ProfileService the public
@@ -49,7 +49,7 @@ func (h *AuthorHandler) WithSite(s SiteConfig) *AuthorHandler {
 // nil (the posts section then shows the empty-state seam).
 func NewAuthorHandler(svc PublicAuthorService, postsProvider AuthorPostsProvider, siteName, homeURL string) *AuthorHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	if homeURL == "" {
 		homeURL = "/"

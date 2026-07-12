@@ -2,7 +2,7 @@
 .claude/settings.local.json
 
 # Go build artifacts
-/cmstack-go
+/agentic-cms-go
 *.exe
 *.test
 *.out
@@ -27,3 +27,10 @@ coverage.out
 
 # Generated CSS
 /web/static/app.css
+
+# air build output (dockerized `make dev` hot-reload)
+/tmp/
+
+# macOS noise
+.DS_Store
+**/.DS_Store

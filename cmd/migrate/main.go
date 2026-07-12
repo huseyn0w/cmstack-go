@@ -18,7 +18,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
 	"github.com/pressly/goose/v3"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
 )
 
 const migrationsDir = "db/migrations"

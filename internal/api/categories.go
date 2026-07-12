@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/categories"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/categories"
 )
 
 // listCategories serves GET /api/v1/categories: the full, flat category list.

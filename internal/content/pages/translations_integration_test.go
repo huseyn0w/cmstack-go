@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/pages"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/pages"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
 )
 
 // TestIntegration_PageTranslation_UpsertGetOverlayFallback exercises the M7b-2

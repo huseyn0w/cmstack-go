@@ -7,8 +7,8 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
 )
 
 // ReadingTime is a sample plugin that prepends an estimated reading-time note to

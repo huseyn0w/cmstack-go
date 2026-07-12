@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/cache"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 // countingHandler renders a fixed 200 text/html body and counts invocations, so

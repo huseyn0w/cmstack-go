@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // bulkActor is the subset of a content service the bulk dispatcher needs. Each

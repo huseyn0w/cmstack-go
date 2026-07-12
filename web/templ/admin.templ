@@ -13,7 +13,7 @@ templ AdminBase(s AdminShell) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<meta name="description" content={ loc.T.T("admin.metaDescription") }/>
-			<title>{ s.Title } · CMStack-Go</title>
+			<title>{ s.Title } · Agentic CMS-Go</title>
 			<link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>
 			<link rel="stylesheet" href="/static/app.css"/>
 			// No-flash theme bootstrap: must run before first paint, hence inline + no defer.
@@ -299,17 +299,18 @@ templ avatar(s AdminShell) {
 }
 
 // AdminDashboard is the authed landing page (/admin). It uses the shell and
-// shows a welcome plus placeholder stat cards; real widgets arrive later.
-templ AdminDashboard(s AdminShell) {
+// shows a welcome plus stat cards populated with live published/pending counts
+// (an em dash when a stat is unavailable).
+templ AdminDashboard(s AdminShell, stats DashboardStats) {
 	{{ loc := LocaleView(ctx) }}
 	@AdminBase(s) {
 		<section data-testid="admin-dashboard">
 			<h2 class="text-h3 text-text">{ loc.T.T("admin.welcomeBack", "name", s.UserName) }</h2>
 			<p class="mt-2 text-body text-muted">{ loc.T.T("admin.dashboard.intro") }</p>
 			<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				@statCard(loc.T.T("admin.dashboard.posts"), "—", loc.T.T("admin.dashboard.totalPublished"))
-				@statCard(loc.T.T("admin.dashboard.pages"), "—", loc.T.T("admin.dashboard.totalPublished"))
-				@statCard(loc.T.T("admin.dashboard.comments"), "—", loc.T.T("admin.dashboard.awaitingModeration"))
+				@statCard(loc.T.T("admin.dashboard.posts"), orDash(stats.PublishedPosts), loc.T.T("admin.dashboard.totalPublished"))
+				@statCard(loc.T.T("admin.dashboard.pages"), orDash(stats.PublishedPages), loc.T.T("admin.dashboard.totalPublished"))
+				@statCard(loc.T.T("admin.dashboard.comments"), orDash(stats.PendingComments), loc.T.T("admin.dashboard.awaitingModeration"))
 			</div>
 		</section>
 	}

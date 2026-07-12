@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 func newLocal(t *testing.T) *storage.LocalStorage {

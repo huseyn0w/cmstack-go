@@ -8,7 +8,7 @@ CREATE TABLE schema_meta (
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-INSERT INTO schema_meta (key, value) VALUES ('cmstack_version', 'm0');
+INSERT INTO schema_meta (key, value) VALUES ('agentic_cms_version', 'm0');
 -- +goose StatementEnd
 
 -- +goose StatementBegin

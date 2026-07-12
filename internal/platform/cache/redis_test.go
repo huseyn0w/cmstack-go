@@ -21,7 +21,7 @@ func newTestRedis(t *testing.T) (*Redis, *miniredis.Miniredis) {
 
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return NewRedis(client, "cmstack:"), mr
+	return NewRedis(client, "agentic-cms:"), mr
 }
 
 func TestRedisGetSetMiss(t *testing.T) {
@@ -47,8 +47,8 @@ func TestRedisKeyPrefix(t *testing.T) {
 	if err := c.Set(ctx, "k", []byte("v"), 0); err != nil {
 		t.Fatalf("set: %v", err)
 	}
-	if !mr.Exists("cmstack:k") {
-		t.Fatal("expected key to be stored namespaced as cmstack:k")
+	if !mr.Exists("agentic-cms:k") {
+		t.Fatal("expected key to be stored namespaced as agentic-cms:k")
 	}
 }
 

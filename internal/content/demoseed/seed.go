@@ -20,9 +20,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 //go:embed demo-content-i18n.json
@@ -48,6 +48,20 @@ type pageSeed struct {
 	Content localized `json:"content"`
 }
 
+// menuItemSeed is one navigation item: a rooted internal URL (localized at
+// render time via i18n.LocalizePath) with a per-locale label.
+type menuItemSeed struct {
+	URL   string    `json:"url"`
+	Label localized `json:"label"`
+}
+
+// menuSeed is one managed menu assigned to a location ("header"/"footer").
+type menuSeed struct {
+	Location string         `json:"location"`
+	Name     string         `json:"name"`
+	Items    []menuItemSeed `json:"items"`
+}
+
 // dataset is the embedded demo-content document (posts + pages are what this
 // seeder inserts; categories/tags are carried for parity but not required by the
 // Go schema seams here).
@@ -55,6 +69,7 @@ type dataset struct {
 	Locales []string   `json:"locales"`
 	Posts   []postSeed `json:"posts"`
 	Pages   []pageSeed `json:"pages"`
+	Menus   []menuSeed `json:"menus"`
 }
 
 // Seeder inserts the demo content within a single transaction. It needs a tx
@@ -75,6 +90,8 @@ type Result struct {
 	PostsUpdated int
 	PagesCreated int
 	PagesUpdated int
+	MenusCreated int
+	MenusUpdated int
 	Locales      []string
 }
 
@@ -110,6 +127,17 @@ func (s *Seeder) Seed(ctx context.Context, authorID pgtype.UUID) (Result, error)
 				res.PagesCreated++
 			} else {
 				res.PagesUpdated++
+			}
+		}
+		for _, m := range data.Menus {
+			created, err := seedMenu(ctx, tx, q, m)
+			if err != nil {
+				return fmt.Errorf("seed menu %q: %w", m.Location, err)
+			}
+			if created {
+				res.MenusCreated++
+			} else {
+				res.MenusUpdated++
 			}
 		}
 		return nil
@@ -223,6 +251,69 @@ func seedPage(ctx context.Context, tx pgx.Tx, q *sqlcgen.Queries, pg pageSeed) (
 		}
 	}
 	return !existed, nil
+}
+
+// menuItemType is the item kind stored for every seeded nav item. All demo items
+// are custom rooted paths (Home/Blog/pages) — the public resolver localizes the
+// URL, so no content ref is needed. Matches menus.ItemCustom.
+const menuItemType = "custom"
+
+// seedMenu ensures the location's menu exists with exactly the seeded items.
+// Idempotent: the menu row is keyed by location (the schema's partial-unique
+// index), and its items are rebuilt from scratch each run (delete-then-recreate,
+// which cascades item translations) so ordering/labels always match the dataset.
+// Returns whether the menu row was newly created.
+func seedMenu(ctx context.Context, tx pgx.Tx, q *sqlcgen.Queries, m menuSeed) (bool, error) {
+	var menuID pgtype.UUID
+	err := tx.QueryRow(ctx, `SELECT id FROM menus WHERE location=$1`, m.Location).Scan(&menuID)
+	created := false
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		row, cerr := q.CreateMenu(ctx, sqlcgen.CreateMenuParams{Name: m.Name, Location: m.Location})
+		if cerr != nil {
+			return false, cerr
+		}
+		menuID = row.ID
+		created = true
+	case err != nil:
+		return false, err
+	}
+
+	// Rebuild items from scratch (cascades menu_item_translations).
+	if _, err := tx.Exec(ctx, `DELETE FROM menu_items WHERE menu_id=$1`, menuID); err != nil {
+		return false, err
+	}
+
+	for i, it := range m.Items {
+		item, err := q.CreateMenuItem(ctx, sqlcgen.CreateMenuItemParams{
+			MenuID:   menuID,
+			Position: int32(i),
+			Type:     menuItemType,
+			Url:      it.URL,
+			Label:    it.Label[i18n.Default().String()],
+		})
+		if err != nil {
+			return false, err
+		}
+		// Per-locale label overlays for every NON-default locale that has one.
+		for _, loc := range i18n.All() {
+			if loc == i18n.Default() {
+				continue
+			}
+			l := loc.String()
+			if it.Label[l] == "" {
+				continue
+			}
+			if err := q.UpsertMenuItemTranslation(ctx, sqlcgen.UpsertMenuItemTranslationParams{
+				ItemID: item.ID,
+				Locale: l,
+				Label:  it.Label[l],
+			}); err != nil {
+				return false, err
+			}
+		}
+	}
+	return created, nil
 }
 
 // existingID looks up a row id by slug in the given table (any status). The

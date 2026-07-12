@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
 )
 
 // Domain errors. ErrForbidden is the ownership/permission gate; ErrValidation
@@ -424,6 +424,12 @@ func (s *Service) PublicListFiltered(ctx context.Context, categorySlug, tagSlug 
 // the data behind the category/tag archives, which first resolve ranked ids.
 func (s *Service) PublishedByIDs(ctx context.Context, ids []uuid.UUID) ([]Post, error) {
 	return s.repo.GetPublishedByIDs(ctx, ids)
+}
+
+// CountPublished returns the total number of published posts, for the admin
+// dashboard stat card. Read-only aggregate over public content, not gated.
+func (s *Service) CountPublished(ctx context.Context) (int, error) {
+	return s.repo.CountPublished(ctx)
 }
 
 // Publish transitions a post to PUBLISHED, stamping publishedAt once and

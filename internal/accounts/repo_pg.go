@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
 )
 
 // querier is the subset of *sqlcgen.Queries the repositories use. Defining it

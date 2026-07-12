@@ -91,7 +91,7 @@ func Setup(cfg Config) []Provider {
 func newStore(sessionKey string, production bool) sessions.Store {
 	seed := sessionKey
 	if seed == "" {
-		seed = "cmstack-oauth-dev-key"
+		seed = "agentic-cms-oauth-dev-key"
 	}
 	sum := sha256.Sum256([]byte(seed))
 	st := sessions.NewCookieStore(sum[:])

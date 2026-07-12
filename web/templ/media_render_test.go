@@ -3,7 +3,7 @@ package templ_test
 import (
 	"testing"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func sampleImageCard(id, title string) webtempl.MediaCard {

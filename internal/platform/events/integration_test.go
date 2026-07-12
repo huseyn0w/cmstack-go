@@ -17,8 +17,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
 )
 
 // probeEvent is a trivial async-capable event used by the integration test.
@@ -52,7 +52,7 @@ func startPostgres(t *testing.T) *pgxpool.Pool {
 	pgC, err := postgres.Run(
 		ctx,
 		"postgres:16-alpine",
-		postgres.WithDatabase("cmstack_test"),
+		postgres.WithDatabase("agentic_cms_test"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		testcontainers.WithWaitStrategy(

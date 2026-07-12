@@ -1,0 +1,30 @@
+# air config for the dockerized web server (make dev / docker-compose.dev.yml).
+#
+# On every save of a .go / .templ / .css / .html file inside the mounted source,
+# air runs the build command below and restarts the server binary:
+#   1. templ generate      → regenerate *_templ.go from changed *.templ
+#   2. tailwindcss         → rebuild web/static/app.css (no --minify for dev speed)
+#   3. go build            → compile ./cmd/server into ./tmp/server
+# Then air (re)launches ./tmp/server. env comes from the compose environment.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "templ generate && /usr/local/bin/tailwindcss -i web/tailwind.css -o web/static/app.css && go build -o ./tmp/server ./cmd/server"
+  entrypoint = "./tmp/server"
+  include_ext = ["go", "templ", "css", "html"]
+  # Never watch generated/output files — they are (re)written by the build command
+  # above and would otherwise cause an immediate rebuild loop.
+  exclude_regex = ["_templ\\.go$", "app\\.css$", "_test\\.go$"]
+  exclude_dir = ["tmp", "bin", "uploads", ".git", ".github", "docs", "e2e"]
+  exclude_unchanged = true
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "2s"
+  delay = 300
+
+[log]
+  main_only = false
+
+[misc]
+  clean_on_exit = false

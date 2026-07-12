@@ -109,7 +109,7 @@ type updateTagInput struct {
 func registerContentTools(s *mcp.Server, client *APIClient) {
 	// --- Posts ----------------------------------------------------------------
 
-	register(s, "cmstack_go_list_posts", "List posts",
+	register(s, "agentic_cms_go_list_posts", "List posts",
 		"List posts (drafts and published) with optional filters and pagination. Returns { items, total, page, perPage }. Filters: status (DRAFT|PUBLISHED), includeTrashed, page, perPage.",
 		readAnn, func(ctx context.Context, in listPostsInput) (json.RawMessage, error) {
 			q := url.Values{}
@@ -120,49 +120,49 @@ func registerContentTools(s *mcp.Server, client *APIClient) {
 			return client.do(ctx, "GET", "/posts", q, nil)
 		})
 
-	register(s, "cmstack_go_get_post", "Get a post",
+	register(s, "agentic_cms_go_get_post", "Get a post",
 		"Fetch a single post by id, including its full content.",
 		readAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/posts/"+in.ID, nil, nil)
 		})
 
-	register(s, "cmstack_go_get_post_revisions", "Get post revisions",
+	register(s, "agentic_cms_go_get_post_revisions", "Get post revisions",
 		"List the saved revisions (scalar field snapshots) of a post by id, newest first.",
 		readAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/posts/"+in.ID+"/revisions", nil, nil)
 		})
 
-	register(s, "cmstack_go_create_post", "Create a post",
+	register(s, "agentic_cms_go_create_post", "Create a post",
 		"Create a post. Fields: title (required), slug (optional, auto-generated from title), excerpt, body (HTML; sanitized server-side), status (DRAFT default), categoryIds, tagIds. Returns the created post.",
 		createAnn, func(ctx context.Context, in createPostInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/posts", nil, in)
 		})
 
-	register(s, "cmstack_go_update_post", "Update a post",
+	register(s, "agentic_cms_go_update_post", "Update a post",
 		"Update a post by id. Any subset of: title, slug, excerpt, body, status, categoryIds, tagIds. Returns the updated post.",
 		updateAnn, func(ctx context.Context, in updatePostInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/posts/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_publish_post", "Publish a post",
+	register(s, "agentic_cms_go_publish_post", "Publish a post",
 		"Publish a post by id (sets status to PUBLISHED). Returns the updated post.",
 		updateAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/posts/"+in.ID+"/publish", nil, nil)
 		})
 
-	register(s, "cmstack_go_unpublish_post", "Unpublish a post",
+	register(s, "agentic_cms_go_unpublish_post", "Unpublish a post",
 		"Unpublish a post by id (sets status back to DRAFT, hiding it from the public site). Returns the updated post.",
 		updateAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/posts/"+in.ID+"/unpublish", nil, nil)
 		})
 
-	register(s, "cmstack_go_delete_post", "Delete a post",
-		"Soft-delete a post by id (moves it to trash; restorable with cmstack_go_restore_post).",
+	register(s, "agentic_cms_go_delete_post", "Delete a post",
+		"Soft-delete a post by id (moves it to trash; restorable with agentic_cms_go_restore_post).",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/posts/"+in.ID, nil, nil)
 		})
 
-	register(s, "cmstack_go_restore_post", "Restore a post",
+	register(s, "agentic_cms_go_restore_post", "Restore a post",
 		"Restore a soft-deleted (trashed) post by id. Returns the restored post.",
 		updateAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/posts/"+in.ID+"/restore", nil, nil)
@@ -170,7 +170,7 @@ func registerContentTools(s *mcp.Server, client *APIClient) {
 
 	// --- Pages ----------------------------------------------------------------
 
-	register(s, "cmstack_go_list_pages", "List pages",
+	register(s, "agentic_cms_go_list_pages", "List pages",
 		"List all pages. Set includeTrashed to also return soft-deleted pages.",
 		readAnn, func(ctx context.Context, in listPagesInput) (json.RawMessage, error) {
 			q := url.Values{}
@@ -178,31 +178,31 @@ func registerContentTools(s *mcp.Server, client *APIClient) {
 			return client.do(ctx, "GET", "/pages", q, nil)
 		})
 
-	register(s, "cmstack_go_get_page", "Get a page",
+	register(s, "agentic_cms_go_get_page", "Get a page",
 		"Fetch a single page by id, including its full content.",
 		readAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/pages/"+in.ID, nil, nil)
 		})
 
-	register(s, "cmstack_go_create_page", "Create a page",
+	register(s, "agentic_cms_go_create_page", "Create a page",
 		"Create a page. Fields: title (required), slug (optional), body (HTML; sanitized server-side), status (DRAFT default), template, parentId. Returns the created page.",
 		createAnn, func(ctx context.Context, in createPageInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/pages", nil, in)
 		})
 
-	register(s, "cmstack_go_update_page", "Update a page",
+	register(s, "agentic_cms_go_update_page", "Update a page",
 		"Update a page by id. Any subset of: title, slug, body, status, template, parentId. Returns the updated page.",
 		updateAnn, func(ctx context.Context, in updatePageInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/pages/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_delete_page", "Delete a page",
+	register(s, "agentic_cms_go_delete_page", "Delete a page",
 		"Soft-delete a page by id (moves it to trash; restorable).",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/pages/"+in.ID, nil, nil)
 		})
 
-	register(s, "cmstack_go_restore_page", "Restore a page",
+	register(s, "agentic_cms_go_restore_page", "Restore a page",
 		"Restore a soft-deleted (trashed) page by id. Returns the restored page.",
 		updateAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/pages/"+in.ID+"/restore", nil, nil)
@@ -210,25 +210,25 @@ func registerContentTools(s *mcp.Server, client *APIClient) {
 
 	// --- Categories -----------------------------------------------------------
 
-	register(s, "cmstack_go_list_categories", "List categories",
+	register(s, "agentic_cms_go_list_categories", "List categories",
 		"List all categories (a self-referential tree; each item carries its parentId).",
 		readAnn, func(ctx context.Context, _ emptyInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/categories", nil, nil)
 		})
 
-	register(s, "cmstack_go_create_category", "Create a category",
+	register(s, "agentic_cms_go_create_category", "Create a category",
 		"Create a category. Fields: name (required), slug (optional), description, parentId (optional, for nesting). Returns the created category.",
 		createAnn, func(ctx context.Context, in createCategoryInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/categories", nil, in)
 		})
 
-	register(s, "cmstack_go_update_category", "Update a category",
+	register(s, "agentic_cms_go_update_category", "Update a category",
 		"Update a category by id. Any subset of: name, slug, description, parentId. Returns the updated category.",
 		updateAnn, func(ctx context.Context, in updateCategoryInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/categories/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_delete_category", "Delete a category",
+	register(s, "agentic_cms_go_delete_category", "Delete a category",
 		"Permanently delete a category by id.",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/categories/"+in.ID, nil, nil)
@@ -236,25 +236,25 @@ func registerContentTools(s *mcp.Server, client *APIClient) {
 
 	// --- Tags -----------------------------------------------------------------
 
-	register(s, "cmstack_go_list_tags", "List tags",
+	register(s, "agentic_cms_go_list_tags", "List tags",
 		"List all tags.",
 		readAnn, func(ctx context.Context, _ emptyInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/tags", nil, nil)
 		})
 
-	register(s, "cmstack_go_create_tag", "Create a tag",
+	register(s, "agentic_cms_go_create_tag", "Create a tag",
 		"Create a tag. Fields: name (required), slug (optional). Returns the created tag.",
 		createAnn, func(ctx context.Context, in createTagInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/tags", nil, in)
 		})
 
-	register(s, "cmstack_go_update_tag", "Update a tag",
+	register(s, "agentic_cms_go_update_tag", "Update a tag",
 		"Update a tag by id. Any subset of: name, slug. Returns the updated tag.",
 		updateAnn, func(ctx context.Context, in updateTagInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/tags/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_delete_tag", "Delete a tag",
+	register(s, "agentic_cms_go_delete_tag", "Delete a tag",
 		"Permanently delete a tag by id.",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/tags/"+in.ID, nil, nil)

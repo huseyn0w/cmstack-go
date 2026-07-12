@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/contact"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/contact"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // ContactPublicService is the subset of *contact.Service the public handler
@@ -31,7 +31,7 @@ type ContactPublicHandler struct {
 // NewContactPublicHandler constructs the public contact handler.
 func NewContactPublicHandler(svc ContactPublicService, siteName, baseURL string, csrf func(*http.Request) string, recaptchaKey string) *ContactPublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &ContactPublicHandler{svc: svc, siteName: siteName, baseURL: baseURL, csrf: csrf, recaptchaKey: recaptchaKey}
 }

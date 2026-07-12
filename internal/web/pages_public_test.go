@@ -10,14 +10,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/content/kernel"
-	"github.com/huseyn0w/cmstack-go/internal/content/pages"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/i18n"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/kernel"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/pages"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/i18n"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
 )
 
 type stubPagePublic struct {
@@ -60,7 +60,7 @@ func buildPagesPublicEnv(t *testing.T, svc PagePublicService) http.Handler {
 		AuthMW:        NewAuthMiddleware(sess, fakeUsers{users: map[uuid.UUID]accounts.User{}}, allowAllAuthz{}),
 		CSRFFunc:      security.Token,
 		PagePublicSvc: svc,
-		SiteName:      "CMStack",
+		SiteName:      "Agentic CMS",
 		Locale:        NewLocaleResolver(cat),
 	})
 }
@@ -71,7 +71,7 @@ func TestPagePublic_ShowRendersWithBreadcrumbs(t *testing.T) {
 		ID: uuid.New(), Title: "Team", Slug: "team", Body: "<p>Our team.</p>",
 		Template: "default", Status: kernel.StatusPublished, ParentID: &root.ID,
 	}
-	h := NewPagePublicHandler(stubPagePublic{page: page, ancestors: []pages.Page{root}}, "CMStack", "https://site.test")
+	h := NewPagePublicHandler(stubPagePublic{page: page, ancestors: []pages.Page{root}}, "Agentic CMS", "https://site.test")
 
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("slug", "team")
@@ -130,7 +130,7 @@ func TestPagePublic_DeDetailFallsBackToEn(t *testing.T) {
 }
 
 func TestPagePublic_ShowNotFound(t *testing.T) {
-	h := NewPagePublicHandler(stubPagePublic{pageErr: pages.ErrNotFound}, "CMStack", "https://site.test")
+	h := NewPagePublicHandler(stubPagePublic{pageErr: pages.ErrNotFound}, "Agentic CMS", "https://site.test")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("slug", "missing")
 	req := httptest.NewRequest(http.MethodGet, "/p/missing", nil).

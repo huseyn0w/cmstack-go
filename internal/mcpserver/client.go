@@ -37,7 +37,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("API error %d: %s", e.Status, e.Message)
 }
 
-// APIClient is a thin, authenticated HTTP client of the CMStack-Go REST API. It
+// APIClient is a thin, authenticated HTTP client of the Agentic CMS-Go REST API. It
 // sets the bearer token on every request; it carries NO authorization logic of
 // its own — the API re-checks RBAC per call.
 type APIClient struct {

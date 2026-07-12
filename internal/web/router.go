@@ -9,17 +9,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/cache"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
-	"github.com/huseyn0w/cmstack-go/internal/platform/events"
-	"github.com/huseyn0w/cmstack-go/internal/platform/ratelimit"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	"github.com/huseyn0w/cmstack-go/internal/platform/security"
-	"github.com/huseyn0w/cmstack-go/internal/platform/session"
-	"github.com/huseyn0w/cmstack-go/internal/plugin"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/cache"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/events"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/ratelimit"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/security"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/session"
+	"github.com/huseyn0w/agentic-cms-go/internal/plugin"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // Deps are the explicit dependencies the router needs. Services are injected so
@@ -110,6 +110,13 @@ type Deps struct {
 	CommentPublicSvc  CommentsPublicService
 	CommentAdminSvc   CommentsAdminService
 	CommentPostTitler CommentPostTitler
+
+	// Dashboard stat readers (optional). Populated from the concrete content
+	// services; each feeds one /admin stat card. A nil reader renders that card as
+	// a dash, so reduced-Deps tests and partial wiring degrade gracefully.
+	DashboardPostCounter    PublishedCounter
+	DashboardPageCounter    PublishedCounter
+	DashboardCommentCounter PendingCommentCounter
 
 	// Contact (M12). ContactSvc backs the public reCAPTCHA-protected /contact form
 	// (GET renders it, POST submits it). The form emails a settings-driven
@@ -576,10 +583,13 @@ func mountAdmin(gr chi.Router, d Deps) {
 	}
 
 	shell := adminShellDeps{
-		authz:   d.Authz,
-		roles:   d.Roles,
-		csrf:    d.CSRFFunc,
-		siteURL: d.Config.BaseURL,
+		authz:    d.Authz,
+		roles:    d.Roles,
+		csrf:     d.CSRFFunc,
+		siteURL:  d.Config.BaseURL,
+		posts:    d.DashboardPostCounter,
+		pages:    d.DashboardPageCounter,
+		comments: d.DashboardCommentCounter,
 	}
 	gr.With(d.AuthMW.RequireAuth).Get("/admin", shell.dashboard)
 

@@ -22,7 +22,7 @@ type Redis struct {
 }
 
 // NewRedis wraps a connected *redis.Client, prefixing every key with keyPrefix
-// (e.g. "cmstack:"). The prefix may be empty, though a namespace is recommended
+// (e.g. "agentic-cms:"). The prefix may be empty, though a namespace is recommended
 // when the Redis database is shared.
 func NewRedis(client *redis.Client, keyPrefix string) *Redis {
 	return &Redis{client: client, keyPrefix: keyPrefix}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/huseyn0w/cmstack-go/internal/theme"
+	"github.com/huseyn0w/agentic-cms-go/internal/theme"
 )
 
 // ThemeReader is the narrow settings dependency the theme middleware needs: the

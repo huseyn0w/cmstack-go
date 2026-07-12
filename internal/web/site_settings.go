@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // SiteOverrideReader reads admin-editable site/SEO override values from the

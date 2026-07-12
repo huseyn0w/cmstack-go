@@ -33,8 +33,8 @@ func newTestMailer(t *testing.T) (*SMTPMailer, *capture) {
 	m, err := NewSMTP(SMTPConfig{
 		Host:     "smtp.example.com",
 		Port:     587,
-		From:     "no-reply@cmstack.local",
-		FromName: "CMStack",
+		From:     "no-reply@agentic-cms.local",
+		FromName: "Agentic CMS",
 		TLS:      "starttls",
 	}, nil)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestSendVerificationEmail(t *testing.T) {
 	raw := lastRaw(t, cap)
 	for _, want := range []string{
 		"To: <user@example.com>",
-		"From: \"CMStack\" <no-reply@cmstack.local>",
+		"From: \"Agentic CMS\" <no-reply@agentic-cms.local>",
 		"Subject: Confirm your email",
 		"https://x.test/verify?t=abc",
 		"Ada",

@@ -244,7 +244,7 @@ templ localeSwitcherItem(loc LocaleViewData, alt Alternate) {
 
 // Home is a trivial page used to validate the layout end-to-end in M0.
 templ Home() {
-	@Base(LayoutData{Title: "CMStack-Go", Description: "Server-rendered CMS"}) {
+	@Base(LayoutData{Title: "Agentic CMS-Go", Description: "Server-rendered CMS"}) {
 		@homeBody()
 	}
 }
@@ -252,7 +252,7 @@ templ Home() {
 // HomeSEO renders the home page with a resolved SEOView so the head emits the
 // full document-head SEO block (M8).
 templ HomeSEO(seo *SEOView) {
-	@Base(LayoutData{Title: "CMStack-Go", Description: "Server-rendered CMS", SEO: seo}) {
+	@Base(LayoutData{Title: "Agentic CMS-Go", Description: "Server-rendered CMS", SEO: seo}) {
 		@homeBody()
 	}
 }
@@ -261,14 +261,14 @@ templ HomeSEO(seo *SEOView) {
 // site-level JSON-LD blocks (Organization + WebSite). Each block is already
 // script-safe (entity-escaped by marshalJSONLD) so it is emitted verbatim.
 templ HomeStructured(seo *SEOView, jsonld []string) {
-	@Base(LayoutData{Title: "CMStack-Go", Description: "Server-rendered CMS", SEO: seo}) {
+	@Base(LayoutData{Title: "Agentic CMS-Go", Description: "Server-rendered CMS", SEO: seo}) {
 		@jsonLDBlocks(jsonld)
 		@homeBody()
 	}
 }
 
 templ homeBody() {
-	<h1 class="text-h1 text-text">Welcome to CMStack-Go</h1>
+	<h1 class="text-h1 text-text">Welcome to Agentic CMS-Go</h1>
 	<p class="mt-4 text-body text-muted">The walking skeleton is alive.</p>
 }
 

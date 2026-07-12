@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 func TestValidateGA4ID(t *testing.T) {

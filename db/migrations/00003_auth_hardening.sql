@@ -23,7 +23,7 @@ ALTER TABLE outbox
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm1.1', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm1.1', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -41,5 +41,5 @@ ALTER TABLE users
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

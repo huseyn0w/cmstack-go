@@ -9,9 +9,9 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/search"
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/search"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // searchPageSize is the public search results page size.
@@ -40,7 +40,7 @@ func (h *SearchPublicHandler) WithSite(s SiteConfig) *SearchPublicHandler {
 // NewSearchPublicHandler constructs the public search handler.
 func NewSearchPublicHandler(svc SearchService, siteName string) *SearchPublicHandler {
 	if siteName == "" {
-		siteName = "CMStack"
+		siteName = "Agentic CMS"
 	}
 	return &SearchPublicHandler{svc: svc, siteName: siteName}
 }

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
-	webtempl "github.com/huseyn0w/cmstack-go/web/templ"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
+	webtempl "github.com/huseyn0w/agentic-cms-go/web/templ"
 )
 
 // SettingsSEOHandler is the thin HTTP boundary for the SEO & GEO settings

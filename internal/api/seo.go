@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/huseyn0w/cmstack-go/internal/web"
+	"github.com/huseyn0w/agentic-cms-go/internal/web"
 )
 
 // profileKeys is the single source of truth for the site-profile settings keys,

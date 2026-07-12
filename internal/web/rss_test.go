@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
 )
 
 // fakeFeedLister is a network-free FeedPostLister returning a fixed set of posts

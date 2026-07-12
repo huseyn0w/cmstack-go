@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/db/sqlcgen"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/db/sqlcgen"
 )
 
 // compile-time assertion that RepoPG satisfies the domain interface.

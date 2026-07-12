@@ -14,7 +14,7 @@ import (
 // so out-of-band request inspection (e.g. the public page cache deciding whether
 // a request may be authenticated) can detect the cookie by its exact name
 // without importing scs.
-const CookieName = "cmstack_session"
+const CookieName = "agentic_cms_session"
 
 // NewManager builds an scs.SessionManager with the in-memory store. Cookies are
 // HttpOnly and Lax; Secure is enabled in production.

@@ -16,59 +16,59 @@ import (
 // register. Any drift (missing, extra, or misnamed) fails the test.
 var wantToolIDs = []string{
 	// content (23)
-	"cmstack_go_create_category",
-	"cmstack_go_create_page",
-	"cmstack_go_create_post",
-	"cmstack_go_create_tag",
-	"cmstack_go_delete_category",
-	"cmstack_go_delete_page",
-	"cmstack_go_delete_post",
-	"cmstack_go_delete_tag",
-	"cmstack_go_get_page",
-	"cmstack_go_get_post",
-	"cmstack_go_get_post_revisions",
-	"cmstack_go_list_categories",
-	"cmstack_go_list_pages",
-	"cmstack_go_list_posts",
-	"cmstack_go_list_tags",
-	"cmstack_go_publish_post",
-	"cmstack_go_restore_page",
-	"cmstack_go_restore_post",
-	"cmstack_go_unpublish_post",
-	"cmstack_go_update_category",
-	"cmstack_go_update_page",
-	"cmstack_go_update_post",
-	"cmstack_go_update_tag",
+	"agentic_cms_go_create_category",
+	"agentic_cms_go_create_page",
+	"agentic_cms_go_create_post",
+	"agentic_cms_go_create_tag",
+	"agentic_cms_go_delete_category",
+	"agentic_cms_go_delete_page",
+	"agentic_cms_go_delete_post",
+	"agentic_cms_go_delete_tag",
+	"agentic_cms_go_get_page",
+	"agentic_cms_go_get_post",
+	"agentic_cms_go_get_post_revisions",
+	"agentic_cms_go_list_categories",
+	"agentic_cms_go_list_pages",
+	"agentic_cms_go_list_posts",
+	"agentic_cms_go_list_tags",
+	"agentic_cms_go_publish_post",
+	"agentic_cms_go_restore_page",
+	"agentic_cms_go_restore_post",
+	"agentic_cms_go_unpublish_post",
+	"agentic_cms_go_update_category",
+	"agentic_cms_go_update_page",
+	"agentic_cms_go_update_post",
+	"agentic_cms_go_update_tag",
 	// media (4)
-	"cmstack_go_delete_media",
-	"cmstack_go_get_media",
-	"cmstack_go_list_media",
-	"cmstack_go_update_media",
+	"agentic_cms_go_delete_media",
+	"agentic_cms_go_get_media",
+	"agentic_cms_go_list_media",
+	"agentic_cms_go_update_media",
 	// comments (5)
-	"cmstack_go_approve_comment",
-	"cmstack_go_delete_comment",
-	"cmstack_go_list_comments",
-	"cmstack_go_mark_comment_spam",
-	"cmstack_go_trash_comment",
+	"agentic_cms_go_approve_comment",
+	"agentic_cms_go_delete_comment",
+	"agentic_cms_go_list_comments",
+	"agentic_cms_go_mark_comment_spam",
+	"agentic_cms_go_trash_comment",
 	// settings (2)
-	"cmstack_go_get_active_theme",
-	"cmstack_go_set_active_theme",
+	"agentic_cms_go_get_active_theme",
+	"agentic_cms_go_set_active_theme",
 	// seo (10)
-	"cmstack_go_create_faq",
-	"cmstack_go_create_service",
-	"cmstack_go_delete_faq",
-	"cmstack_go_delete_service",
-	"cmstack_go_get_site_profile",
-	"cmstack_go_list_faqs",
-	"cmstack_go_list_services",
-	"cmstack_go_update_faq",
-	"cmstack_go_update_service",
-	"cmstack_go_update_site_profile",
+	"agentic_cms_go_create_faq",
+	"agentic_cms_go_create_service",
+	"agentic_cms_go_delete_faq",
+	"agentic_cms_go_delete_service",
+	"agentic_cms_go_get_site_profile",
+	"agentic_cms_go_list_faqs",
+	"agentic_cms_go_list_services",
+	"agentic_cms_go_update_faq",
+	"agentic_cms_go_update_service",
+	"agentic_cms_go_update_site_profile",
 	// users (4)
-	"cmstack_go_get_user",
-	"cmstack_go_list_roles",
-	"cmstack_go_list_users",
-	"cmstack_go_update_user",
+	"agentic_cms_go_get_user",
+	"agentic_cms_go_list_roles",
+	"agentic_cms_go_list_users",
+	"agentic_cms_go_update_user",
 }
 
 func init() { sort.Strings(wantToolIDs) }
@@ -109,8 +109,8 @@ func TestRegisterAllRegistersExactly48Tools(t *testing.T) {
 	got := make([]string, 0, len(res.Tools))
 	for _, tool := range res.Tools {
 		got = append(got, tool.Name)
-		if !strings.HasPrefix(tool.Name, "cmstack_go_") {
-			t.Errorf("tool %q does not start with cmstack_go_", tool.Name)
+		if !strings.HasPrefix(tool.Name, "agentic_cms_go_") {
+			t.Errorf("tool %q does not start with agentic_cms_go_", tool.Name)
 		}
 	}
 	sort.Strings(got)
@@ -186,36 +186,36 @@ func TestRepresentativeHandlers(t *testing.T) {
 		wantQuery  string // "" means no query assertion
 	}{
 		{
-			name: "list_posts", tool: "cmstack_go_list_posts",
+			name: "list_posts", tool: "agentic_cms_go_list_posts",
 			args:       map[string]any{"status": "PUBLISHED", "perPage": 5},
 			wantMethod: "GET", wantPath: "/api/v1/posts",
 			wantQuery: "perPage=5&status=PUBLISHED",
 		},
 		{
-			name: "update_media", tool: "cmstack_go_update_media",
+			name: "update_media", tool: "agentic_cms_go_update_media",
 			args:       map[string]any{"id": "m1", "alt": "logo"},
 			wantMethod: "PATCH", wantPath: "/api/v1/media/m1",
 			wantBody: `{"alt":"logo"}`,
 		},
 		{
-			name: "mark_comment_spam", tool: "cmstack_go_mark_comment_spam",
+			name: "mark_comment_spam", tool: "agentic_cms_go_mark_comment_spam",
 			args:       map[string]any{"id": "c9"},
 			wantMethod: "POST", wantPath: "/api/v1/comments/c9/spam",
 		},
 		{
-			name: "set_active_theme", tool: "cmstack_go_set_active_theme",
+			name: "set_active_theme", tool: "agentic_cms_go_set_active_theme",
 			args:       map[string]any{"theme": "editorial"},
 			wantMethod: "PUT", wantPath: "/api/v1/settings/theme",
 			wantBody: `{"theme":"editorial"}`,
 		},
 		{
-			name: "create_faq", tool: "cmstack_go_create_faq",
+			name: "create_faq", tool: "agentic_cms_go_create_faq",
 			args:       map[string]any{"serviceId": "s1", "question": "Q?", "answer": "A."},
 			wantMethod: "POST", wantPath: "/api/v1/services/s1/faqs",
 			wantBody: `{"question":"Q?","answer":"A."}`,
 		},
 		{
-			name: "update_user", tool: "cmstack_go_update_user",
+			name: "update_user", tool: "agentic_cms_go_update_user",
 			args:       map[string]any{"id": "u1", "roleId": "r2"},
 			wantMethod: "PATCH", wantPath: "/api/v1/users/u1",
 			wantBody: `{"roleId":"r2"}`,

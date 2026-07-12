@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/content/comments"
-	"github.com/huseyn0w/cmstack-go/internal/content/posts"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/comments"
+	"github.com/huseyn0w/agentic-cms-go/internal/content/posts"
 )
 
 // commentPostPublic is the narrow subset of *posts.Service the comment adapters

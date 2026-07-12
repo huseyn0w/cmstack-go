@@ -1,6 +1,6 @@
 package media
 
-import "github.com/huseyn0w/cmstack-go/internal/platform/storage"
+import "github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 
 // thumbnailerFunc adapts storage.GenerateThumbnails (with a fixed spec set) to
 // the Thumbnailer interface. The wiring uses DefaultThumbnailSpecs; tests may

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/storage"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/storage"
 )
 
 func TestNew_LocalIsDefault(t *testing.T) {

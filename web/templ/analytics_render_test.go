@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/render"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/render"
 )
 
 // fakeAnalyticsSource is a stub analyticsSource returning fixed snippets.

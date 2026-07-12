@@ -8,13 +8,13 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-// Config holds all runtime configuration for CMStack-Go. Every field is
+// Config holds all runtime configuration for Agentic CMS-Go. Every field is
 // sourced from an environment variable so the app stays 12-factor friendly.
 type Config struct {
 	// AppEnv selects environment-specific behaviour (development|production|test).
 	AppEnv string `env:"APP_ENV" envDefault:"development"`
 	// HTTPAddr is the listen address for the HTTP server. Default :8090 keeps the
-	// Go stack off :8080 so it can run alongside the sibling cmstack-* projects
+	// Go stack off :8080 so it can run alongside the sibling agentic-cms-* projects
 	// during local dev (see ../../../../PORTS.md for the cross-stack allocation).
 	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8090"`
 	// BaseURL is the externally reachable base URL used for absolute links.
@@ -29,7 +29,7 @@ type Config struct {
 	CacheDriver string `env:"CACHE_DRIVER" envDefault:"memory"`
 	// CacheKeyPrefix namespaces every Redis cache key so a Redis instance can be
 	// shared safely; Clear/DeleteByPrefix stay scoped to this prefix.
-	CacheKeyPrefix string `env:"CACHE_KEY_PREFIX" envDefault:"cmstack:"`
+	CacheKeyPrefix string `env:"CACHE_KEY_PREFIX" envDefault:"agentic-cms:"`
 	// CachePageTTL bounds how long an anonymous public page response is cached
 	// (M13-2). It is a backstop: the page cache is also invalidated eagerly on
 	// content publish. A short default keeps silent edits (which emit no publish
@@ -57,7 +57,7 @@ type Config struct {
 
 	// AdminEmail / AdminPassword seed the default administrator. The password
 	// default is for local development only and MUST be overridden in production.
-	AdminEmail    string `env:"ADMIN_EMAIL" envDefault:"admin@cmstack.local"`
+	AdminEmail    string `env:"ADMIN_EMAIL" envDefault:"admin@agentic-cms.local"`
 	AdminPassword string `env:"ADMIN_PASSWORD" envDefault:"changeme-admin-password"`
 
 	// UploadDir is the filesystem root for user uploads (avatars + the M4 media
@@ -125,19 +125,19 @@ type Config struct {
 	SMTPUsername string `env:"SMTP_USERNAME" envDefault:""`
 	SMTPPassword string `env:"SMTP_PASSWORD" envDefault:""`
 	MailFrom     string `env:"MAIL_FROM" envDefault:""`
-	MailFromName string `env:"MAIL_FROM_NAME" envDefault:"CMStack"`
+	MailFromName string `env:"MAIL_FROM_NAME" envDefault:"Agentic CMS"`
 	SMTPTLS      string `env:"SMTP_TLS" envDefault:"starttls"`
 
 	// SEO / site identity (M8). All optional with sensible defaults so the app
 	// runs without any of these set; they enrich the document head + (later)
 	// JSON-LD Organization. SiteName is also passed as a router Dep today; it is
 	// mirrored here so the site identity lives in one config surface.
-	SiteName        string `env:"SITE_NAME" envDefault:"CMStack"`
+	SiteName        string `env:"SITE_NAME" envDefault:"Agentic CMS"`
 	SiteDescription string `env:"SITE_DESCRIPTION" envDefault:""`
 	// DefaultOGImage is the OG/Twitter image fallback (absolute URL or a rooted
 	// path resolved against BaseURL).
 	DefaultOGImage string `env:"DEFAULT_OG_IMAGE" envDefault:""`
-	// TwitterHandle is the site's Twitter/X handle (e.g. "@cmstack").
+	// TwitterHandle is the site's Twitter/X handle (e.g. "@agentic-cms").
 	TwitterHandle string `env:"TWITTER_HANDLE" envDefault:""`
 	// GlobalNoindex forces noindex site-wide (a staging gate).
 	GlobalNoindex bool `env:"GLOBAL_NOINDEX" envDefault:"false"`

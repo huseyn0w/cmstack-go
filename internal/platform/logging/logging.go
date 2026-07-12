@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
 )
 
 // New returns a JSON slog.Logger whose level is derived from the app

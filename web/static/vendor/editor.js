@@ -1,5 +1,5 @@
 /*
- * Self-hosted rich-text editor island for CMStack-Go.
+ * Self-hosted rich-text editor island for Agentic CMS-Go.
  *
  * A dependency-free Alpine.js component wrapping a contenteditable surface with
  * the DESIGN_SYSTEM §5 toolbar (Bold, Italic, H2, H3, bullet/ordered lists,

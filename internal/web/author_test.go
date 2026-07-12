@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
-	"github.com/huseyn0w/cmstack-go/internal/health"
-	"github.com/huseyn0w/cmstack-go/internal/platform/config"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/health"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/config"
 )
 
 // fakePublicAuthor is a controllable PublicAuthorService.
@@ -29,7 +29,7 @@ func buildAuthorEnv(t *testing.T, svc PublicAuthorService) http.Handler {
 	return Router(Deps{
 		Config: config.Config{AppEnv: "test", BaseURL: "https://site.test"},
 		Health: health.NewHandler(health.NewService(nil)),
-		Author: NewAuthorHandler(svc, nil, "CMStack", "https://site.test"),
+		Author: NewAuthorHandler(svc, nil, "Agentic CMS", "https://site.test"),
 	})
 }
 

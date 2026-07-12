@@ -114,7 +114,7 @@ CREATE INDEX oauth_accounts_user_idx ON oauth_accounts (user_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm1', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd
 
 -- +goose Down
@@ -147,5 +147,5 @@ DROP TABLE IF EXISTS roles;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-UPDATE schema_meta SET value = 'm0', updated_at = now() WHERE key = 'cmstack_version';
+UPDATE schema_meta SET value = 'm0', updated_at = now() WHERE key = 'agentic_cms_version';
 -- +goose StatementEnd

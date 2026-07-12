@@ -5,12 +5,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/huseyn0w/cmstack-go/internal/platform/httpx"
+	"github.com/huseyn0w/agentic-cms-go/internal/platform/httpx"
 )
 
 // Handler is the thin HTTP boundary for health checks. It contains ZERO logic:
 // it calls the service and encodes the result. This is the reference pattern
-// every feature handler in CMStack-Go copies.
+// every feature handler in Agentic CMS-Go copies.
 type Handler struct {
 	svc *Service
 }

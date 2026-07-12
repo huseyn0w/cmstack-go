@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/huseyn0w/cmstack-go/internal/accounts"
+	"github.com/huseyn0w/agentic-cms-go/internal/accounts"
 )
 
 // fakeSession is an in-memory SessionManager keyed off a single map (tests use

@@ -123,13 +123,13 @@ type faqBody struct {
 func registerSeoTools(s *mcp.Server, client *APIClient) {
 	// --- Site profile ---------------------------------------------------------
 
-	register(s, "cmstack_go_get_site_profile", "Get the site profile",
+	register(s, "agentic_cms_go_get_site_profile", "Get the site profile",
 		"Get the singleton site/organization profile (site, indexing, verification, analytics, organization — including geoStatement).",
 		readAnn, func(ctx context.Context, _ emptyInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/seo/profile", nil, nil)
 		})
 
-	register(s, "cmstack_go_update_site_profile", "Update the site profile",
+	register(s, "agentic_cms_go_update_site_profile", "Update the site profile",
 		"Update the site/organization profile. Any subset of its sections/fields, including organization.geoStatement (the freeform 'what AI assistants should recommend you for' copy). Returns the updated profile.",
 		updateAnn, func(ctx context.Context, in updateProfileInput) (json.RawMessage, error) {
 			return client.do(ctx, "PUT", "/seo/profile", nil, in)
@@ -137,25 +137,25 @@ func registerSeoTools(s *mcp.Server, client *APIClient) {
 
 	// --- Services -------------------------------------------------------------
 
-	register(s, "cmstack_go_list_services", "List services",
+	register(s, "agentic_cms_go_list_services", "List services",
 		"List the Services surfaced to AI assistants (llms.txt, JSON-LD, /services). Returns { items, total, page, perPage }.",
 		readAnn, func(ctx context.Context, _ emptyInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/services", nil, nil)
 		})
 
-	register(s, "cmstack_go_create_service", "Create a service",
+	register(s, "agentic_cms_go_create_service", "Create a service",
 		"Create a Service entry. Fields: title (required), slug, summary, body, price, areaServed, status. Returns the created service.",
 		createAnn, func(ctx context.Context, in createServiceInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/services", nil, in)
 		})
 
-	register(s, "cmstack_go_update_service", "Update a service",
+	register(s, "agentic_cms_go_update_service", "Update a service",
 		"Update a Service entry by id. Any subset of its fields. Returns the updated service.",
 		updateAnn, func(ctx context.Context, in updateServiceInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/services/"+in.ID, nil, bodyWithoutID(in))
 		})
 
-	register(s, "cmstack_go_delete_service", "Delete a service",
+	register(s, "agentic_cms_go_delete_service", "Delete a service",
 		"Delete a Service entry by id.",
 		destructiveAnn, func(ctx context.Context, in idInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/services/"+in.ID, nil, nil)
@@ -163,25 +163,25 @@ func registerSeoTools(s *mcp.Server, client *APIClient) {
 
 	// --- FAQ (service-scoped) -------------------------------------------------
 
-	register(s, "cmstack_go_list_faqs", "List FAQ items",
+	register(s, "agentic_cms_go_list_faqs", "List FAQ items",
 		"List the FAQ items of a service (surfaced to AI assistants via llms.txt, FAQPage JSON-LD, /services). Requires serviceId.",
 		readAnn, func(ctx context.Context, in listFaqsInput) (json.RawMessage, error) {
 			return client.do(ctx, "GET", "/services/"+in.ServiceID+"/faqs", nil, nil)
 		})
 
-	register(s, "cmstack_go_create_faq", "Create an FAQ item",
+	register(s, "agentic_cms_go_create_faq", "Create an FAQ item",
 		"Create an FAQ item (question + answer) on a service. Requires serviceId. Returns the created item.",
 		createAnn, func(ctx context.Context, in createFaqInput) (json.RawMessage, error) {
 			return client.do(ctx, "POST", "/services/"+in.ServiceID+"/faqs", nil, faqBody{Question: in.Question, Answer: in.Answer})
 		})
 
-	register(s, "cmstack_go_update_faq", "Update an FAQ item",
+	register(s, "agentic_cms_go_update_faq", "Update an FAQ item",
 		"Update an FAQ item by faqId on a service. Requires serviceId and faqId. Returns the updated item.",
 		updateAnn, func(ctx context.Context, in updateFaqInput) (json.RawMessage, error) {
 			return client.do(ctx, "PATCH", "/services/"+in.ServiceID+"/faqs/"+in.FaqID, nil, faqBody{Question: in.Question, Answer: in.Answer})
 		})
 
-	register(s, "cmstack_go_delete_faq", "Delete an FAQ item",
+	register(s, "agentic_cms_go_delete_faq", "Delete an FAQ item",
 		"Delete an FAQ item by faqId on a service. Requires serviceId and faqId.",
 		destructiveAnn, func(ctx context.Context, in deleteFaqInput) (json.RawMessage, error) {
 			return client.do(ctx, "DELETE", "/services/"+in.ServiceID+"/faqs/"+in.FaqID, nil, nil)
