@@ -16,8 +16,11 @@ coverage.out
 /seed
 /seedcontent
 
-# Local env
+# Local env (the .example templates stay tracked)
 .env
+.env.*
+!.env.example
+!.env.prod.example
 
 # Tailwind standalone binary (downloaded, not vendored)
 /bin/

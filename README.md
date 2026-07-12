@@ -180,6 +180,26 @@ is made without showing the real command output.**
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push/PR:
 `make generate` → `go vet` → `golangci-lint` → `go test ./...` → `go build ./...`.
 
+## Deployment
+
+Containerized with a multi-stage [`Dockerfile`](Dockerfile) (builds the Tailwind
+stylesheet + static Go binaries into a distroless, non-root image) and a
+production [`docker-compose.yml`](docker-compose.yml) (Postgres + Redis + a
+one-shot migrator + the web server + the async worker).
+
+```sh
+cp .env.prod.example .env.prod     # then edit the secrets (DB password, admin, BASE_URL, SMTP…)
+make docker-up                     # docker compose --env-file .env.prod up -d --build
+# server on http://localhost:${HTTP_PORT:-8090}  ·  make docker-logs  ·  make docker-down
+```
+
+The `migrate` service applies goose migrations (`db/migrations`) and exits before
+the server/worker start (`depends_on: service_completed_successfully`). Blobs
+persist in the `uploads` volume with the local storage driver; set
+`STORAGE_DRIVER=s3` + the `S3_*` keys for object storage. Redis backs the page
+and object caches (`CACHE_DRIVER=redis`). Security headers, HSTS, and secure
+cookies switch on automatically when `APP_ENV=production`.
+
 ## Roadmap & parity
 
 Done: **M0** foundation · **M1** auth/authz/profiles/admin-shell · **M2** content (posts/pages/services

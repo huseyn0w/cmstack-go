@@ -3,7 +3,7 @@
 Living continuation doc. Refreshed at every milestone. Pairs with `BUILD_PLAN.md` (full plan/stack
 mapping/event classification) and the read-only canon `../FEATURE_MATRIX.md` + `../DESIGN_SYSTEM.md`.
 
-**Last updated:** **ALL 20 MILESTONES COMPLETE** + **functional-gaps closeout done**. Module `github.com/huseyn0w/cmstack-go`. Push with `git push origin HEAD:main` (fast-forward). Latest migration = **00018** (api_tokens); next = 00019.
+**Last updated:** **ALL 20 MILESTONES COMPLETE** + **functional-gaps closeout done** + **deployment done** (multi-stage `Dockerfile` → distroless non-root; prod `docker-compose.yml` = postgres+redis+one-shot migrate+server+worker; `.env.prod.example`; `make docker-up/down/logs`; smoke-tested end-to-end — migrate→v18, /health + /health/ready + homepage + /static/app.css all 200. NOTE: Dockerfile uses `CMD` not `ENTRYPOINT` so compose `command:` can swap the binary per service; app.css is built by the Tailwind CLI in-image since it is gitignored; `*_templ.go` are committed so no templ step in-image). Module `github.com/huseyn0w/cmstack-go`. Push with `git push origin HEAD:main` (fast-forward). Latest migration = **00018** (api_tokens); next = 00019.
 
 **Functional-gaps closeout (post-M20, subagent-driven per superpowers SDD — implementer→task-review→final whole-branch review, all clean/READY TO MERGE):**
 - **T1** — `categorySlug`/`tagSlug`/`q` on `GET /api/v1/posts` were accepted-but-ignored; now wired end-to-end: `posts.ListFilter` gained `CategorySlug/TagSlug/Q`; new `ListPostsFiltered`/`CountPostsFiltered` sqlc queries (EXISTS-subquery junction filters + ILIKE `q`, `deleted_at IS NULL` kept, no row-dup); repo `List`/`Count` + `internal/api/posts.go` forward them; integration + API tests. (a9140ff)

@@ -1,0 +1,82 @@
+# Production-style stack for CMStack-Go: Postgres + Redis + a one-shot migrator,
+# the web server, and the async outbox worker (all sharing one image).
+#
+#   cp .env.prod.example .env.prod   # then edit secrets
+#   docker compose --env-file .env.prod up -d --build
+#
+# The server is reachable on http://localhost:${HTTP_PORT:-8090}.
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cmstack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cmstack}
+      POSTGRES_DB: ${POSTGRES_DB:-cmstack}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmstack} -d ${POSTGRES_DB:-cmstack}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: applies goose migrations, then exits 0. server/worker wait on it.
+  migrate:
+    build:
+      context: .
+    image: cmstack-go:latest
+    command: ["/app/migrate", "up"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    build:
+      context: .
+    image: cmstack-go:latest
+    restart: unless-stopped
+    env_file: .env.prod
+    ports:
+      - "${HTTP_PORT:-8090}:8090"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: cmstack-go:latest
+    command: ["/app/worker"]
+    restart: unless-stopped
+    env_file: .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:

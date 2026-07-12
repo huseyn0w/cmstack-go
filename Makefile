@@ -27,7 +27,7 @@ DEV_PORTS := 8090
 LOAD_ENV := set -a; [ -f .env ] && source .env; set +a
 
 .DEFAULT_GOAL := help
-.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt ci
+.PHONY: help dev up down reset logs seed migrate test kill clean env db-up db-down tools generate templ sqlc tailwind build run worker migrate-up migrate-down cover lint vet fmt ci docker-build docker-up docker-down docker-logs
 
 help: ## List the common targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -141,3 +141,15 @@ ci: generate ## Run the full CI pipeline locally (vet, lint, format, build, test
 	go build ./...
 	go test -p 2 -timeout 20m -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
+
+docker-build: ## Build the production container image (cmstack-go:latest)
+	docker build -t cmstack-go:latest .
+
+docker-up: ## Start the full prod stack (needs .env.prod — cp from .env.prod.example)
+	docker compose --env-file .env.prod up -d --build
+
+docker-down: ## Stop the prod stack (add ARGS=-v to also drop volumes)
+	docker compose --env-file .env.prod down $(ARGS)
+
+docker-logs: ## Tail the server + worker logs
+	docker compose --env-file .env.prod logs -f server worker
