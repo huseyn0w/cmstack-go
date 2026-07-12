@@ -1,18 +1,28 @@
-# Agentic CMS-Go
+# Agentic CMS for Go
 
-Analog of WordPress written in a Go stack — lighter, simpler, faster, and more secure. Server-rendered.
+**The CMS your AI runs.** Agentic CMS is an open-source, AI-first CMS you run from your AI
+assistant. It ships a built-in MCP server, so Claude Desktop, ChatGPT, or any MCP client can
+manage the whole site (content, media, roles, moderation, SEO) through a typed, permissioned
+interface, by chat instead of clicking an admin panel. AI capabilities include writing and
+editing content, moderating comments, semantic search, and RAG-ready answers.
 
-The Go member of the **agentic-cms** CMS family: the same product as
+It is still fast and native to its stack, open source (GPL-3.0), and part of a family that runs
+on any stack. This edition, **Agentic CMS for Go** (Go 1.26, chi + templ, PostgreSQL), is the Go
+member of the **agentic-cms** family: the same product as
 [`agentic-cms-django`](../agentic-cms-django), [`agentic-cms-laravel`](../agentic-cms-laravel), and
-[`agentic-cms-ts`](../agentic-cms-ts), built clean from day one in idiomatic Go.
+[`agentic-cms-ts`](../agentic-cms-ts), built clean from day one in idiomatic Go, server-rendered.
 
 It implements the shared canon at the repo root: the [Feature Matrix](../FEATURE_MATRIX.md)
 (what every stack must do) and the [Design System](../DESIGN_SYSTEM.md) (one visually identical,
 quiet-luxury UI).
 
-> **Status:** under active construction. Foundation + Auth + Content (Posts/Pages/Services) are
-> implemented and tested; remaining modules are tracked in [Roadmap & parity](#roadmap--parity)
-> and [`BUILD_PLAN.md`](BUILD_PLAN.md).
+- Landing page: <https://elman.group/agentic-cms/>
+- Family repo: <https://github.com/huseyn0w/agentic-cms>
+- This repo: <https://github.com/huseyn0w/agentic-cms-go>
+
+> **Status:** Ready. All milestones are implemented and tested, including the built-in MCP server
+> (`cmd/mcp`, see [`docs/mcp.md`](docs/mcp.md)). See [Roadmap & parity](#roadmap--parity) and
+> [`BUILD_PLAN.md`](BUILD_PLAN.md) for the full history.
 
 ## Stack
 
@@ -146,7 +156,8 @@ Implemented so far (✅) — tracked against the canonical [Feature Matrix](../F
 - ✅ **Platform**: design-system tokens (light/dark), self-hosted variable fonts, security headers + CSP,
   CSRF, health/readiness endpoints, transactional outbox.
 
-See [Roadmap & parity](#roadmap--parity) for what's next.
+See [Roadmap & parity](#roadmap--parity) for the full milestone history, including media, comments,
+search, SEO/GEO, and the [MCP server](docs/mcp.md).
 
 ## Commands
 
@@ -202,16 +213,15 @@ cookies switch on automatically when `APP_ENV=production`.
 
 ## Roadmap & parity
 
-Done: **M0** foundation · **M1** auth/authz/profiles/admin-shell · **M2** content (posts/pages/services
-+ bulk actions). In progress / upcoming (see [`BUILD_PLAN.md`](BUILD_PLAN.md) §4 for the full task board):
-
-- **M3** Taxonomies (categories tree, tags, filtered listings)
-- **M4** Media library (thumbnails, editor picker, S3 driver)
-- **M5** Comments (threaded, moderation, notifications)
-- **M6** Search (Postgres FTS) · **M7** i18n (per-locale content) · **M8** SEO + GEO (meta, JSON-LD,
-  sitemap, robots, llms.txt) · **M9** Themes · **M10** Plugins · **M11** Menus · **M12** Contact ·
-  **M13** Caching (Redis) · **M14** Email · **M15** Analytics + Settings · **M16** RSS · **M17** REST
-  API + MCP server · **M18** security sweep · **M19** UI/Lighthouse pass · **M20** coverage + E2E + CI.
+All 20 milestones are complete: **M0** foundation · **M1** auth/authz/profiles/admin-shell ·
+**M2** content (posts/pages/services + bulk actions) · **M3** taxonomies (categories tree, tags,
+filtered listings) · **M4** media library (thumbnails, editor picker, S3 driver) · **M5** comments
+(threaded, moderation, notifications) · **M6** search (Postgres FTS) · **M7** i18n (per-locale
+content) · **M8** SEO + GEO (meta, JSON-LD, sitemap, robots, llms.txt) · **M9** themes ·
+**M10** plugins · **M11** menus · **M12** contact · **M13** caching (Redis) · **M14** email ·
+**M15** analytics + settings · **M16** RSS · **M17** public REST API + MCP server ·
+**M18** security sweep · **M19** UI/Lighthouse pass · **M20** coverage + E2E + CI. Full detail and
+history in [`BUILD_PLAN.md`](BUILD_PLAN.md) §4 and [`HANDOFF.md`](HANDOFF.md).
 
 ## License
 

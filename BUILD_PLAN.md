@@ -1,7 +1,9 @@
 # agentic-cms-go (Agentic CMS-Go) — Build Plan
 
-**Product:** Agentic CMS-Go — the Go member of the agentic-cms CMS family. Same product as `agentic-cms-django` /
-`agentic-cms-laravel` / `agentic-cms-ts`, built clean from day one in idiomatic Go, server-rendered.
+**Product:** Agentic CMS, an open-source, AI-first CMS run from your AI assistant via a built-in MCP
+server. This is the Go edition, the Go member of the agentic-cms CMS family. Same product as
+`agentic-cms-django` / `agentic-cms-laravel` / `agentic-cms-ts`, built clean from day one in
+idiomatic Go, server-rendered.
 **Module path:** `github.com/huseyn0w/agentic-cms-go`
 **Canon (read-only, at repo root `../`):** `../FEATURE_MATRIX.md` (Target = what to build, Canonical =
 which project to mirror) · `../DESIGN_SYSTEM.md` (single UI source of truth).
